@@ -39,3 +39,29 @@ export const suggestSubtasks = async (taskTitle: string): Promise<string[]> => {
         return [];
     }
 }
+
+export const analyzeTaskPriority = async (task: any): Promise<'High' | 'Medium' | 'Low'> => {
+  if (!apiKey) return 'Medium';
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Analyze this task and suggest a priority level (High, Medium, or Low).
+      Title: ${task.title}
+      Due Date: ${task.dueDate || 'None'}
+      Notes: ${task.notes || 'None'}
+      Subtasks: ${task.subtasks?.length || 0}
+      
+      Return ONLY one word: High, Medium, or Low.`,
+    });
+
+    const text = response.text?.trim();
+    if (text === 'High' || text === 'Medium' || text === 'Low') {
+      return text;
+    }
+    return 'Medium';
+  } catch (e) {
+    console.error("Priority analysis failed", e);
+    return 'Medium';
+  }
+};

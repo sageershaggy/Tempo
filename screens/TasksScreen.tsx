@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Screen, Task, Subtask } from '../types';
-import { suggestSubtasks } from '../services/geminiService';
+import { suggestSubtasks, analyzeTaskPriority } from '../services/geminiService';
 
 // Mock Initial Data
 const INITIAL_TASKS: Task[] = [
@@ -9,7 +9,7 @@ const INITIAL_TASKS: Task[] = [
     title: 'Review Q3 Financials',
     category: 'Finance',
     priority: 'High',
-    dueDate: new Date(new Date().setHours(14, 0, 0, 0)).toISOString(), // Today 2 PM
+    dueDate: new Date(new Date().setHours(14, 0, 0, 0)).toISOString(),
     completed: false,
     createdAt: Date.now() - 100000,
     updatedAt: Date.now() - 50000,
@@ -21,7 +21,7 @@ const INITIAL_TASKS: Task[] = [
     title: 'Call Architect',
     category: 'Project A',
     priority: 'Medium',
-    dueDate: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString(), // Tomorrow
+    dueDate: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString(),
     completed: false,
     createdAt: Date.now() - 200000,
     subtasks: [
@@ -34,11 +34,17 @@ const INITIAL_TASKS: Task[] = [
     title: 'Update Client Presentation',
     category: 'Design',
     priority: 'Low',
-    dueDate: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(), // Yesterday (Overdue)
+    dueDate: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
     completed: false,
     createdAt: Date.now() - 300000,
     subtasks: []
   }
+];
+
+const MOCK_MILESTONES = [
+    { id: 'm1', title: 'Launch MVP Beta', progress: 75, color: 'bg-primary' },
+    { id: 'm2', title: 'Complete User Research', progress: 100, color: 'bg-secondary' },
+    { id: 'm3', title: 'Design System v2', progress: 30, color: 'bg-blue-500' },
 ];
 
 export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
@@ -47,8 +53,14 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
   const [filter, setFilter] = useState<string>('All');
   const [sort, setSort] = useState<'Manual' | 'Date' | 'Priority' | 'Title'>('Manual');
   const [loadingAI, setLoadingAI] = useState<string | null>(null);
+  const [analyzingPriority, setAnalyzingPriority] = useState<string | null>(null);
+  const [prioritySuggestion, setPrioritySuggestion] = useState<{taskId: string, suggestion: 'High' | 'Medium' | 'Low'} | null>(null);
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  
+  // Bulk Select State
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   // --- Derived State: Categories ---
   const categories = useMemo(() => {
@@ -59,13 +71,14 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
   // --- Filtering & Sorting Logic ---
   const filteredTasks = useMemo(() => {
     let result = tasks.filter(t => {
-        // Search Filter
         if (searchQuery && !t.title.toLowerCase().includes(searchQuery.toLowerCase())) {
             return false;
         }
-
-        // Category/Status Filter
-        if (filter === 'All') return !t.completed;
+        if (filter === 'All') return true; // Show all (completed and not completed) if 'All' is meant to be truly all? Usually All means active. Let's stick to standard tabs.
+        // Correction: Standard tabs usually are All (Active), Completed. 
+        // User asked for "enhance filtering to include Completed and Overdue".
+        
+        if (filter === 'All') return !t.completed; 
         if (filter === 'Completed') return t.completed;
         if (filter === 'High') return t.priority === 'High' && !t.completed;
         if (filter === 'Overdue') {
@@ -77,7 +90,7 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
         return !t.completed;
     });
 
-    if (sort === 'Manual') return result; // Return order as is (for drag & drop)
+    if (sort === 'Manual') return result;
 
     return result.sort((a, b) => {
         if (sort === 'Date') {
@@ -98,11 +111,29 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
 
   // --- Handlers ---
 
+  const toggleTaskSelection = (id: string) => {
+      const newSet = new Set(selectedTaskIds);
+      if (newSet.has(id)) newSet.delete(id);
+      else newSet.add(id);
+      setSelectedTaskIds(newSet);
+  };
+
+  const handleBulkComplete = () => {
+      setTasks(prev => prev.map(t => selectedTaskIds.has(t.id) ? { ...t, completed: true } : t));
+      setSelectedTaskIds(new Set());
+      setIsSelectionMode(false);
+  };
+
+  const handleBulkDelete = () => {
+      setTasks(prev => prev.filter(t => !selectedTaskIds.has(t.id)));
+      setSelectedTaskIds(new Set());
+      setIsSelectionMode(false);
+  };
+
   const handleDragStart = (e: React.DragEvent, id: string) => {
-    if (sort !== 'Manual' || searchQuery) return; // Disable drag if sorted or searching
+    if (sort !== 'Manual' || searchQuery || isSelectionMode) return;
     setDraggedTaskId(id);
     e.dataTransfer.effectAllowed = 'move';
-    // Transparent drag image
     const img = new Image();
     img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
     e.dataTransfer.setDragImage(img, 0, 0);
@@ -111,22 +142,22 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
   const handleDragOver = (e: React.DragEvent, targetId: string) => {
     e.preventDefault();
     if (!draggedTaskId || draggedTaskId === targetId || sort !== 'Manual') return;
-
     const originalList = [...tasks];
     const draggedIndex = originalList.findIndex(t => t.id === draggedTaskId);
     const targetIndex = originalList.findIndex(t => t.id === targetId);
-
     if (draggedIndex === -1 || targetIndex === -1) return;
-
     const newList = [...originalList];
     const [removed] = newList.splice(draggedIndex, 1);
     newList.splice(targetIndex, 0, removed);
-
     setTasks(newList);
   };
 
   const handleToggleTask = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed, updatedAt: Date.now() } : t));
+      if (isSelectionMode) {
+          toggleTaskSelection(id);
+      } else {
+        setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed, updatedAt: Date.now() } : t));
+      }
   };
 
   const handleUpdateTask = (id: string, updates: Partial<Task>) => {
@@ -154,7 +185,6 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
             title: s,
             completed: false
         }));
-
         setTasks(prev => prev.map(t => {
             if (t.id !== taskId) return t;
             return { ...t, subtasks: [...t.subtasks, ...newSubtasks], updatedAt: Date.now() };
@@ -164,6 +194,17 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
     } finally {
         setLoadingAI(null);
     }
+  };
+
+  const handleAnalyzePriority = async (task: Task) => {
+      setAnalyzingPriority(task.id);
+      setPrioritySuggestion(null);
+      try {
+          const suggestion = await analyzeTaskPriority(task);
+          setPrioritySuggestion({ taskId: task.id, suggestion });
+      } finally {
+          setAnalyzingPriority(null);
+      }
   };
 
   const handleAddSubtask = (taskId: string, title: string) => {
@@ -186,27 +227,33 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
       }
   };
 
-  // --- Render ---
-
   return (
-    <div className="h-full flex flex-col bg-background-dark pb-24">
+    <div className="h-full flex flex-col bg-background-dark pb-24 relative">
        {/* Header */}
        <div className="pt-12 pb-4 px-6 bg-gradient-to-b from-background-dark to-transparent sticky top-0 z-20 backdrop-blur-md">
-            <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-secondary text-2xl">bolt</span>
-                    <span className="font-bold text-lg">Tempo</span>
-                </div>
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-secondary p-[2px]">
-                    <img src="https://picsum.photos/100/100" className="w-full h-full rounded-full object-cover border-2 border-background-dark" alt="Profile" />
-                </div>
-            </div>
-            
             <div className="flex items-center justify-between mb-4">
                 <h1 className="text-3xl font-bold">My Tasks</h1>
-                 <button className="w-10 h-10 rounded-full bg-primary flex items-center justify-center hover:bg-primary-light shadow-lg shadow-primary/30 active:scale-95 transition-all" onClick={() => setScreen(Screen.QUICK_ADD)}>
-                    <span className="material-symbols-outlined text-white">add</span>
-                 </button>
+                <div className="flex gap-2">
+                    <button 
+                         onClick={() => setScreen(Screen.AUDIO)}
+                         className="w-10 h-10 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80 text-white"
+                         title="Focus Audio"
+                    >
+                         <span className="material-symbols-outlined text-lg">headphones</span>
+                    </button>
+                    <button 
+                        onClick={() => {
+                            setIsSelectionMode(!isSelectionMode);
+                            setSelectedTaskIds(new Set());
+                        }}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isSelectionMode ? 'bg-white text-black' : 'bg-surface-light text-white'}`}
+                    >
+                        <span className="material-symbols-outlined text-sm">checklist_rtl</span>
+                    </button>
+                    <button onClick={() => setScreen(Screen.QUICK_ADD)} className="w-10 h-10 rounded-full bg-primary flex items-center justify-center hover:bg-primary-light shadow-lg">
+                        <span className="material-symbols-outlined text-white">add</span>
+                    </button>
+                </div>
             </div>
 
             {/* Search Bar */}
@@ -223,6 +270,10 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
 
             {/* Filter & Sort Bar */}
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+                <button onClick={() => setScreen(Screen.MILESTONES)} className="px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap bg-blue-500/10 text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">flag</span> Milestones
+                </button>
+                <div className="w-px h-6 bg-white/10 mx-1 shrink-0"></div>
                 {['All', 'High', 'Overdue', 'Completed', ...categories].map((f) => (
                     <button 
                         key={f}
@@ -236,18 +287,6 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                         {f}
                     </button>
                 ))}
-                <div className="w-px h-6 bg-white/10 mx-1 shrink-0"></div>
-                <button 
-                    onClick={() => {
-                        const modes: ('Manual' | 'Date' | 'Priority' | 'Title')[] = ['Manual', 'Date', 'Priority', 'Title'];
-                        const next = modes[(modes.indexOf(sort) + 1) % modes.length];
-                        setSort(next);
-                    }}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-surface-light text-xs font-bold text-primary border border-primary/20 shrink-0"
-                >
-                    <span className="material-symbols-outlined text-sm">sort</span>
-                    {sort}
-                </button>
             </div>
        </div>
 
@@ -258,13 +297,7 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                         <span className="material-symbols-outlined text-4xl text-muted">filter_list_off</span>
                     </div>
                     <p className="text-white font-bold text-lg">No tasks found</p>
-                    <p className="text-muted text-sm max-w-[200px] mt-1">Try adjusting your filters or search query to find what you're looking for.</p>
-                     <button 
-                        onClick={() => { setFilter('All'); setSearchQuery(''); }}
-                        className="mt-6 text-primary font-bold text-sm hover:underline"
-                    >
-                        Clear Filters
-                    </button>
+                    <button onClick={() => setFilter('All')} className="text-primary text-sm font-bold mt-2">Clear Filters</button>
                 </div>
             ) : (
                 filteredTasks.map(task => {
@@ -273,19 +306,22 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                     const subtaskProgress = task.subtasks.length > 0 
                         ? (task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100 
                         : 0;
+                    const isSelected = selectedTaskIds.has(task.id);
+                    const linkedMilestone = MOCK_MILESTONES.find(m => m.id === task.milestoneId);
 
                     return (
                         <div 
                             key={task.id} 
-                            draggable={sort === 'Manual' && !searchQuery}
+                            draggable={sort === 'Manual' && !searchQuery && !isSelectionMode}
                             onDragStart={(e) => handleDragStart(e, task.id)}
                             onDragOver={(e) => handleDragOver(e, task.id)}
-                            className={`bg-surface-dark rounded-xl border border-white/5 overflow-hidden transition-all duration-300 ${draggedTaskId === task.id ? 'opacity-50 scale-95' : 'opacity-100'}`}
+                            className={`bg-surface-dark rounded-xl border overflow-hidden transition-all duration-300 relative ${
+                                isSelected ? 'border-primary bg-primary/5' : 'border-white/5'
+                            } ${draggedTaskId === task.id ? 'opacity-50 scale-95' : 'opacity-100'}`}
                         >
                             {/* Main Task Row */}
                             <div className="relative">
-                                {/* Subtask Progress Bar (Top Border) */}
-                                {task.subtasks.length > 0 && (
+                                {task.subtasks.length > 0 && !isSelected && (
                                     <div className="absolute top-0 left-0 w-full h-[2px] bg-white/5">
                                         <div 
                                             className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500" 
@@ -295,23 +331,26 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                 )}
 
                                 <div className="p-4 flex gap-4">
-                                    {/* Drag Handle (Visible only in Manual sort) */}
-                                    {sort === 'Manual' && !searchQuery && (
-                                        <div className="flex items-center justify-center cursor-grab active:cursor-grabbing text-muted hover:text-white">
-                                            <span className="material-symbols-outlined text-lg">drag_indicator</span>
+                                    {/* Selection Checkbox or Drag Handle */}
+                                    {isSelectionMode ? (
+                                        <div 
+                                            onClick={() => toggleTaskSelection(task.id)}
+                                            className={`w-6 h-6 rounded border-2 flex items-center justify-center shrink-0 cursor-pointer ${isSelected ? 'bg-primary border-primary' : 'border-muted'}`}
+                                        >
+                                            {isSelected && <span className="material-symbols-outlined text-white text-sm">check</span>}
                                         </div>
+                                    ) : (
+                                        <button 
+                                            onClick={() => handleToggleTask(task.id)}
+                                            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+                                                task.completed ? 'bg-primary border-primary' : 'border-muted hover:border-primary'
+                                            }`}
+                                        >
+                                            {task.completed && <span className="material-symbols-outlined text-white text-sm">check</span>}
+                                        </button>
                                     )}
-
-                                    <button 
-                                        onClick={() => handleToggleTask(task.id)}
-                                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
-                                            task.completed ? 'bg-primary border-primary' : 'border-muted hover:border-primary'
-                                        }`}
-                                    >
-                                        {task.completed && <span className="material-symbols-outlined text-white text-sm">check</span>}
-                                    </button>
                                     
-                                    <div className="flex-1 min-w-0" onClick={() => setExpandedTask(expanded ? null : task.id)}>
+                                    <div className="flex-1 min-w-0" onClick={() => !isSelectionMode && setExpandedTask(expanded ? null : task.id)}>
                                         <div className="flex justify-between items-start mb-1">
                                             <h3 className={`text-base font-medium truncate pr-2 ${task.completed ? 'line-through text-muted' : 'text-white'}`}>
                                                 {task.title}
@@ -323,7 +362,6 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                         </div>
                                         
                                         <div className="flex items-center gap-3">
-                                            {/* Date Picker Display */}
                                             <div 
                                                 className={`flex items-center gap-1 text-xs font-bold transition-colors ${overdue ? 'text-secondary' : 'text-muted hover:text-white'}`}
                                                 onClick={(e) => e.stopPropagation()} 
@@ -348,62 +386,100 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                             </div>
 
                             {/* Expanded Details */}
-                            {(expanded || task.subtasks.length > 0) && (
-                                <div className={`bg-black/20 border-t border-white/5 p-4 transition-all ${expanded ? 'block' : 'hidden'}`}>
-                                    
-                                    {/* Expanded Metadata */}
-                                    {expanded && (
-                                        <div className="mb-6 grid gap-4 animate-fade-in">
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="text-[10px] uppercase font-bold text-muted block mb-1">Category</label>
-                                                    <input 
-                                                        type="text" 
-                                                        value={task.category}
-                                                        onChange={(e) => handleUpdateTask(task.id, { category: e.target.value })}
-                                                        className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-primary/50 focus:outline-none"
-                                                    />
+                            {expanded && !isSelectionMode && (
+                                <div className="bg-black/20 border-t border-white/5 p-4 transition-all">
+                                    <div className="mb-6 grid gap-4 animate-fade-in">
+                                        
+                                        {/* Milestone Display (New) */}
+                                        {linkedMilestone && (
+                                            <div className="bg-surface-light border border-white/5 rounded-lg p-3">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-xs font-bold text-white flex items-center gap-1">
+                                                        <span className="material-symbols-outlined text-sm text-secondary">flag</span> {linkedMilestone.title}
+                                                    </span>
+                                                    <span className="text-[10px] text-muted font-bold">{linkedMilestone.progress}% Complete</span>
                                                 </div>
-                                                <div>
-                                                    <label className="text-[10px] uppercase font-bold text-muted block mb-1">Priority</label>
+                                                <div className="w-full bg-black/50 h-1.5 rounded-full overflow-hidden">
+                                                    <div className={`h-full ${linkedMilestone.color}`} style={{ width: `${linkedMilestone.progress}%` }}></div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Milestone & Priority Selectors */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] uppercase font-bold text-muted block mb-1">Milestone Link</label>
+                                                <div className="relative">
+                                                    <select 
+                                                        value={task.milestoneId || ''}
+                                                        onChange={(e) => handleUpdateTask(task.id, { milestoneId: e.target.value })}
+                                                        className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white focus:border-primary/50 focus:outline-none appearance-none"
+                                                    >
+                                                        <option value="">No Milestone</option>
+                                                        {MOCK_MILESTONES.map(m => (
+                                                            <option key={m.id} value={m.id}>{m.title}</option>
+                                                        ))}
+                                                    </select>
+                                                    <span className="material-symbols-outlined absolute right-2 top-1.5 text-xs text-muted pointer-events-none">expand_more</span>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] uppercase font-bold text-muted block mb-1">Priority AI</label>
+                                                <div className="flex gap-2 items-center">
                                                     <select 
                                                         value={task.priority}
                                                         onChange={(e) => handleUpdateTask(task.id, { priority: e.target.value as any })}
-                                                        className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-primary/50 focus:outline-none"
+                                                        className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white focus:border-primary/50 focus:outline-none"
                                                     >
                                                         <option value="High">High</option>
                                                         <option value="Medium">Medium</option>
                                                         <option value="Low">Low</option>
                                                     </select>
+                                                    <button 
+                                                        onClick={() => handleAnalyzePriority(task)}
+                                                        className="w-7 h-7 bg-primary/20 rounded flex items-center justify-center hover:bg-primary/40 text-primary"
+                                                        title="Suggest Priority"
+                                                    >
+                                                        <span className={`material-symbols-outlined text-sm ${analyzingPriority === task.id ? 'animate-spin' : ''}`}>auto_awesome</span>
+                                                    </button>
                                                 </div>
                                             </div>
-
-                                            <div>
-                                                <label className="text-[10px] uppercase font-bold text-muted block mb-1">Notes</label>
-                                                <textarea 
-                                                    value={task.notes || ''}
-                                                    onChange={(e) => handleUpdateTask(task.id, { notes: e.target.value })}
-                                                    placeholder="Add notes here..."
-                                                    className="w-full bg-white/5 border border-white/10 rounded p-2 text-xs text-white min-h-[60px] focus:border-primary/50 focus:outline-none resize-none"
-                                                />
-                                            </div>
-                                            
-                                            <div className="flex justify-between text-[10px] text-muted border-t border-white/5 pt-2">
-                                                <span>Created: {new Date(task.createdAt).toLocaleDateString()}</span>
-                                                {task.updatedAt && <span>Updated: {new Date(task.updatedAt).toLocaleDateString()}</span>}
-                                            </div>
                                         </div>
-                                    )}
 
-                                    {/* Subtasks Section */}
+                                        {/* AI Priority Suggestion Result */}
+                                        {prioritySuggestion && prioritySuggestion.taskId === task.id && (
+                                            <div className="bg-gradient-to-r from-primary/10 to-transparent p-2 rounded border border-primary/20 flex items-center justify-between">
+                                                <span className="text-xs text-white">AI suggests: <span className="font-bold text-primary">{prioritySuggestion.suggestion}</span></span>
+                                                <button 
+                                                    onClick={() => {
+                                                        handleUpdateTask(task.id, { priority: prioritySuggestion.suggestion });
+                                                        setPrioritySuggestion(null);
+                                                    }}
+                                                    className="text-[10px] bg-primary text-white px-2 py-1 rounded font-bold"
+                                                >
+                                                    Apply
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        <div>
+                                            <label className="text-[10px] uppercase font-bold text-muted block mb-1">Notes</label>
+                                            <textarea 
+                                                value={task.notes || ''}
+                                                onChange={(e) => handleUpdateTask(task.id, { notes: e.target.value })}
+                                                placeholder="Add detailed notes here..."
+                                                className="w-full bg-white/5 border border-white/10 rounded p-2 text-xs text-white min-h-[80px] focus:border-primary/50 focus:outline-none resize-none"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Subtasks */}
                                     <div className="space-y-2 mb-4">
                                         {task.subtasks.map(st => (
-                                            <div key={st.id} className="flex items-center gap-3 pl-2 group">
+                                            <div key={st.id} className="flex items-center gap-3 pl-2">
                                                 <button 
                                                     onClick={() => handleToggleSubtask(task.id, st.id)}
-                                                    className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                                                        st.completed ? 'bg-white/40 border-transparent' : 'border-white/20 hover:border-white/40'
-                                                    }`}
+                                                    className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${st.completed ? 'bg-white/40 border-transparent' : 'border-white/20'}`}
                                                 >
                                                      {st.completed && <span className="material-symbols-outlined text-black text-[10px] font-bold">check</span>}
                                                 </button>
@@ -411,8 +487,7 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                             </div>
                                         ))}
                                     </div>
-
-                                    {/* Add Subtask Input */}
+                                    
                                     <div className="flex items-center gap-2 mb-4 pl-2">
                                         <span className="material-symbols-outlined text-muted text-sm">add</span>
                                         <input 
@@ -428,7 +503,6 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                         />
                                     </div>
 
-                                    {/* AI & Focus Buttons */}
                                     <div className="flex gap-2">
                                         <button 
                                             onClick={() => handleGenerateSubtasks(task.id, task.title)}
@@ -438,22 +512,21 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                             <span className={`material-symbols-outlined text-sm ${loadingAI === task.id ? 'animate-spin' : ''}`}>
                                                 {loadingAI === task.id ? 'sync' : 'auto_awesome'}
                                             </span>
-                                            {loadingAI === task.id ? 'Generating...' : 'AI Subtasks'}
+                                            AI Subtasks
                                         </button>
-                                        
                                         <button 
                                             onClick={() => setScreen(Screen.TIMER)}
                                             className="flex-1 py-2 rounded-lg bg-white text-black font-bold text-xs flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
                                         >
                                             <span className="material-symbols-outlined text-sm">play_arrow</span>
-                                            Focus Now
+                                            Start Timer for Task
                                         </button>
                                     </div>
                                 </div>
                             )}
-                            
-                            {/* Simple Expansion Chevron */}
-                            {!expanded && task.subtasks.length > 0 && (
+
+                             {/* Simple Expansion Chevron */}
+                             {!expanded && !isSelectionMode && task.subtasks.length > 0 && (
                                 <div 
                                     className="bg-black/20 border-t border-white/5 py-1 flex justify-center cursor-pointer hover:bg-white/5"
                                     onClick={() => setExpandedTask(task.id)}
@@ -467,15 +540,25 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
             )}
        </div>
 
-       {/* Floating Action Button - Reaffirmed as prominent */}
-       <div className="absolute bottom-24 right-6 z-30">
-            <button 
-                onClick={() => setScreen(Screen.QUICK_ADD)} 
-                className="w-14 h-14 bg-secondary rounded-full shadow-[0_4px_20px_-5px_rgba(255,107,107,0.5)] flex items-center justify-center hover:scale-110 transition-transform active:scale-95 text-white"
-            >
-                <span className="material-symbols-outlined text-3xl">add</span>
-            </button>
-       </div>
+       {/* Floating Action Button (Standard) */}
+       {!isSelectionMode && (
+           <div className="absolute bottom-24 right-6 z-30">
+                <button onClick={() => setScreen(Screen.QUICK_ADD)} className="w-14 h-14 bg-secondary rounded-full shadow-[0_4px_20px_-5px_rgba(255,107,107,0.5)] flex items-center justify-center hover:scale-110 transition-transform active:scale-95 text-white">
+                    <span className="material-symbols-outlined text-3xl">add</span>
+                </button>
+           </div>
+       )}
+
+       {/* Bulk Action Bar */}
+       {isSelectionMode && selectedTaskIds.size > 0 && (
+           <div className="absolute bottom-24 left-4 right-4 bg-surface-light border border-white/10 p-3 rounded-2xl shadow-2xl flex items-center justify-between z-40 animate-slide-up">
+                <span className="text-sm font-bold px-2">{selectedTaskIds.size} selected</span>
+                <div className="flex gap-2">
+                    <button onClick={handleBulkComplete} className="px-3 py-2 bg-green-500/20 text-green-400 rounded-lg text-xs font-bold border border-green-500/30">Complete</button>
+                    <button onClick={handleBulkDelete} className="px-3 py-2 bg-red-500/20 text-red-400 rounded-lg text-xs font-bold border border-red-500/30">Delete</button>
+                </div>
+           </div>
+       )}
     </div>
   );
 };
