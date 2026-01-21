@@ -10,6 +10,8 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { SocialScreen } from './screens/SocialScreen';
 import { QuickAddScreen } from './screens/QuickAddScreen';
+import { AudioScreen } from './screens/AudioScreen';
+import { MilestonesScreen } from './screens/MilestonesScreen';
 
 const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<Screen>(Screen.SPLASH);
@@ -34,6 +36,10 @@ const App: React.FC = () => {
         return <SocialScreen setScreen={setCurrentScreen} />;
       case Screen.QUICK_ADD:
         return <QuickAddScreen setScreen={setCurrentScreen} />;
+      case Screen.AUDIO:
+        return <AudioScreen setScreen={setCurrentScreen} />;
+      case Screen.MILESTONES:
+        return <MilestonesScreen setScreen={setCurrentScreen} />;
       default:
         return <TimerScreen setScreen={setCurrentScreen} />;
     }

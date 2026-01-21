@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Screen } from '../types';
 
 export const SettingsScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
+  const [customDuration, setCustomDuration] = useState(42);
+  const [tickSpeed, setTickSpeed] = useState(15);
+
   return (
     <div className="h-full flex flex-col bg-background-dark pb-24 overflow-y-auto no-scrollbar">
       <div className="sticky top-0 z-20 bg-background-dark/95 backdrop-blur-md p-4 border-b border-white/5 flex items-center justify-between">
@@ -11,42 +14,33 @@ export const SettingsScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ s
       </div>
 
       <div className="p-6 space-y-8">
-        {/* Audio Mixer */}
+        {/* Audio Link */}
         <section>
             <div className="flex items-center gap-2 mb-4">
                 <span className="material-symbols-outlined text-primary">equalizer</span>
-                <h3 className="text-lg font-bold">Audio Mixer</h3>
+                <h3 className="text-lg font-bold">Audio & Soundscapes</h3>
             </div>
-            <div className="bg-surface-dark rounded-xl p-5 space-y-6 border border-white/5">
-                <div className="space-y-3">
-                    <div className="flex justify-between">
-                        <span className="text-sm font-medium text-muted">Master Volume</span>
-                        <span className="text-xs font-bold text-secondary">85%</span>
-                    </div>
-                    <input type="range" className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-secondary" defaultValue={85} />
+            <div 
+                onClick={() => setScreen(Screen.AUDIO)}
+                className="bg-surface-dark rounded-xl p-5 border border-white/5 flex items-center justify-between cursor-pointer hover:bg-surface-light/50 transition-colors"
+            >
+                <div>
+                    <p className="font-bold text-white">Focus Soundscapes</p>
+                    <p className="text-xs text-muted mt-1">Binaural beats, ambient noise & more</p>
                 </div>
-                
-                <div className="space-y-2">
-                    <span className="text-sm font-medium text-muted">Soundscape</span>
-                    <div className="relative">
-                        <select className="w-full bg-surface-light border-none rounded-lg text-white text-sm py-3 px-4 appearance-none focus:ring-1 focus:ring-primary">
-                            <option>Heavy Rain</option>
-                            <option>Coffee Shop</option>
-                            <option>White Noise</option>
-                        </select>
-                        <span className="material-symbols-outlined absolute right-3 top-3 text-primary pointer-events-none">expand_more</span>
-                    </div>
-                </div>
+                <span className="material-symbols-outlined text-muted">chevron_right</span>
             </div>
         </section>
 
-        {/* Focus Rhythm */}
+        {/* Focus Rhythm & Customization */}
         <section>
             <div className="flex items-center gap-2 mb-4">
                 <span className="material-symbols-outlined text-primary">timer</span>
                 <h3 className="text-lg font-bold">Focus Rhythm</h3>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            
+            {/* Presets */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
                 <button className="relative p-4 bg-primary rounded-xl border-2 border-primary text-left shadow-lg transform hover:scale-[1.02] transition-transform">
                     <span className="material-symbols-outlined absolute top-3 right-3 text-white">check_circle</span>
                     <p className="text-xs font-bold text-white/80 mb-1">POMODORO</p>
@@ -58,6 +52,64 @@ export const SettingsScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ s
                     <p className="text-2xl font-bold">50/10</p>
                     <p className="text-xs text-muted">High intensity</p>
                 </button>
+            </div>
+
+            {/* Custom Settings Card */}
+            <div className="bg-surface-light rounded-xl p-6 border border-white/10 shadow-xl">
+                <div className="flex items-center gap-2 mb-6">
+                    <span className="material-symbols-outlined text-secondary">tune</span>
+                    <h4 className="font-bold text-base">Custom Focus</h4>
+                </div>
+                
+                <div className="space-y-6">
+                    {/* Duration Input */}
+                    <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-muted">Duration</label>
+                        <div className="flex items-center gap-2 bg-background-dark border border-white/10 rounded-lg px-3 py-2">
+                            <input 
+                                type="number" 
+                                value={customDuration}
+                                onChange={(e) => setCustomDuration(Number(e.target.value))}
+                                className="w-12 bg-transparent text-right font-bold text-white outline-none"
+                            />
+                            <span className="text-sm text-muted font-bold">minutes</span>
+                        </div>
+                    </div>
+
+                    {/* Timer Sound */}
+                    <div className="space-y-2">
+                         <label className="text-sm font-medium text-muted">Timer sound</label>
+                         <div className="flex gap-2">
+                            <div className="relative flex-1">
+                                <select className="w-full bg-background-dark border border-white/10 rounded-lg text-white text-sm py-2.5 px-3 appearance-none focus:border-primary outline-none">
+                                    <option>Desk Clock</option>
+                                    <option>Digital Beep</option>
+                                    <option>Soft Bell</option>
+                                    <option>None</option>
+                                </select>
+                                <span className="material-symbols-outlined absolute right-3 top-2.5 text-muted pointer-events-none text-lg">expand_more</span>
+                            </div>
+                            <button className="px-3 bg-surface-dark border border-white/10 rounded-lg flex items-center justify-center hover:bg-white/5 text-primary text-sm font-bold gap-1">
+                                <span className="material-symbols-outlined text-lg">play_arrow</span>
+                                Preview
+                            </button>
+                         </div>
+                    </div>
+
+                    {/* Speed / BPM */}
+                    <div className="flex items-center justify-between">
+                         <label className="text-sm font-medium text-muted">Speed</label>
+                         <div className="flex items-center gap-2">
+                            <input 
+                                type="number" 
+                                value={tickSpeed}
+                                onChange={(e) => setTickSpeed(Number(e.target.value))}
+                                className="w-16 bg-background-dark border border-white/10 rounded-lg px-3 py-2 text-center font-bold text-white outline-none"
+                            />
+                            <span className="text-sm text-muted">beats per minute</span>
+                         </div>
+                    </div>
+                </div>
             </div>
         </section>
 

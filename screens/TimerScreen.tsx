@@ -1,10 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { Screen } from '../types';
 
+type TimerMode = 'pomodoro' | 'deep' | 'custom';
+
 export const TimerScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
+  const [mode, setMode] = useState<TimerMode>('pomodoro');
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
+  const [initialTime, setInitialTime] = useState(25 * 60);
   
+  // Update timer when mode changes
+  useEffect(() => {
+    setIsActive(false);
+    let newTime = 25 * 60;
+    if (mode === 'deep') newTime = 50 * 60;
+    if (mode === 'custom') newTime = 45 * 60; // Default custom to 45m
+    
+    setInitialTime(newTime);
+    setTimeLeft(newTime);
+  }, [mode]);
+
   useEffect(() => {
     let interval: any;
     if (isActive && timeLeft > 0) {
@@ -23,18 +38,42 @@ export const TimerScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const progress = ((25 * 60 - timeLeft) / (25 * 60)) * 283;
+  const progress = ((initialTime - timeLeft) / initialTime) * 283;
 
   return (
     <div className="h-full flex flex-col px-6 pt-8 pb-24 overflow-y-auto no-scrollbar">
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-center mb-6">
         <div>
             <h1 className="text-2xl font-bold">Tempo</h1>
-            <p className="text-xs font-bold text-secondary uppercase tracking-wider">Deep Work Mode</p>
+            <p className="text-xs font-bold text-secondary uppercase tracking-wider">
+                {mode === 'pomodoro' ? 'Pomodoro' : mode === 'deep' ? 'Deep Work' : 'Custom Session'}
+            </p>
         </div>
         <button onClick={() => setScreen(Screen.SETTINGS)} className="w-10 h-10 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80">
             <span className="material-symbols-outlined">tune</span>
+        </button>
+      </div>
+
+      {/* Mode Switcher */}
+      <div className="flex p-1 bg-surface-light rounded-xl mb-8 border border-white/5">
+        <button 
+            onClick={() => setMode('pomodoro')}
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${mode === 'pomodoro' ? 'bg-primary text-white shadow-lg' : 'text-muted hover:text-white'}`}
+        >
+            25/5
+        </button>
+        <button 
+            onClick={() => setMode('deep')}
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${mode === 'deep' ? 'bg-primary text-white shadow-lg' : 'text-muted hover:text-white'}`}
+        >
+            50/10
+        </button>
+        <button 
+            onClick={() => setMode('custom')}
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${mode === 'custom' ? 'bg-primary text-white shadow-lg' : 'text-muted hover:text-white'}`}
+        >
+            Custom
         </button>
       </div>
 
@@ -54,7 +93,7 @@ export const TimerScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
         </svg>
         <div className="absolute flex flex-col items-center">
             <span className="text-6xl font-black tracking-tighter tabular-nums">{formatTime(timeLeft)}</span>
-            <span className="text-sm font-medium text-muted mt-2 uppercase tracking-widest">{isActive ? 'Focusing' : 'Ready to Focus'}</span>
+            <span className="text-sm font-medium text-muted mt-2 uppercase tracking-widest">{isActive ? 'Focusing' : 'Ready'}</span>
         </div>
       </div>
 

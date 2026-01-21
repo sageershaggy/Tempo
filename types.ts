@@ -29,6 +29,15 @@ export interface Task {
   createdAt: number; // Timestamp
   updatedAt?: number; // Timestamp
   notes?: string;
+  milestoneId?: string;
+}
+
+export interface Milestone {
+  id: string;
+  title: string;
+  dueDate: string;
+  color: string;
+  progress: number; // 0-100
 }
 
 export interface NavProps {
