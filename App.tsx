@@ -118,7 +118,7 @@ const App: React.FC = () => {
       case Screen.PROFILE:
         return <ProfileScreen {...props} />;
       case Screen.SOCIAL:
-        return <SocialScreen setScreen={setCurrentScreen} />;
+        return <SocialScreen {...props} />;
       case Screen.QUICK_ADD:
         return <QuickAddScreen {...props} />;
       case Screen.AUDIO:
