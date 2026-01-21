@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Screen } from '../types';
+import { Screen, GlobalProps } from '../types';
 
 type TimerMode = 'pomodoro' | 'deep' | 'custom';
 
-export const TimerScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
+export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState }) => {
   const [mode, setMode] = useState<TimerMode>('pomodoro');
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
@@ -28,9 +28,30 @@ export const TimerScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
       }, 1000);
     } else if (timeLeft === 0) {
       setIsActive(false);
+      // Stop audio when timer ends
+      if (audioState.isPlaying && audioState.autoPlay) {
+          setAudioState(prev => ({ ...prev, isPlaying: false }));
+      }
     }
     return () => clearInterval(interval);
-  }, [isActive, timeLeft]);
+  }, [isActive, timeLeft, audioState.isPlaying, audioState.autoPlay, setAudioState]);
+
+  // Handle Auto-Play Logic
+  useEffect(() => {
+      if (isActive && audioState.autoPlay && !audioState.isPlaying) {
+          // If no track selected, default to first (Gamma Focus) or keep current if paused
+          setAudioState(prev => ({
+              ...prev,
+              isPlaying: true,
+              activeTrackId: prev.activeTrackId || prev.youtubeId ? prev.activeTrackId : '1' 
+          }));
+      } else if (!isActive && audioState.autoPlay && audioState.isPlaying) {
+          // Optional: Pause audio when timer pauses?
+          // For now, let's keep it playing as per standard focus app behavior, 
+          // or we can pause it. Let's pause it to be "smart".
+          setAudioState(prev => ({ ...prev, isPlaying: false }));
+      }
+  }, [isActive]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

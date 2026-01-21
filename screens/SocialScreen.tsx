@@ -1,9 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Screen } from '../types';
 
 export const SocialScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteSent, setInviteSent] = useState(false);
+
+  const handleSendInvite = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!inviteEmail.trim()) return;
+      
+      // Simulate API call
+      setTimeout(() => {
+          setInviteSent(true);
+          setTimeout(() => {
+              setInviteSent(false);
+              setShowInviteModal(false);
+              setInviteEmail('');
+          }, 2000);
+      }, 500);
+  };
+
   return (
-    <div className="h-full flex flex-col bg-background-dark pb-24 overflow-y-auto no-scrollbar">
+    <div className="h-full flex flex-col bg-background-dark pb-24 overflow-y-auto no-scrollbar relative">
        <div className="sticky top-0 bg-background-dark/95 backdrop-blur-sm z-20 p-4 border-b border-white/5 flex items-center justify-between">
             <button className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5"><span className="material-symbols-outlined">arrow_back</span></button>
             <h2 className="font-bold text-lg">Tempo Friends</h2>
@@ -89,12 +108,61 @@ export const SocialScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ set
        </div>
         
         <div className="fixed bottom-24 w-full max-w-md px-6 z-30 pointer-events-none">
-            <button className="pointer-events-auto w-full h-12 bg-primary hover:bg-primary-light text-white font-bold rounded-xl shadow-xl shadow-primary/30 flex items-center justify-center gap-2 transition-colors">
+            <button 
+                onClick={() => setShowInviteModal(true)}
+                className="pointer-events-auto w-full h-12 bg-primary hover:bg-primary-light text-white font-bold rounded-xl shadow-xl shadow-primary/30 flex items-center justify-center gap-2 transition-colors"
+            >
                 <span className="material-symbols-outlined">person_add</span>
                 Invite a Friend
             </button>
         </div>
 
+        {/* Invite Modal */}
+        {showInviteModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
+                <div className="w-full max-w-sm bg-surface-dark rounded-2xl border border-white/10 p-6 shadow-2xl relative">
+                    <button 
+                        onClick={() => setShowInviteModal(false)}
+                        className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10"
+                    >
+                        <span className="material-symbols-outlined text-muted">close</span>
+                    </button>
+                    
+                    <div className="text-center mb-6">
+                        <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-3 text-primary">
+                            <span className="material-symbols-outlined">mail</span>
+                        </div>
+                        <h3 className="text-lg font-bold">Invite to Squad</h3>
+                        <p className="text-sm text-muted">Compete on the leaderboard together.</p>
+                    </div>
+
+                    {!inviteSent ? (
+                        <form onSubmit={handleSendInvite} className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold uppercase text-muted mb-1 block">Friend's Email</label>
+                                <input 
+                                    type="email" 
+                                    required
+                                    placeholder="friend@example.com"
+                                    value={inviteEmail}
+                                    onChange={(e) => setInviteEmail(e.target.value)}
+                                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:outline-none"
+                                    autoFocus
+                                />
+                            </div>
+                            <button type="submit" className="w-full py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-colors">
+                                Send Invite
+                            </button>
+                        </form>
+                    ) : (
+                        <div className="text-center py-4 animate-fade-in">
+                            <span className="material-symbols-outlined text-4xl text-green-500 mb-2">check_circle</span>
+                            <p className="font-bold text-white">Invite Sent!</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
     </div>
   );
 };

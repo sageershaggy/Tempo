@@ -2,8 +2,8 @@ import React from 'react';
 import { Screen, NavProps } from '../types';
 
 export const BottomNav: React.FC<NavProps> = ({ currentScreen, setScreen }) => {
-  // Hide nav on splash, onboarding, or modal-like screens
-  if ([Screen.SPLASH, Screen.ONBOARDING, Screen.QUICK_ADD].includes(currentScreen)) return null;
+  // Hide nav on splash, onboarding, login, or modal-like screens
+  if ([Screen.SPLASH, Screen.LOGIN, Screen.ONBOARDING, Screen.QUICK_ADD].includes(currentScreen)) return null;
 
   const navItems = [
     { id: Screen.TIMER, icon: 'timer', label: 'Timer' },

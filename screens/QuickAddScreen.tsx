@@ -4,6 +4,7 @@ import { enhanceTaskDescription } from '../services/geminiService';
 
 export const QuickAddScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
   const [input, setInput] = useState('');
+  const [notes, setNotes] = useState('');
   const [isEnhancing, setIsEnhancing] = useState(false);
 
   const handleMagicEnhance = async () => {
@@ -35,14 +36,27 @@ export const QuickAddScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ s
 
         {/* Input Area */}
         <div className="flex-1 flex flex-col justify-center px-6 relative z-10">
-            <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="What are you working on?"
-                className="w-full bg-transparent border-none text-4xl font-bold text-white placeholder-white/20 focus:ring-0 p-0 text-center resize-none leading-tight caret-secondary mb-12"
-                rows={2}
-                autoFocus
-            />
+            <div className="space-y-6 mb-12">
+                <textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="What are you working on?"
+                    className="w-full bg-transparent border-none text-4xl font-bold text-white placeholder-white/20 focus:ring-0 p-0 text-center resize-none leading-tight caret-secondary"
+                    rows={2}
+                    autoFocus
+                />
+                
+                <div className="relative">
+                    <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Add details, subtasks, or links..."
+                        className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-white placeholder-white/30 focus:ring-1 focus:ring-primary/50 focus:outline-none resize-none leading-relaxed transition-all"
+                        rows={3}
+                    />
+                    <div className="absolute right-3 bottom-3 text-[10px] font-bold text-muted uppercase">Notes</div>
+                </div>
+            </div>
 
             <div className="bg-surface-dark/80 backdrop-blur-xl border border-white/10 rounded-2xl p-5 shadow-2xl">
                 {/* AI Button */}

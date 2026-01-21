@@ -73,9 +73,14 @@ export const ProfileScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ se
                  </div>
             </div>
 
-            <button className="w-full py-4 rounded-xl border border-primary/30 text-primary font-bold hover:bg-primary/5 transition-colors flex items-center justify-center gap-2">
-                <span className="material-symbols-outlined">download</span> Export Data as CSV
-            </button>
+            <div className="space-y-3">
+                 <button className="w-full py-4 rounded-xl border border-primary/30 text-primary font-bold hover:bg-primary/5 transition-colors flex items-center justify-center gap-2">
+                    <span className="material-symbols-outlined">download</span> Export Data as CSV
+                </button>
+                <button onClick={() => setScreen(Screen.ADMIN)} className="w-full py-2 text-xs text-muted/30 hover:text-white uppercase font-bold tracking-widest">
+                    Site Admin
+                </button>
+            </div>
         </div>
       </div>
     </div>

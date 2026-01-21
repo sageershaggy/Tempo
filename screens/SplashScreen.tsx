@@ -4,7 +4,7 @@ import { Screen } from '../types';
 export const SplashScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
   useEffect(() => {
     const timer = setTimeout(() => {
-      setScreen(Screen.ONBOARDING);
+      setScreen(Screen.LOGIN);
     }, 2500);
     return () => clearTimeout(timer);
   }, [setScreen]);
