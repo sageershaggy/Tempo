@@ -15,7 +15,9 @@ export enum Screen {
   MILESTONES = 'MILESTONES',
   TEMPO_PRO = 'TEMPO_PRO',
   ADMIN = 'ADMIN',
-  CALENDAR = 'CALENDAR'
+  CALENDAR = 'CALENDAR',
+  PRIVACY_POLICY = 'PRIVACY_POLICY',
+  TERMS = 'TERMS'
 }
 
 export interface Subtask {
@@ -67,4 +69,8 @@ export interface GlobalProps {
   setAudioState: React.Dispatch<React.SetStateAction<AudioState>>;
   isPro: boolean;
   setIsPro: React.Dispatch<React.SetStateAction<boolean>>;
+  tasks: Task[];
+  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
+  currentTask: Task | null;
+  setCurrentTask: React.Dispatch<React.SetStateAction<Task | null>>;
 }

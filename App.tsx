@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Screen, AudioState } from './types';
+import { Screen, AudioState, Task } from './types';
 import { BottomNav } from './components/BottomNav';
 import { SplashScreen } from './screens/SplashScreen';
 import { LoginScreen } from './screens/LoginScreen';
@@ -16,6 +16,8 @@ import { MilestonesScreen } from './screens/MilestonesScreen';
 import { TempoProScreen } from './screens/TempoProScreen';
 import { AdminScreen } from './screens/AdminScreen';
 import { CalendarScreen } from './screens/CalendarScreen';
+import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen';
+import { TermsScreen } from './screens/TermsScreen';
 
 const INITIAL_AUDIO_STATE: AudioState = {
   isPlaying: false,
@@ -25,6 +27,44 @@ const INITIAL_AUDIO_STATE: AudioState = {
   autoPlay: false,
   trackSettings: {}
 };
+
+const INITIAL_TASKS: Task[] = [
+  {
+    id: '1',
+    title: 'Review Q3 Financials',
+    category: 'Finance',
+    priority: 'High',
+    dueDate: new Date(new Date().setHours(14, 0, 0, 0)).toISOString(),
+    completed: false,
+    createdAt: Date.now() - 100000,
+    updatedAt: Date.now() - 50000,
+    notes: 'Focus on the marketing budget variances.',
+    subtasks: []
+  },
+  {
+    id: '2',
+    title: 'Call Architect',
+    category: 'Project A',
+    priority: 'Medium',
+    dueDate: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString(),
+    completed: false,
+    createdAt: Date.now() - 200000,
+    subtasks: [
+      { id: 's1', title: 'Discuss blueprints', completed: false },
+      { id: 's2', title: 'Confirm budget', completed: true }
+    ]
+  },
+  {
+    id: '3',
+    title: 'Update Client Presentation',
+    category: 'Design',
+    priority: 'Low',
+    dueDate: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
+    completed: false,
+    createdAt: Date.now() - 300000,
+    subtasks: []
+  }
+];
 
 const App: React.FC = () => {
   const getInitialScreen = (): Screen => {
@@ -44,14 +84,20 @@ const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<Screen>(getInitialScreen());
   const [audioState, setAudioState] = useState<AudioState>(INITIAL_AUDIO_STATE);
   const [isPro, setIsPro] = useState(false);
-  
+  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
+  const [currentTask, setCurrentTask] = useState<Task | null>(null);
+
   const renderScreen = () => {
-    const props = { 
-        setScreen: setCurrentScreen, 
-        audioState, 
+    const props = {
+        setScreen: setCurrentScreen,
+        audioState,
         setAudioState,
         isPro,
-        setIsPro
+        setIsPro,
+        tasks,
+        setTasks,
+        currentTask,
+        setCurrentTask
     };
 
     switch (currentScreen) {
@@ -64,17 +110,17 @@ const App: React.FC = () => {
       case Screen.TIMER:
         return <TimerScreen {...props} />;
       case Screen.TASKS:
-        return <TasksScreen setScreen={setCurrentScreen} />;
+        return <TasksScreen {...props} />;
       case Screen.STATS:
-        return <StatsScreen setScreen={setCurrentScreen} />;
+        return <StatsScreen {...props} />;
       case Screen.SETTINGS:
         return <SettingsScreen {...props} />;
       case Screen.PROFILE:
-        return <ProfileScreen setScreen={setCurrentScreen} />;
+        return <ProfileScreen {...props} />;
       case Screen.SOCIAL:
         return <SocialScreen setScreen={setCurrentScreen} />;
       case Screen.QUICK_ADD:
-        return <QuickAddScreen setScreen={setCurrentScreen} />;
+        return <QuickAddScreen {...props} />;
       case Screen.AUDIO:
         return <AudioScreen {...props} />;
       case Screen.MILESTONES:
@@ -85,6 +131,10 @@ const App: React.FC = () => {
         return <AdminScreen setScreen={setCurrentScreen} />;
       case Screen.CALENDAR:
         return <CalendarScreen setScreen={setCurrentScreen} />;
+      case Screen.PRIVACY_POLICY:
+        return <PrivacyPolicyScreen setScreen={setCurrentScreen} />;
+      case Screen.TERMS:
+        return <TermsScreen setScreen={setCurrentScreen} />;
       default:
         return <TimerScreen {...props} />;
     }
