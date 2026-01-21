@@ -74,10 +74,6 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
         if (searchQuery && !t.title.toLowerCase().includes(searchQuery.toLowerCase())) {
             return false;
         }
-        if (filter === 'All') return true; // Show all (completed and not completed) if 'All' is meant to be truly all? Usually All means active. Let's stick to standard tabs.
-        // Correction: Standard tabs usually are All (Active), Completed. 
-        // User asked for "enhance filtering to include Completed and Overdue".
-        
         if (filter === 'All') return !t.completed; 
         if (filter === 'Completed') return t.completed;
         if (filter === 'High') return t.priority === 'High' && !t.completed;
@@ -227,6 +223,22 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
       }
   };
 
+  const formatDateDisplay = (dateStr?: string) => {
+      if (!dateStr) return 'Set Date';
+      const date = new Date(dateStr);
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      const isToday = date.toDateString() === today.toDateString();
+      const isTomorrow = date.toDateString() === tomorrow.toDateString();
+      const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      if (isToday) return `Today, ${timeStr}`;
+      if (isTomorrow) return `Tomorrow, ${timeStr}`;
+      return `${date.getMonth() + 1}/${date.getDate()}, ${timeStr}`;
+  };
+
   return (
     <div className="h-full flex flex-col bg-background-dark pb-24 relative">
        {/* Header */}
@@ -236,10 +248,17 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                 <div className="flex gap-2">
                     <button 
                          onClick={() => setScreen(Screen.AUDIO)}
-                         className="w-10 h-10 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80 text-white"
+                         className="w-10 h-10 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80 text-white transition-colors"
                          title="Focus Audio"
                     >
                          <span className="material-symbols-outlined text-lg">headphones</span>
+                    </button>
+                    <button 
+                         onClick={() => setScreen(Screen.CALENDAR)}
+                         className="w-10 h-10 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80 text-white transition-colors"
+                         title="Calendar View"
+                    >
+                         <span className="material-symbols-outlined text-lg">calendar_month</span>
                     </button>
                     <button 
                         onClick={() => {
@@ -250,7 +269,7 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                     >
                         <span className="material-symbols-outlined text-sm">checklist_rtl</span>
                     </button>
-                    <button onClick={() => setScreen(Screen.QUICK_ADD)} className="w-10 h-10 rounded-full bg-primary flex items-center justify-center hover:bg-primary-light shadow-lg">
+                    <button onClick={() => setScreen(Screen.QUICK_ADD)} className="w-10 h-10 rounded-full bg-primary flex items-center justify-center hover:bg-primary-light shadow-lg transition-colors">
                         <span className="material-symbols-outlined text-white">add</span>
                     </button>
                 </div>
@@ -270,7 +289,7 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
 
             {/* Filter & Sort Bar */}
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                <button onClick={() => setScreen(Screen.MILESTONES)} className="px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap bg-blue-500/10 text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                <button onClick={() => setScreen(Screen.MILESTONES)} className="px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap bg-blue-500/10 text-blue-400 border border-blue-500/30 flex items-center gap-1 transition-colors hover:bg-blue-500/20">
                     <span className="material-symbols-outlined text-[14px]">flag</span> Milestones
                 </button>
                 <div className="w-px h-6 bg-white/10 mx-1 shrink-0"></div>
@@ -297,7 +316,7 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                         <span className="material-symbols-outlined text-4xl text-muted">filter_list_off</span>
                     </div>
                     <p className="text-white font-bold text-lg">No tasks found</p>
-                    <button onClick={() => setFilter('All')} className="text-primary text-sm font-bold mt-2">Clear Filters</button>
+                    <button onClick={() => setFilter('All')} className="text-primary text-sm font-bold mt-2 hover:underline">Clear Filters</button>
                 </div>
             ) : (
                 filteredTasks.map(task => {
@@ -335,7 +354,7 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                     {isSelectionMode ? (
                                         <div 
                                             onClick={() => toggleTaskSelection(task.id)}
-                                            className={`w-6 h-6 rounded border-2 flex items-center justify-center shrink-0 cursor-pointer ${isSelected ? 'bg-primary border-primary' : 'border-muted'}`}
+                                            className={`w-6 h-6 rounded border-2 flex items-center justify-center shrink-0 cursor-pointer transition-colors ${isSelected ? 'bg-primary border-primary' : 'border-muted'}`}
                                         >
                                             {isSelected && <span className="material-symbols-outlined text-white text-sm">check</span>}
                                         </div>
@@ -362,21 +381,29 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                         </div>
                                         
                                         <div className="flex items-center gap-3">
+                                            {/* Interactive Custom Date Picker */}
                                             <div 
-                                                className={`flex items-center gap-1 text-xs font-bold transition-colors ${overdue ? 'text-secondary' : 'text-muted hover:text-white'}`}
+                                                className="relative group z-10"
                                                 onClick={(e) => e.stopPropagation()} 
                                             >
-                                                <span className="material-symbols-outlined text-[14px]">event</span>
+                                                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                                                    overdue 
+                                                    ? 'border-secondary/50 text-secondary bg-secondary/5 hover:bg-secondary/10' 
+                                                    : 'border-white/10 text-muted bg-white/5 hover:bg-white/10 hover:text-white'
+                                                }`}>
+                                                     <span className="material-symbols-outlined text-[16px]">calendar_month</span>
+                                                     <span className="text-xs font-bold whitespace-nowrap">{formatDateDisplay(task.dueDate)}</span>
+                                                </div>
                                                 <input 
                                                     type="datetime-local"
                                                     value={task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 16) : ''}
                                                     onChange={(e) => handleUpdateTask(task.id, { dueDate: new Date(e.target.value).toISOString() })}
-                                                    className="bg-transparent border-none p-0 text-xs font-bold font-sans text-current focus:ring-0 cursor-pointer w-[110px]"
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                                 />
                                             </div>
 
                                             {task.category && (
-                                                <span className="text-[10px] font-bold text-muted bg-white/5 px-2 py-0.5 rounded">
+                                                <span className="text-[10px] font-bold text-muted bg-white/5 px-2 py-1 rounded border border-white/5">
                                                     {task.category}
                                                 </span>
                                             )}
@@ -390,7 +417,7 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                 <div className="bg-black/20 border-t border-white/5 p-4 transition-all">
                                     <div className="mb-6 grid gap-4 animate-fade-in">
                                         
-                                        {/* Milestone Display (New) */}
+                                        {/* Milestone Display */}
                                         {linkedMilestone && (
                                             <div className="bg-surface-light border border-white/5 rounded-lg p-3">
                                                 <div className="flex justify-between items-center mb-1">
@@ -413,14 +440,14 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                                     <select 
                                                         value={task.milestoneId || ''}
                                                         onChange={(e) => handleUpdateTask(task.id, { milestoneId: e.target.value })}
-                                                        className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white focus:border-primary/50 focus:outline-none appearance-none"
+                                                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white focus:border-primary/50 focus:outline-none appearance-none cursor-pointer hover:bg-white/10 transition-colors"
                                                     >
                                                         <option value="">No Milestone</option>
                                                         {MOCK_MILESTONES.map(m => (
                                                             <option key={m.id} value={m.id}>{m.title}</option>
                                                         ))}
                                                     </select>
-                                                    <span className="material-symbols-outlined absolute right-2 top-1.5 text-xs text-muted pointer-events-none">expand_more</span>
+                                                    <span className="material-symbols-outlined absolute right-2 top-2 text-xs text-muted pointer-events-none">expand_more</span>
                                                 </div>
                                             </div>
                                             <div>
@@ -429,7 +456,7 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                                     <select 
                                                         value={task.priority}
                                                         onChange={(e) => handleUpdateTask(task.id, { priority: e.target.value as any })}
-                                                        className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white focus:border-primary/50 focus:outline-none"
+                                                        className="flex-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white focus:border-primary/50 focus:outline-none cursor-pointer hover:bg-white/10 transition-colors"
                                                     >
                                                         <option value="High">High</option>
                                                         <option value="Medium">Medium</option>
@@ -437,7 +464,7 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                                     </select>
                                                     <button 
                                                         onClick={() => handleAnalyzePriority(task)}
-                                                        className="w-7 h-7 bg-primary/20 rounded flex items-center justify-center hover:bg-primary/40 text-primary"
+                                                        className="w-9 h-9 bg-primary/20 rounded-lg flex items-center justify-center hover:bg-primary/40 text-primary border border-primary/30 transition-colors"
                                                         title="Suggest Priority"
                                                     >
                                                         <span className={`material-symbols-outlined text-sm ${analyzingPriority === task.id ? 'animate-spin' : ''}`}>auto_awesome</span>
@@ -448,14 +475,14 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
 
                                         {/* AI Priority Suggestion Result */}
                                         {prioritySuggestion && prioritySuggestion.taskId === task.id && (
-                                            <div className="bg-gradient-to-r from-primary/10 to-transparent p-2 rounded border border-primary/20 flex items-center justify-between">
+                                            <div className="bg-gradient-to-r from-primary/10 to-transparent p-2 rounded border border-primary/20 flex items-center justify-between animate-fade-in">
                                                 <span className="text-xs text-white">AI suggests: <span className="font-bold text-primary">{prioritySuggestion.suggestion}</span></span>
                                                 <button 
                                                     onClick={() => {
                                                         handleUpdateTask(task.id, { priority: prioritySuggestion.suggestion });
                                                         setPrioritySuggestion(null);
                                                     }}
-                                                    className="text-[10px] bg-primary text-white px-2 py-1 rounded font-bold"
+                                                    className="text-[10px] bg-primary text-white px-2 py-1 rounded font-bold hover:bg-primary-light transition-colors"
                                                 >
                                                     Apply
                                                 </button>
@@ -468,7 +495,7 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                                 value={task.notes || ''}
                                                 onChange={(e) => handleUpdateTask(task.id, { notes: e.target.value })}
                                                 placeholder="Add detailed notes here..."
-                                                className="w-full bg-white/5 border border-white/10 rounded p-2 text-xs text-white min-h-[80px] focus:border-primary/50 focus:outline-none resize-none"
+                                                className="w-full bg-white/5 border border-white/10 rounded p-3 text-xs text-white min-h-[80px] focus:border-primary/50 focus:outline-none resize-none leading-relaxed hover:bg-white/10 transition-colors"
                                             />
                                         </div>
                                     </div>
@@ -476,14 +503,14 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                     {/* Subtasks */}
                                     <div className="space-y-2 mb-4">
                                         {task.subtasks.map(st => (
-                                            <div key={st.id} className="flex items-center gap-3 pl-2">
+                                            <div key={st.id} className="flex items-center gap-3 pl-2 group/sub">
                                                 <button 
                                                     onClick={() => handleToggleSubtask(task.id, st.id)}
-                                                    className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${st.completed ? 'bg-white/40 border-transparent' : 'border-white/20'}`}
+                                                    className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${st.completed ? 'bg-white/40 border-transparent' : 'border-white/20 hover:border-white/50'}`}
                                                 >
                                                      {st.completed && <span className="material-symbols-outlined text-black text-[10px] font-bold">check</span>}
                                                 </button>
-                                                <span className={`text-sm flex-1 ${st.completed ? 'text-muted line-through' : 'text-gray-300'}`}>{st.title}</span>
+                                                <span className={`text-sm flex-1 transition-colors ${st.completed ? 'text-muted line-through' : 'text-gray-300'}`}>{st.title}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -507,7 +534,7 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                         <button 
                                             onClick={() => handleGenerateSubtasks(task.id, task.title)}
                                             disabled={loadingAI === task.id}
-                                            className="flex-1 py-2 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center gap-2 text-xs font-bold text-primary-light hover:bg-primary/20 transition-colors"
+                                            className="flex-1 py-2.5 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center gap-2 text-xs font-bold text-primary-light hover:bg-primary/20 transition-colors"
                                         >
                                             <span className={`material-symbols-outlined text-sm ${loadingAI === task.id ? 'animate-spin' : ''}`}>
                                                 {loadingAI === task.id ? 'sync' : 'auto_awesome'}
@@ -516,10 +543,10 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                                         </button>
                                         <button 
                                             onClick={() => setScreen(Screen.TIMER)}
-                                            className="flex-1 py-2 rounded-lg bg-white text-black font-bold text-xs flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
+                                            className="flex-1 py-2.5 rounded-xl bg-white text-black font-bold text-xs flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
                                         >
                                             <span className="material-symbols-outlined text-sm">play_arrow</span>
-                                            Start Timer for Task
+                                            Start Timer
                                         </button>
                                     </div>
                                 </div>
@@ -528,7 +555,7 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                              {/* Simple Expansion Chevron */}
                              {!expanded && !isSelectionMode && task.subtasks.length > 0 && (
                                 <div 
-                                    className="bg-black/20 border-t border-white/5 py-1 flex justify-center cursor-pointer hover:bg-white/5"
+                                    className="bg-black/20 border-t border-white/5 py-1 flex justify-center cursor-pointer hover:bg-white/5 transition-colors"
                                     onClick={() => setExpandedTask(task.id)}
                                 >
                                      <span className="material-symbols-outlined text-muted text-sm">expand_more</span>
@@ -554,8 +581,8 @@ export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
            <div className="absolute bottom-24 left-4 right-4 bg-surface-light border border-white/10 p-3 rounded-2xl shadow-2xl flex items-center justify-between z-40 animate-slide-up">
                 <span className="text-sm font-bold px-2">{selectedTaskIds.size} selected</span>
                 <div className="flex gap-2">
-                    <button onClick={handleBulkComplete} className="px-3 py-2 bg-green-500/20 text-green-400 rounded-lg text-xs font-bold border border-green-500/30">Complete</button>
-                    <button onClick={handleBulkDelete} className="px-3 py-2 bg-red-500/20 text-red-400 rounded-lg text-xs font-bold border border-red-500/30">Delete</button>
+                    <button onClick={handleBulkComplete} className="px-3 py-2 bg-green-500/20 text-green-400 rounded-lg text-xs font-bold border border-green-500/30 hover:bg-green-500/30 transition-colors">Complete</button>
+                    <button onClick={handleBulkDelete} className="px-3 py-2 bg-red-500/20 text-red-400 rounded-lg text-xs font-bold border border-red-500/30 hover:bg-red-500/30 transition-colors">Delete</button>
                 </div>
            </div>
        )}

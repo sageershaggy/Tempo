@@ -1,5 +1,8 @@
+import React from 'react';
+
 export enum Screen {
   SPLASH = 'SPLASH',
+  LOGIN = 'LOGIN',
   ONBOARDING = 'ONBOARDING',
   TIMER = 'TIMER',
   TASKS = 'TASKS',
@@ -9,7 +12,10 @@ export enum Screen {
   SOCIAL = 'SOCIAL',
   QUICK_ADD = 'QUICK_ADD',
   AUDIO = 'AUDIO',
-  MILESTONES = 'MILESTONES'
+  MILESTONES = 'MILESTONES',
+  TEMPO_PRO = 'TEMPO_PRO',
+  ADMIN = 'ADMIN',
+  CALENDAR = 'CALENDAR'
 }
 
 export interface Subtask {
@@ -43,4 +49,22 @@ export interface Milestone {
 export interface NavProps {
   currentScreen: Screen;
   setScreen: (screen: Screen) => void;
+}
+
+export interface AudioState {
+  isPlaying: boolean;
+  activeTrackId: string | null;
+  youtubeId: string | null; // Store just the video ID
+  volume: number; // Master volume 0-100
+  autoPlay: boolean;
+  // Granular settings per track ID
+  trackSettings: Record<string, { volume: number; hz?: string }>;
+}
+
+export interface GlobalProps {
+  setScreen: (screen: Screen) => void;
+  audioState: AudioState;
+  setAudioState: React.Dispatch<React.SetStateAction<AudioState>>;
+  isPro: boolean;
+  setIsPro: React.Dispatch<React.SetStateAction<boolean>>;
 }
