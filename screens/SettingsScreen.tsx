@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
+import { getSettings, saveSettings, UserSettings, exportUserData } from '../services/storageService';
 
 export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState, isPro }) => {
   // Timer Settings
@@ -11,12 +12,36 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   const [autoStartPomos, setAutoStartPomos] = useState(false);
 
   // Sound & System
-  const [tickSpeed, setTickSpeed] = useState(15);
+  const [tickingEnabled, setTickingEnabled] = useState(false);
+  const [tickSpeed, setTickSpeed] = useState(60);
   const [timerSound, setTimerSound] = useState('Desk Clock');
   const [notifications, setNotifications] = useState(true);
   const [calendarSync, setCalendarSync] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [activeTheme, setActiveTheme] = useState('default');
+
+  // Load settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      const settings = await getSettings();
+      setPomodoroFocus(settings.focusDuration);
+      setShortBreak(settings.shortBreak);
+      setLongBreak(settings.longBreak);
+      setAutoStartBreaks(settings.autoStartBreaks);
+      setAutoStartPomos(settings.autoStartPomos);
+      setNotifications(settings.notifications);
+      setDarkMode(settings.darkMode);
+      setActiveTheme(settings.theme);
+      setTickingEnabled(settings.tickingEnabled);
+      setTickSpeed(settings.tickingSpeed);
+    };
+    loadSettings();
+  }, []);
+
+  // Save settings when changed
+  const handleSettingChange = async (key: keyof UserSettings, value: any) => {
+    await saveSettings({ [key]: value });
+  };
 
   const THEMES = [
       { id: 'default', name: 'Royal Purple', color: 'bg-[#7F13EC]' },
@@ -26,21 +51,38 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
       { id: 'amoled', name: 'AMOLED', color: 'bg-[#000000]', pro: true },
   ];
 
+  const TIMER_SOUNDS = ['Desk Clock', 'Digital Beep', 'Gentle Chime', 'Bell Ring', 'None'];
+
   const handleThemeSelect = (themeId: string, isThemePro: boolean) => {
       if (isThemePro && !isPro) {
           setScreen(Screen.TEMPO_PRO);
       } else {
           setActiveTheme(themeId);
+          handleSettingChange('theme', themeId);
       }
   };
 
   const toggleCalendarSync = () => {
-      if (!calendarSync) {
-          // Simulate connecting
-          setCalendarSync(true);
-      } else {
-          setCalendarSync(false);
-      }
+      setCalendarSync(!calendarSync);
+  };
+
+  const handleExportData = async () => {
+    if (!isPro) {
+      setScreen(Screen.TEMPO_PRO);
+      return;
+    }
+    try {
+      const data = await exportUserData();
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tempo-data-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed:', err);
+    }
   };
 
   return (
@@ -51,14 +93,14 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
             <span className="material-symbols-outlined text-muted">arrow_back</span>
         </button>
         <h2 className="text-lg font-bold">Settings</h2>
-        <div className="w-10"></div> 
+        <div className="w-10"></div>
       </div>
 
       <div className="p-6 space-y-8">
-        
+
         {/* Pro Banner (If not Pro) */}
         {!isPro && (
-            <div 
+            <div
                 onClick={() => setScreen(Screen.TEMPO_PRO)}
                 className="bg-gradient-to-r from-primary to-secondary p-1 rounded-2xl cursor-pointer hover:scale-[1.01] transition-transform"
             >
@@ -79,20 +121,38 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
         <section>
             <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Timer Configuration</h3>
             <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
-                
+
                 {/* Durations */}
                 <div className="p-4 space-y-4">
                     <div className="flex justify-between items-center">
                         <label className="text-sm font-bold text-white">Focus Duration</label>
                         <span className="text-primary font-bold">{pomodoroFocus}m</span>
                     </div>
-                    <input type="range" min="5" max="90" step="5" value={pomodoroFocus} onChange={(e) => setPomodoroFocus(Number(e.target.value))} className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary cursor-pointer"/>
+                    <input
+                      type="range" min="5" max="90" step="5"
+                      value={pomodoroFocus}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setPomodoroFocus(val);
+                        handleSettingChange('focusDuration', val);
+                      }}
+                      className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary cursor-pointer"
+                    />
 
                     <div className="flex justify-between items-center pt-2">
                         <label className="text-sm font-bold text-white">Short Break</label>
                         <span className="text-secondary font-bold">{shortBreak}m</span>
                     </div>
-                    <input type="range" min="1" max="30" step="1" value={shortBreak} onChange={(e) => setShortBreak(Number(e.target.value))} className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-secondary cursor-pointer"/>
+                    <input
+                      type="range" min="1" max="30" step="1"
+                      value={shortBreak}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setShortBreak(val);
+                        handleSettingChange('shortBreak', val);
+                      }}
+                      className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-secondary cursor-pointer"
+                    />
                 </div>
 
                 {/* Long Break Config */}
@@ -101,8 +161,17 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                          <span className="text-sm font-bold">Long Break Duration</span>
                          <span className="text-blue-400 font-bold">{longBreak}m</span>
                      </div>
-                     <input type="range" min="10" max="60" step="5" value={longBreak} onChange={(e) => setLongBreak(Number(e.target.value))} className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 cursor-pointer"/>
-                     
+                     <input
+                       type="range" min="10" max="60" step="5"
+                       value={longBreak}
+                       onChange={(e) => {
+                         const val = Number(e.target.value);
+                         setLongBreak(val);
+                         handleSettingChange('longBreak', val);
+                       }}
+                       className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 cursor-pointer"
+                     />
+
                      <div className="flex justify-between items-center mt-4">
                          <div>
                             <p className="text-sm font-bold">Long Break Interval</p>
@@ -117,7 +186,14 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </div>
 
                 {/* Automation Toggles */}
-                <div className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setAutoStartBreaks(!autoStartBreaks)}>
+                <div
+                  className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors cursor-pointer"
+                  onClick={() => {
+                    const newVal = !autoStartBreaks;
+                    setAutoStartBreaks(newVal);
+                    handleSettingChange('autoStartBreaks', newVal);
+                  }}
+                >
                     <div>
                         <p className="text-sm font-bold">Auto-start Breaks</p>
                         <p className="text-[10px] text-muted">No need to manually start break</p>
@@ -127,7 +203,14 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                     </div>
                 </div>
 
-                <div className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setAutoStartPomos(!autoStartPomos)}>
+                <div
+                  className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors cursor-pointer"
+                  onClick={() => {
+                    const newVal = !autoStartPomos;
+                    setAutoStartPomos(newVal);
+                    handleSettingChange('autoStartPomos', newVal);
+                  }}
+                >
                     <div>
                         <p className="text-sm font-bold">Auto-start Pomodoros</p>
                         <p className="text-[10px] text-muted">Seamlessly start next session</p>
@@ -144,11 +227,24 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
             <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Sound & Feedback</h3>
             <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
                 {/* Timer End Sound */}
-                <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5">
-                     <span className="text-sm font-bold">Timer End Sound</span>
-                     <div className="flex items-center gap-2 text-muted">
-                        <span className="text-xs font-bold text-white">{timerSound}</span>
-                        <span className="material-symbols-outlined text-sm">chevron_right</span>
+                <div className="p-4">
+                     <div className="flex justify-between items-center mb-3">
+                       <span className="text-sm font-bold">Timer End Sound</span>
+                     </div>
+                     <div className="flex gap-2 flex-wrap">
+                       {TIMER_SOUNDS.map(sound => (
+                         <button
+                           key={sound}
+                           onClick={() => setTimerSound(sound)}
+                           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                             timerSound === sound
+                               ? 'bg-primary text-white'
+                               : 'bg-surface-light text-muted hover:bg-white/10'
+                           }`}
+                         >
+                           {sound}
+                         </button>
+                       ))}
                      </div>
                 </div>
 
@@ -156,16 +252,29 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 <div className="p-4">
                      <div className="flex justify-between items-center mb-2">
                          <span className="text-sm font-bold">Ticking Sound</span>
-                         <span className="text-xs text-muted font-bold">{tickSpeed} bpm</span>
+                         <span className="text-xs text-muted font-bold">{tickingEnabled ? `${tickSpeed} bpm` : 'Off'}</span>
                      </div>
                      <div className="flex items-center gap-4">
-                        <button onClick={() => setTickSpeed(0)} className={`p-2 rounded-lg text-xs font-bold border transition-colors ${tickSpeed === 0 ? 'bg-white text-black border-white' : 'border-white/10 text-muted'}`}>Off</button>
-                        <input 
-                            type="range" min="30" max="120" step="5" 
-                            value={tickSpeed === 0 ? 60 : tickSpeed} 
-                            disabled={tickSpeed === 0}
-                            onChange={(e) => setTickSpeed(Number(e.target.value))} 
-                            className={`flex-1 h-1.5 rounded-full appearance-none cursor-pointer ${tickSpeed === 0 ? 'bg-white/5' : 'bg-surface-light [&::-webkit-slider-thumb]:bg-white'}`}
+                        <button
+                          onClick={() => {
+                            const newVal = !tickingEnabled;
+                            setTickingEnabled(newVal);
+                            handleSettingChange('tickingEnabled', newVal);
+                          }}
+                          className={`p-2 rounded-lg text-xs font-bold border transition-colors ${!tickingEnabled ? 'bg-white text-black border-white' : 'border-white/10 text-muted'}`}
+                        >
+                          Off
+                        </button>
+                        <input
+                            type="range" min="30" max="120" step="5"
+                            value={tickSpeed}
+                            disabled={!tickingEnabled}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setTickSpeed(val);
+                              handleSettingChange('tickingSpeed', val);
+                            }}
+                            className={`flex-1 h-1.5 rounded-full appearance-none cursor-pointer ${!tickingEnabled ? 'bg-white/5' : 'bg-surface-light [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full'}`}
                         />
                      </div>
                 </div>
@@ -181,14 +290,14 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 <p className="text-sm font-bold mb-3">App Theme</p>
                 <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
                     {THEMES.map(theme => (
-                        <div 
+                        <div
                             key={theme.id}
-                            onClick={() => handleThemeSelect(theme.id, !!theme.pro)} 
+                            onClick={() => handleThemeSelect(theme.id, !!theme.pro)}
                             className="relative group cursor-pointer shrink-0"
                         >
                             <div className={`w-12 h-12 rounded-full ${theme.color} border-2 ${activeTheme === theme.id ? 'border-white' : 'border-transparent'} shadow-lg transition-all`}></div>
                             <span className="text-[10px] font-medium text-muted mt-1 block text-center w-full truncate">{theme.name}</span>
-                            
+
                             {/* Pro Lock */}
                             {theme.pro && !isPro && (
                                 <div className="absolute top-0 right-0 bg-black rounded-full p-1 border border-white/10 shadow-md">
@@ -205,8 +314,18 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
         <section>
             <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">System</h3>
             <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
-                <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5" onClick={() => setNotifications(!notifications)}>
-                    <p className="text-sm font-bold">Notifications</p>
+                <div
+                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
+                  onClick={() => {
+                    const newVal = !notifications;
+                    setNotifications(newVal);
+                    handleSettingChange('notifications', newVal);
+                  }}
+                >
+                    <div>
+                      <p className="text-sm font-bold">Notifications</p>
+                      <p className="text-[10px] text-muted">Alert when timer ends</p>
+                    </div>
                     <div className={`w-10 h-6 rounded-full relative transition-colors ${notifications ? 'bg-primary' : 'bg-surface-light'}`}>
                         <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifications ? 'left-5' : 'left-1'}`}></div>
                     </div>
@@ -225,14 +344,32 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                         <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${calendarSync ? 'left-5' : 'left-1'}`}></div>
                     </div>
                 </div>
-                
+
+                {/* Dark Mode */}
+                <div
+                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
+                  onClick={() => {
+                    const newVal = !darkMode;
+                    setDarkMode(newVal);
+                    handleSettingChange('darkMode', newVal);
+                  }}
+                >
+                    <div>
+                      <p className="text-sm font-bold">Dark Mode</p>
+                      <p className="text-[10px] text-muted">System appearance preference</p>
+                    </div>
+                    <div className={`w-10 h-6 rounded-full relative transition-colors ${darkMode ? 'bg-primary' : 'bg-surface-light'}`}>
+                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${darkMode ? 'left-5' : 'left-1'}`}></div>
+                    </div>
+                </div>
+
                 {/* Pro Data Export */}
-                <div 
-                    onClick={() => !isPro && setScreen(Screen.TEMPO_PRO)}
+                <div
+                    onClick={handleExportData}
                     className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
                 >
                     <div className="flex items-center gap-2">
-                        <p className={`text-sm font-bold ${!isPro ? 'text-muted' : 'text-white'}`}>Export Data (CSV)</p>
+                        <p className={`text-sm font-bold ${!isPro ? 'text-muted' : 'text-white'}`}>Export Data (JSON)</p>
                         {!isPro && <span className="material-symbols-outlined text-xs text-yellow-400">lock</span>}
                     </div>
                     <span className="material-symbols-outlined text-muted text-sm">download</span>
@@ -240,10 +377,66 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
             </div>
         </section>
 
+        {/* Help & Support */}
+        <section>
+            <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Help & Support</h3>
+            <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
+                <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5">
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-muted">help</span>
+                      <p className="text-sm font-bold">Help Center</p>
+                    </div>
+                    <span className="material-symbols-outlined text-muted text-sm">open_in_new</span>
+                </div>
+                <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5">
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-muted">bug_report</span>
+                      <p className="text-sm font-bold">Report a Bug</p>
+                    </div>
+                    <span className="material-symbols-outlined text-muted text-sm">open_in_new</span>
+                </div>
+                <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5">
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-muted">star</span>
+                      <p className="text-sm font-bold">Rate on Chrome Web Store</p>
+                    </div>
+                    <span className="material-symbols-outlined text-muted text-sm">open_in_new</span>
+                </div>
+            </div>
+        </section>
+
+        {/* Legal */}
+        <section>
+            <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Legal</h3>
+            <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
+                <div
+                  onClick={() => setScreen(Screen.PRIVACY_POLICY)}
+                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
+                >
+                    <p className="text-sm font-bold">Privacy Policy</p>
+                    <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
+                </div>
+                <div
+                  onClick={() => setScreen(Screen.TERMS)}
+                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
+                >
+                    <p className="text-sm font-bold">Terms of Service</p>
+                    <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
+                </div>
+            </div>
+        </section>
+
         {/* Account */}
-        <div className="text-center pt-4">
-            <button onClick={() => setScreen(Screen.PROFILE)} className="text-xs font-bold text-muted hover:text-white transition-colors">Manage Account</button>
-            <p className="text-[10px] text-muted/40 mt-2">v2.2.0 (Build 501)</p>
+        <div className="text-center pt-4 space-y-4">
+            <button onClick={() => setScreen(Screen.PROFILE)} className="text-xs font-bold text-muted hover:text-white transition-colors">
+              Manage Account
+            </button>
+            <div className="flex items-center justify-center gap-4">
+              <button onClick={() => setScreen(Screen.LOGIN)} className="text-xs font-bold text-red-400 hover:text-red-300 transition-colors">
+                Sign Out
+              </button>
+            </div>
+            <p className="text-[10px] text-muted/40 mt-2">Tempo Focus v1.0.0 (Build 1)</p>
         </div>
 
       </div>

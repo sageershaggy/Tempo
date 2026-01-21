@@ -3,7 +3,7 @@ import { Screen, GlobalProps } from '../types';
 
 type TimerMode = 'pomodoro' | 'deep' | 'custom';
 
-export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState }) => {
+export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState, currentTask }) => {
   const [mode, setMode] = useState<TimerMode>('pomodoro');
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
@@ -43,15 +43,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           setAudioState(prev => ({
               ...prev,
               isPlaying: true,
-              activeTrackId: prev.activeTrackId || prev.youtubeId ? prev.activeTrackId : '1' 
+              activeTrackId: prev.activeTrackId || prev.youtubeId ? prev.activeTrackId : '1'
           }));
       } else if (!isActive && audioState.autoPlay && audioState.isPlaying) {
-          // Optional: Pause audio when timer pauses?
-          // For now, let's keep it playing as per standard focus app behavior, 
-          // or we can pause it. Let's pause it to be "smart".
+          // Pause audio when timer pauses
           setAudioState(prev => ({ ...prev, isPlaying: false }));
       }
-  }, [isActive]);
+  }, [isActive, audioState.autoPlay, audioState.isPlaying, audioState.youtubeId, setAudioState]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -135,14 +133,14 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
          <div className="relative z-10 flex items-center justify-between p-5 bg-background-dark/50 backdrop-blur-sm rounded-xl">
             <div className="flex-1 min-w-0 mr-4">
                 <div className="flex items-center gap-2 mb-1">
-                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                    <span className={`w-2 h-2 rounded-full ${currentTask ? 'bg-primary animate-pulse' : 'bg-muted'}`}></span>
                     <p className="text-primary text-xs font-bold uppercase tracking-wider">Current Task</p>
                 </div>
-                <h3 className="text-white text-lg font-bold truncate">Design System Audit</h3>
-                <p className="text-muted text-sm">UI Kit v2 • High Priority</p>
+                <h3 className="text-white text-lg font-bold truncate">{currentTask?.title || 'No task selected'}</h3>
+                <p className="text-muted text-sm">{currentTask ? `${currentTask.category} • ${currentTask.priority} Priority` : 'Tap to add a task'}</p>
             </div>
             <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined">edit</span>
+                <span className="material-symbols-outlined">{currentTask ? 'edit' : 'add'}</span>
             </div>
          </div>
       </div>

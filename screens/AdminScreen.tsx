@@ -1,129 +1,589 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Screen } from '../types';
+import { generateLicenseKey, getAdminConfig, saveAdminConfig, AdminConfig } from '../services/storageService';
+
+interface GeneratedLicense {
+  key: string;
+  plan: 'monthly' | 'yearly';
+  createdAt: string;
+  assignedTo?: string;
+}
+
+interface MockUser {
+  id: string;
+  email: string;
+  isPro: boolean;
+  plan: 'monthly' | 'yearly' | null;
+  joinedAt: string;
+  lastActive: string;
+  licenseKey?: string;
+}
+
+const MOCK_USERS: MockUser[] = [
+  { id: '1', email: 'alex.morgan@gmail.com', isPro: true, plan: 'yearly', joinedAt: '2024-01-15', lastActive: '2025-01-22', licenseKey: 'TEMPO-ABC1-DEF2-GHI3-Y' },
+  { id: '2', email: 'sarah.chen@outlook.com', isPro: true, plan: 'monthly', joinedAt: '2024-06-20', lastActive: '2025-01-21', licenseKey: 'TEMPO-JKL4-MNO5-PQR6-M' },
+  { id: '3', email: 'mike.wilson@yahoo.com', isPro: false, plan: null, joinedAt: '2024-09-10', lastActive: '2025-01-20' },
+  { id: '4', email: 'jess.taylor@gmail.com', isPro: false, plan: null, joinedAt: '2024-11-05', lastActive: '2025-01-19' },
+  { id: '5', email: 'jordan.lee@company.co', isPro: true, plan: 'yearly', joinedAt: '2024-03-22', lastActive: '2025-01-22', licenseKey: 'TEMPO-STU7-VWX8-YZA9-Y' },
+];
+
+type AdminTab = 'overview' | 'users' | 'licenses' | 'payments' | 'access' | 'settings';
 
 export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
-  
-  // Mock Payment Link State
-  const [monthlyLink, setMonthlyLink] = useState('https://stripe.com/checkout/m');
-  const [yearlyLink, setYearlyLink] = useState('https://stripe.com/checkout/y');
+  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [config, setConfig] = useState<AdminConfig>({
+    stripeMonthlyLink: '',
+    stripeYearlyLink: '',
+    maintenanceMode: false,
+    freeTrialEnabled: true,
+    freeTrialDays: 7,
+    globalAccessEnabled: false,
+    globalAccessEndDate: null
+  });
+
+  const [users, setUsers] = useState<MockUser[]>(MOCK_USERS);
+  const [userSearch, setUserSearch] = useState('');
+  const [userFilter, setUserFilter] = useState<'all' | 'pro' | 'free'>('all');
+  const [generatedLicenses, setGeneratedLicenses] = useState<GeneratedLicense[]>([]);
+  const [licenseEmail, setLicenseEmail] = useState('');
+  const [licensePlan, setLicensePlan] = useState<'monthly' | 'yearly'>('yearly');
+
+  useEffect(() => {
+    getAdminConfig().then(setConfig);
+  }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === 'admin') {
-        setIsLoggedIn(true);
+    if (password === 'admin123') {
+      setIsLoggedIn(true);
     } else {
-        alert('Invalid Access');
+      alert('Invalid Admin Key');
     }
   };
 
+  const handleSaveConfig = async () => {
+    await saveAdminConfig(config);
+    alert('Configuration saved!');
+  };
+
+  const handleGenerateLicense = () => {
+    const key = generateLicenseKey(licensePlan);
+    const newLicense: GeneratedLicense = {
+      key,
+      plan: licensePlan,
+      createdAt: new Date().toISOString(),
+      assignedTo: licenseEmail || undefined
+    };
+    setGeneratedLicenses([newLicense, ...generatedLicenses]);
+    setLicenseEmail('');
+  };
+
+  const handleToggleUserPro = (userId: string) => {
+    setUsers(users.map(u => {
+      if (u.id !== userId) return u;
+      if (u.isPro) {
+        return { ...u, isPro: false, plan: null, licenseKey: undefined };
+      } else {
+        const key = generateLicenseKey('yearly');
+        return { ...u, isPro: true, plan: 'yearly', licenseKey: key };
+      }
+    }));
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  const filteredUsers = users.filter(u => {
+    if (userSearch && !u.email.toLowerCase().includes(userSearch.toLowerCase())) return false;
+    if (userFilter === 'pro' && !u.isPro) return false;
+    if (userFilter === 'free' && u.isPro) return false;
+    return true;
+  });
+
+  const stats = {
+    totalUsers: users.length,
+    proUsers: users.filter(u => u.isPro).length,
+    monthlyRevenue: users.filter(u => u.plan === 'monthly').length * 1 + users.filter(u => u.plan === 'yearly').length * (10/12),
+    yearlyRevenue: users.filter(u => u.plan === 'yearly').length * 10 + users.filter(u => u.plan === 'monthly').length * 12
+  };
+
+  const isGlobalAccessActive = config.globalAccessEnabled && config.globalAccessEndDate && new Date(config.globalAccessEndDate) > new Date();
+
   if (!isLoggedIn) {
-      return (
-          <div className="h-full flex flex-col items-center justify-center bg-background-dark px-6">
-              <span className="material-symbols-outlined text-4xl text-muted mb-4">admin_panel_settings</span>
-              <h2 className="text-xl font-bold mb-6">Site Administration</h2>
-              <form onSubmit={handleLogin} className="w-full max-w-xs space-y-4">
-                  <input 
-                    type="password" 
-                    placeholder="Enter Admin Key" 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-surface-light border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary outline-none"
-                  />
-                  <button type="submit" className="w-full bg-white text-black font-bold py-3 rounded-xl">Login</button>
-              </form>
-              <button onClick={() => setScreen(Screen.PROFILE)} className="mt-6 text-xs text-muted underline">Return to App</button>
-          </div>
-      );
+    return (
+      <div className="h-full flex flex-col items-center justify-center bg-background-dark px-6">
+        <div className="w-16 h-16 bg-surface-light rounded-2xl flex items-center justify-center mb-4 border border-white/10">
+          <span className="material-symbols-outlined text-3xl text-primary">admin_panel_settings</span>
+        </div>
+        <h2 className="text-xl font-bold mb-2">Site Administration</h2>
+        <p className="text-sm text-muted mb-6">Enter admin credentials to continue</p>
+        <form onSubmit={handleLogin} className="w-full max-w-xs space-y-4">
+          <input
+            type="password"
+            placeholder="Enter Admin Key"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full bg-surface-light border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary outline-none"
+          />
+          <button type="submit" className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-100 transition-colors">
+            Login
+          </button>
+        </form>
+        <button onClick={() => setScreen(Screen.PROFILE)} className="mt-6 text-xs text-muted hover:text-white transition-colors">
+          Return to App
+        </button>
+      </div>
+    );
   }
 
   return (
-    <div className="h-full flex flex-col bg-background-dark overflow-y-auto no-scrollbar">
-        <div className="p-4 border-b border-white/10 flex items-center justify-between bg-surface-dark">
-            <h2 className="font-bold">Tempo Admin</h2>
-            <button onClick={() => setIsLoggedIn(false)} className="text-xs text-red-400 font-bold">Logout</button>
+    <div className="h-full flex flex-col bg-background-dark overflow-hidden">
+      {/* Header */}
+      <div className="p-3 border-b border-white/10 flex items-center justify-between bg-surface-dark shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary text-xl">admin_panel_settings</span>
+          <h2 className="font-bold text-sm">Tempo Admin</h2>
         </div>
+        <button onClick={() => setIsLoggedIn(false)} className="text-xs text-red-400 font-bold hover:text-red-300">
+          Logout
+        </button>
+      </div>
 
-        <div className="p-6 space-y-6">
-            {/* Quick Stats */}
-            <div className="grid grid-cols-2 gap-4">
-                <div className="bg-surface-light p-4 rounded-xl border border-white/5">
-                    <p className="text-xs text-muted uppercase font-bold">Total Revenue</p>
-                    <p className="text-2xl font-bold text-green-400">$12,450</p>
-                    <p className="text-[10px] text-muted">+14% this month</p>
+      {/* Tabs - Scrollable */}
+      <div className="flex border-b border-white/10 bg-surface-dark/50 overflow-x-auto no-scrollbar shrink-0 px-1">
+        {[
+          { id: 'overview', label: 'Home', icon: 'dashboard' },
+          { id: 'users', label: 'Users', icon: 'group' },
+          { id: 'licenses', label: 'Keys', icon: 'key' },
+          { id: 'payments', label: 'Pay', icon: 'payments' },
+          { id: 'access', label: 'Access', icon: 'lock_open' },
+          { id: 'settings', label: 'Config', icon: 'settings' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as AdminTab)}
+            className={`flex items-center gap-1 px-2.5 py-2.5 text-[10px] font-bold whitespace-nowrap border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? 'text-primary border-primary'
+                : 'text-muted border-transparent hover:text-white'
+            }`}
+          >
+            <span className="material-symbols-outlined text-xs">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 pb-6">
+
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <>
+            {isGlobalAccessActive && (
+              <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-green-400 text-lg">verified</span>
+                  <div>
+                    <p className="text-sm font-bold text-green-400">Global Pro Access Active</p>
+                    <p className="text-[10px] text-green-400/70">Until {new Date(config.globalAccessEndDate!).toLocaleDateString()}</p>
+                  </div>
                 </div>
-                <div className="bg-surface-light p-4 rounded-xl border border-white/5">
-                    <p className="text-xs text-muted uppercase font-bold">Active Subs</p>
-                    <p className="text-2xl font-bold text-white">1,204</p>
-                    <p className="text-[10px] text-muted">84% Retention</p>
-                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-surface-dark p-3 rounded-xl border border-white/5">
+                <p className="text-[9px] text-muted uppercase font-bold mb-0.5">Total Users</p>
+                <p className="text-xl font-bold text-white">{stats.totalUsers}</p>
+              </div>
+              <div className="bg-surface-dark p-3 rounded-xl border border-white/5">
+                <p className="text-[9px] text-muted uppercase font-bold mb-0.5">Pro Users</p>
+                <p className="text-xl font-bold text-primary">{stats.proUsers}</p>
+              </div>
+              <div className="bg-surface-dark p-3 rounded-xl border border-white/5">
+                <p className="text-[9px] text-muted uppercase font-bold mb-0.5">MRR</p>
+                <p className="text-xl font-bold text-green-400">${stats.monthlyRevenue.toFixed(2)}</p>
+              </div>
+              <div className="bg-surface-dark p-3 rounded-xl border border-white/5">
+                <p className="text-[9px] text-muted uppercase font-bold mb-0.5">ARR</p>
+                <p className="text-xl font-bold text-green-400">${stats.yearlyRevenue.toFixed(2)}</p>
+              </div>
             </div>
 
-            {/* Payment Configuration (New Request) */}
-            <div className="bg-surface-light rounded-xl p-4 border border-white/5">
-                <h3 className="font-bold mb-4 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-yellow-400">payments</span>
-                    Payment Configuration
-                </h3>
-                <div className="space-y-4">
+            <div className="bg-surface-dark rounded-xl p-3 border border-white/5">
+              <h3 className="font-bold mb-2 text-xs">Quick Actions</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setActiveTab('licenses')}
+                  className="p-2.5 bg-primary/10 border border-primary/30 rounded-lg text-primary text-[10px] font-bold hover:bg-primary/20 transition-colors"
+                >
+                  Generate License
+                </button>
+                <button
+                  onClick={() => setActiveTab('access')}
+                  className="p-2.5 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-[10px] font-bold hover:bg-green-500/20 transition-colors"
+                >
+                  Global Access
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-surface-dark rounded-xl border border-white/5">
+              <h3 className="font-bold p-3 border-b border-white/5 text-xs">Recent Pro Activations</h3>
+              {users.filter(u => u.isPro).slice(0, 3).map(user => (
+                <div key={user.id} className="p-2.5 border-b border-white/5 last:border-0 flex justify-between items-center">
+                  <div>
+                    <p className="text-xs font-medium">{user.email}</p>
+                    <p className="text-[9px] text-muted capitalize">{user.plan} Plan</p>
+                  </div>
+                  <span className="text-green-400 text-[10px] font-bold">Active</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Users Tab */}
+        {activeTab === 'users' && (
+          <>
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-muted text-sm">search</span>
+                <input
+                  type="text"
+                  placeholder="Search users..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="w-full bg-surface-dark border border-white/10 rounded-lg py-2 pl-8 pr-3 text-xs text-white focus:border-primary outline-none"
+                />
+              </div>
+              <select
+                value={userFilter}
+                onChange={(e) => setUserFilter(e.target.value as any)}
+                className="bg-surface-dark border border-white/10 rounded-lg px-2 text-xs text-white focus:border-primary outline-none"
+              >
+                <option value="all">All</option>
+                <option value="pro">Pro</option>
+                <option value="free">Free</option>
+              </select>
+            </div>
+
+            <div className="bg-surface-dark rounded-xl border border-white/5 overflow-hidden">
+              <div className="p-2.5 border-b border-white/5 bg-black/20">
+                <p className="text-[9px] text-muted uppercase font-bold">{filteredUsers.length} Users</p>
+              </div>
+              {filteredUsers.map(user => (
+                <div key={user.id} className="p-3 border-b border-white/5 last:border-0">
+                  <div className="flex justify-between items-start mb-2">
                     <div>
-                        <label className="text-xs text-muted uppercase font-bold mb-1 block">Monthly Plan URL ($1/mo)</label>
-                        <input 
-                            type="text" 
-                            value={monthlyLink}
-                            onChange={(e) => setMonthlyLink(e.target.value)}
-                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-xs text-blue-400 font-mono focus:border-primary outline-none"
-                        />
+                      <p className="font-medium text-xs">{user.email}</p>
+                      <p className="text-[9px] text-muted">Joined: {user.joinedAt}</p>
                     </div>
-                    <div>
-                        <label className="text-xs text-muted uppercase font-bold mb-1 block">Yearly Plan URL ($10/yr)</label>
-                        <input 
-                            type="text" 
-                            value={yearlyLink}
-                            onChange={(e) => setYearlyLink(e.target.value)}
-                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-xs text-blue-400 font-mono focus:border-primary outline-none"
-                        />
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${user.isPro ? 'bg-primary/20 text-primary' : 'bg-white/10 text-muted'}`}>
+                      {user.isPro ? `PRO` : 'FREE'}
+                    </span>
+                  </div>
+                  {user.licenseKey && (
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <code className="text-[9px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded font-mono">{user.licenseKey}</code>
+                      <button onClick={() => copyToClipboard(user.licenseKey!)} className="text-muted hover:text-white">
+                        <span className="material-symbols-outlined text-xs">content_copy</span>
+                      </button>
                     </div>
-                    <button className="w-full py-2 bg-primary/20 text-primary font-bold rounded-lg text-xs hover:bg-primary/30 transition-colors">
-                        Save Changes
+                  )}
+                  <button
+                    onClick={() => handleToggleUserPro(user.id)}
+                    className={`w-full py-1.5 rounded-lg text-[10px] font-bold transition-colors ${
+                      user.isPro
+                        ? 'bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20'
+                        : 'bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20'
+                    }`}
+                  >
+                    {user.isPro ? 'Revoke Pro' : 'Grant Pro'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Licenses Tab */}
+        {activeTab === 'licenses' && (
+          <>
+            <div className="bg-surface-dark rounded-xl p-3 border border-white/5">
+              <h3 className="font-bold mb-3 flex items-center gap-1.5 text-xs">
+                <span className="material-symbols-outlined text-primary text-sm">add_circle</span>
+                Generate New License
+              </h3>
+              <div className="space-y-2.5">
+                <div>
+                  <label className="text-[9px] text-muted uppercase font-bold mb-1 block">Assign to Email (Optional)</label>
+                  <input
+                    type="email"
+                    placeholder="user@example.com"
+                    value={licenseEmail}
+                    onChange={(e) => setLicenseEmail(e.target.value)}
+                    className="w-full bg-black/20 border border-white/10 rounded-lg px-2.5 py-2 text-xs text-white focus:border-primary outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] text-muted uppercase font-bold mb-1 block">Plan Type</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setLicensePlan('monthly')}
+                      className={`flex-1 py-2 rounded-lg text-[10px] font-bold border transition-colors ${
+                        licensePlan === 'monthly' ? 'bg-white text-black border-white' : 'border-white/10 text-muted hover:border-white/30'
+                      }`}
+                    >
+                      Monthly ($1)
                     </button>
+                    <button
+                      onClick={() => setLicensePlan('yearly')}
+                      className={`flex-1 py-2 rounded-lg text-[10px] font-bold border transition-colors ${
+                        licensePlan === 'yearly' ? 'bg-primary text-white border-primary' : 'border-white/10 text-muted hover:border-white/30'
+                      }`}
+                    >
+                      Yearly ($10)
+                    </button>
+                  </div>
                 </div>
+                <button
+                  onClick={handleGenerateLicense}
+                  className="w-full py-2.5 bg-primary text-white font-bold rounded-lg text-xs hover:bg-primary-light transition-colors"
+                >
+                  Generate License Key
+                </button>
+              </div>
             </div>
 
-            {/* Feature Flags */}
-            <div className="bg-surface-light rounded-xl p-4 border border-white/5">
-                <h3 className="font-bold mb-4">Feature Management</h3>
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <span className="text-sm">Maintenance Mode</span>
-                        <div className="w-10 h-6 bg-surface-dark rounded-full relative cursor-pointer"><div className="absolute left-1 top-1 w-4 h-4 bg-white/20 rounded-full"></div></div>
+            {generatedLicenses.length > 0 && (
+              <div className="bg-surface-dark rounded-xl border border-white/5">
+                <h3 className="font-bold p-3 border-b border-white/5 text-xs">Generated Licenses</h3>
+                {generatedLicenses.map((license, i) => (
+                  <div key={i} className="p-3 border-b border-white/5 last:border-0">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <code className="text-xs text-green-400 bg-green-500/10 px-2 py-1 rounded font-mono">{license.key}</code>
+                      <button
+                        onClick={() => copyToClipboard(license.key)}
+                        className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-xs text-muted">content_copy</span>
+                      </button>
                     </div>
-                    <div className="flex items-center justify-between">
-                        <span className="text-sm">Free Trial Enabled</span>
-                        <div className="w-10 h-6 bg-green-500 rounded-full relative cursor-pointer"><div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div></div>
+                    <div className="flex justify-between text-[9px] text-muted">
+                      <span className="capitalize">{license.plan} Plan</span>
+                      <span>{license.assignedTo || 'Unassigned'}</span>
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Payments Tab */}
+        {activeTab === 'payments' && (
+          <>
+            <div className="bg-surface-dark rounded-xl p-3 border border-white/5">
+              <h3 className="font-bold mb-3 flex items-center gap-1.5 text-xs">
+                <span className="material-symbols-outlined text-yellow-400 text-sm">link</span>
+                Stripe Payment Links
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[9px] text-muted uppercase font-bold mb-1 block">Monthly Plan ($1/mo)</label>
+                  <input
+                    type="url"
+                    placeholder="https://buy.stripe.com/..."
+                    value={config.stripeMonthlyLink}
+                    onChange={(e) => setConfig({ ...config, stripeMonthlyLink: e.target.value })}
+                    className="w-full bg-black/20 border border-white/10 rounded-lg px-2.5 py-2 text-[10px] text-blue-400 font-mono focus:border-primary outline-none"
+                  />
                 </div>
+                <div>
+                  <label className="text-[9px] text-muted uppercase font-bold mb-1 block">Yearly Plan ($10/yr)</label>
+                  <input
+                    type="url"
+                    placeholder="https://buy.stripe.com/..."
+                    value={config.stripeYearlyLink}
+                    onChange={(e) => setConfig({ ...config, stripeYearlyLink: e.target.value })}
+                    className="w-full bg-black/20 border border-white/10 rounded-lg px-2.5 py-2 text-[10px] text-blue-400 font-mono focus:border-primary outline-none"
+                  />
+                </div>
+                <button
+                  onClick={handleSaveConfig}
+                  className="w-full py-2 bg-primary/20 text-primary font-bold rounded-lg text-[10px] hover:bg-primary/30 transition-colors"
+                >
+                  Save Payment Links
+                </button>
+              </div>
             </div>
 
-            {/* Recent Payments */}
-            <div>
-                <h3 className="font-bold mb-4">Recent Transactions</h3>
-                <div className="bg-surface-light rounded-xl overflow-hidden border border-white/5">
-                    {[1,2,3,4,5].map(i => (
-                        <div key={i} className="p-3 border-b border-white/5 flex justify-between items-center last:border-0">
-                            <div>
-                                <p className="text-sm font-bold">user_{1000+i}@gmail.com</p>
-                                <p className="text-[10px] text-muted">Pro Yearly</p>
-                            </div>
-                            <span className="text-green-400 text-sm font-bold">+$10.00</span>
-                        </div>
-                    ))}
+            <div className="bg-surface-dark rounded-xl border border-white/5">
+              <h3 className="font-bold p-3 border-b border-white/5 text-xs">Recent Transactions</h3>
+              {[
+                { email: 'user_1001@gmail.com', plan: 'Yearly', amount: '$10.00', date: 'Jan 22' },
+                { email: 'user_1002@outlook.com', plan: 'Monthly', amount: '$1.00', date: 'Jan 21' },
+              ].map((tx, i) => (
+                <div key={i} className="p-2.5 border-b border-white/5 last:border-0 flex justify-between items-center">
+                  <div>
+                    <p className="text-xs font-medium">{tx.email}</p>
+                    <p className="text-[9px] text-muted">{tx.plan} • {tx.date}</p>
+                  </div>
+                  <span className="text-green-400 text-xs font-bold">{tx.amount}</span>
                 </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Access Tab - Global Pro Access Control */}
+        {activeTab === 'access' && (
+          <>
+            <div className="bg-gradient-to-br from-green-500/10 to-primary/10 rounded-xl p-4 border border-green-500/30">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="material-symbols-outlined text-green-400">public</span>
+                <h3 className="font-bold text-sm text-green-400">Global Pro Access</h3>
+              </div>
+              <p className="text-xs text-muted mb-4">
+                Enable full Pro access for ALL users until the specified date. Perfect for launches, promotions, or beta testing.
+              </p>
+
+              <div className="space-y-3">
+                <div
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => setConfig({ ...config, globalAccessEnabled: !config.globalAccessEnabled })}
+                >
+                  <div>
+                    <p className="text-sm font-bold">Enable Global Access</p>
+                    <p className="text-[10px] text-muted">All users get Pro features</p>
+                  </div>
+                  <button
+                    className={`w-12 h-7 rounded-full relative transition-colors ${config.globalAccessEnabled ? 'bg-green-500' : 'bg-surface-light'}`}
+                  >
+                    <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${config.globalAccessEnabled ? 'right-1' : 'left-1'}`}></div>
+                  </button>
+                </div>
+
+                {config.globalAccessEnabled && (
+                  <div>
+                    <label className="text-[10px] text-muted uppercase font-bold mb-1 block">Access End Date</label>
+                    <input
+                      type="date"
+                      value={config.globalAccessEndDate || ''}
+                      onChange={(e) => setConfig({ ...config, globalAccessEndDate: e.target.value })}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-green-500 outline-none"
+                    />
+                    {config.globalAccessEndDate && (
+                      <p className="text-[10px] text-green-400 mt-1">
+                        Pro until: {new Date(config.globalAccessEndDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
-             <button onClick={() => setScreen(Screen.PROFILE)} className="w-full py-3 border border-white/10 rounded-xl text-sm font-bold hover:bg-white/5">Return to App</button>
-        </div>
+            <div className="bg-surface-dark rounded-xl p-3 border border-white/5">
+              <h3 className="font-bold mb-3 text-xs flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-primary text-sm">hourglass_top</span>
+                Free Trial Settings
+              </h3>
+
+              <div className="space-y-3">
+                <div
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => setConfig({ ...config, freeTrialEnabled: !config.freeTrialEnabled })}
+                >
+                  <div>
+                    <p className="text-sm font-medium">Enable Free Trial</p>
+                    <p className="text-[10px] text-muted">New users get trial period</p>
+                  </div>
+                  <button
+                    className={`w-11 h-6 rounded-full relative transition-colors ${config.freeTrialEnabled ? 'bg-primary' : 'bg-surface-light'}`}
+                  >
+                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all ${config.freeTrialEnabled ? 'right-0.5' : 'left-0.5'}`}></div>
+                  </button>
+                </div>
+
+                {config.freeTrialEnabled && (
+                  <div>
+                    <label className="text-[10px] text-muted uppercase font-bold mb-1 block">Trial Duration (Days)</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min="1"
+                        max="30"
+                        value={config.freeTrialDays}
+                        onChange={(e) => setConfig({ ...config, freeTrialDays: Number(e.target.value) })}
+                        className="flex-1 h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary cursor-pointer"
+                      />
+                      <span className="text-sm font-bold text-primary w-8">{config.freeTrialDays}d</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={handleSaveConfig}
+              className="w-full py-3 bg-white text-black font-bold rounded-xl text-sm hover:bg-gray-100 transition-colors"
+            >
+              Save Access Settings
+            </button>
+          </>
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <>
+            <div className="bg-surface-dark rounded-xl p-3 border border-white/5">
+              <h3 className="font-bold mb-3 text-xs">System Settings</h3>
+              <div className="space-y-3">
+                <div
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => setConfig({ ...config, maintenanceMode: !config.maintenanceMode })}
+                >
+                  <div>
+                    <p className="text-sm font-medium">Maintenance Mode</p>
+                    <p className="text-[10px] text-muted">Disable app for all users</p>
+                  </div>
+                  <button
+                    className={`w-11 h-6 rounded-full relative transition-colors ${config.maintenanceMode ? 'bg-red-500' : 'bg-surface-light'}`}
+                  >
+                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all ${config.maintenanceMode ? 'right-0.5' : 'left-0.5'}`}></div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-surface-dark rounded-xl p-3 border border-white/5">
+              <h3 className="font-bold mb-3 text-xs">Admin Credentials</h3>
+              <p className="text-[10px] text-muted mb-2">Current password: admin123</p>
+              <p className="text-[10px] text-yellow-400">Note: Change this in production!</p>
+            </div>
+
+            <button
+              onClick={handleSaveConfig}
+              className="w-full py-2.5 bg-white text-black font-bold rounded-xl text-sm hover:bg-gray-100 transition-colors"
+            >
+              Save All Settings
+            </button>
+
+            <button
+              onClick={() => setScreen(Screen.PROFILE)}
+              className="w-full py-2.5 border border-white/10 rounded-xl text-xs font-medium hover:bg-white/5 transition-colors"
+            >
+              Return to App
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 };

@@ -1,45 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Screen, Task, Subtask } from '../types';
+import React, { useState, useMemo } from 'react';
+import { Screen, Task, Subtask, GlobalProps } from '../types';
 import { suggestSubtasks, analyzeTaskPriority } from '../services/geminiService';
-
-// Mock Initial Data
-const INITIAL_TASKS: Task[] = [
-  {
-    id: '1',
-    title: 'Review Q3 Financials',
-    category: 'Finance',
-    priority: 'High',
-    dueDate: new Date(new Date().setHours(14, 0, 0, 0)).toISOString(),
-    completed: false,
-    createdAt: Date.now() - 100000,
-    updatedAt: Date.now() - 50000,
-    notes: 'Focus on the marketing budget variances.',
-    subtasks: []
-  },
-  {
-    id: '2',
-    title: 'Call Architect',
-    category: 'Project A',
-    priority: 'Medium',
-    dueDate: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString(),
-    completed: false,
-    createdAt: Date.now() - 200000,
-    subtasks: [
-        { id: 's1', title: 'Discuss blueprints', completed: false },
-        { id: 's2', title: 'Confirm budget', completed: true }
-    ]
-  },
-  {
-    id: '3',
-    title: 'Update Client Presentation',
-    category: 'Design',
-    priority: 'Low',
-    dueDate: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
-    completed: false,
-    createdAt: Date.now() - 300000,
-    subtasks: []
-  }
-];
 
 const MOCK_MILESTONES = [
     { id: 'm1', title: 'Launch MVP Beta', progress: 75, color: 'bg-primary' },
@@ -47,8 +8,7 @@ const MOCK_MILESTONES = [
     { id: 'm3', title: 'Design System v2', progress: 30, color: 'bg-blue-500' },
 ];
 
-export const TasksScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
+export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<string>('All');
   const [sort, setSort] = useState<'Manual' | 'Date' | 'Priority' | 'Title'>('Manual');
