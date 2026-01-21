@@ -3,6 +3,12 @@ import { Screen, GlobalProps } from '../types';
 import { getSettings, saveSettings, UserSettings, exportUserData } from '../services/storageService';
 
 export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState, isPro }) => {
+  // Modals
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackType, setFeedbackType] = useState<'bug' | 'feedback' | 'help'>('feedback');
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackSent, setFeedbackSent] = useState(false);
+
   // Timer Settings
   const [pomodoroFocus, setPomodoroFocus] = useState(25);
   const [shortBreak, setShortBreak] = useState(5);
@@ -85,6 +91,31 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
     }
   };
 
+  const openFeedbackModal = (type: 'bug' | 'feedback' | 'help') => {
+    setFeedbackType(type);
+    setFeedbackText('');
+    setFeedbackSent(false);
+    setShowFeedbackModal(true);
+  };
+
+  const handleSendFeedback = () => {
+    if (!feedbackText.trim()) return;
+    // In a real app, this would send to a server
+    console.log('Feedback submitted:', { type: feedbackType, text: feedbackText });
+    setFeedbackSent(true);
+    setTimeout(() => {
+      setShowFeedbackModal(false);
+      setFeedbackText('');
+      setFeedbackSent(false);
+    }, 2000);
+  };
+
+  const openChromeWebStore = () => {
+    // Replace with actual Chrome Web Store URL after publishing
+    const storeUrl = 'https://chrome.google.com/webstore/category/extensions';
+    window.open(storeUrl, '_blank');
+  };
+
   return (
     <div className="h-full flex flex-col bg-background-dark pb-24 overflow-y-auto no-scrollbar">
       {/* Header */}
@@ -116,6 +147,65 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </div>
             </div>
         )}
+
+        {/* Timer Templates */}
+        <section>
+            <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Quick Templates</h3>
+            <div className="bg-surface-dark rounded-xl p-4 border border-white/5">
+                <p className="text-xs text-muted mb-3">Select a preset to quickly apply focus/break times</p>
+                <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => {
+                        setPomodoroFocus(25);
+                        setShortBreak(5);
+                        handleSettingChange('focusDuration', 25);
+                        handleSettingChange('shortBreak', 5);
+                      }}
+                      className={`p-3 rounded-xl border text-center transition-all ${
+                        pomodoroFocus === 25 && shortBreak === 5
+                          ? 'bg-primary/20 border-primary text-white'
+                          : 'border-white/10 text-muted hover:border-white/30'
+                      }`}
+                    >
+                      <p className="font-bold text-lg">25/5</p>
+                      <p className="text-[10px] text-muted">Classic</p>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setPomodoroFocus(50);
+                        setShortBreak(10);
+                        handleSettingChange('focusDuration', 50);
+                        handleSettingChange('shortBreak', 10);
+                      }}
+                      className={`p-3 rounded-xl border text-center transition-all ${
+                        pomodoroFocus === 50 && shortBreak === 10
+                          ? 'bg-primary/20 border-primary text-white'
+                          : 'border-white/10 text-muted hover:border-white/30'
+                      }`}
+                    >
+                      <p className="font-bold text-lg">50/10</p>
+                      <p className="text-[10px] text-muted">Deep Work</p>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setPomodoroFocus(90);
+                        setShortBreak(20);
+                        handleSettingChange('focusDuration', 90);
+                        handleSettingChange('shortBreak', 20);
+                      }}
+                      className={`p-3 rounded-xl border text-center transition-all ${
+                        pomodoroFocus === 90 && shortBreak === 20
+                          ? 'bg-primary/20 border-primary text-white'
+                          : 'border-white/10 text-muted hover:border-white/30'
+                      }`}
+                    >
+                      <p className="font-bold text-lg">90/20</p>
+                      <p className="text-[10px] text-muted">Ultra Focus</p>
+                    </button>
+                </div>
+                <p className="text-[10px] text-muted mt-3 text-center">Or customize below</p>
+            </div>
+        </section>
 
         {/* Timer Configuration */}
         <section>
@@ -381,21 +471,30 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
         <section>
             <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Help & Support</h3>
             <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
-                <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5">
+                <div
+                  onClick={() => openFeedbackModal('help')}
+                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+                >
                     <div className="flex items-center gap-3">
                       <span className="material-symbols-outlined text-muted">help</span>
                       <p className="text-sm font-bold">Help Center</p>
                     </div>
-                    <span className="material-symbols-outlined text-muted text-sm">open_in_new</span>
+                    <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
                 </div>
-                <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5">
+                <div
+                  onClick={() => openFeedbackModal('bug')}
+                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+                >
                     <div className="flex items-center gap-3">
                       <span className="material-symbols-outlined text-muted">bug_report</span>
                       <p className="text-sm font-bold">Report a Bug</p>
                     </div>
-                    <span className="material-symbols-outlined text-muted text-sm">open_in_new</span>
+                    <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
                 </div>
-                <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5">
+                <div
+                  onClick={openChromeWebStore}
+                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+                >
                     <div className="flex items-center gap-3">
                       <span className="material-symbols-outlined text-muted">star</span>
                       <p className="text-sm font-bold">Rate on Chrome Web Store</p>
@@ -440,6 +539,102 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
         </div>
 
       </div>
+
+      {/* Feedback Modal */}
+      {showFeedbackModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-surface-dark rounded-2xl border border-white/10 p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold">
+                {feedbackType === 'bug' ? 'Report a Bug' : feedbackType === 'help' ? 'Help & FAQ' : 'Send Feedback'}
+              </h3>
+              <button
+                onClick={() => setShowFeedbackModal(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10"
+              >
+                <span className="material-symbols-outlined text-muted">close</span>
+              </button>
+            </div>
+
+            {feedbackType === 'help' ? (
+              <div className="space-y-4">
+                <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                  <h4 className="font-bold text-sm mb-2">How do I start a focus session?</h4>
+                  <p className="text-xs text-muted">Tap the play button on the Timer screen to start your focus session. You can adjust the duration in Settings.</p>
+                </div>
+                <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                  <h4 className="font-bold text-sm mb-2">How do I upgrade to Pro?</h4>
+                  <p className="text-xs text-muted">Go to Settings and tap "Upgrade to Pro" or visit the Tempo Pro screen from the banner.</p>
+                </div>
+                <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                  <h4 className="font-bold text-sm mb-2">Is my data synced across devices?</h4>
+                  <p className="text-xs text-muted">Yes! If you're signed into Chrome, your data syncs automatically across all your devices.</p>
+                </div>
+                <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                  <h4 className="font-bold text-sm mb-2">Need more help?</h4>
+                  <p className="text-xs text-muted mb-2">Send us a message and we'll get back to you.</p>
+                  <button
+                    onClick={() => setFeedbackType('feedback')}
+                    className="text-primary text-xs font-bold"
+                  >
+                    Contact Support →
+                  </button>
+                </div>
+              </div>
+            ) : !feedbackSent ? (
+              <div className="space-y-4">
+                <div className="text-center mb-4">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 ${
+                    feedbackType === 'bug' ? 'bg-red-500/20 text-red-400' : 'bg-primary/20 text-primary'
+                  }`}>
+                    <span className="material-symbols-outlined">
+                      {feedbackType === 'bug' ? 'bug_report' : 'chat_bubble'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted">
+                    {feedbackType === 'bug'
+                      ? 'Describe the bug you encountered'
+                      : 'We\'d love to hear your thoughts!'
+                    }
+                  </p>
+                </div>
+                <textarea
+                  value={feedbackText}
+                  onChange={(e) => setFeedbackText(e.target.value)}
+                  placeholder={feedbackType === 'bug'
+                    ? 'What happened? What did you expect to happen?'
+                    : 'Your feedback helps us improve Tempo...'
+                  }
+                  className="w-full h-32 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-primary focus:outline-none resize-none"
+                  autoFocus
+                />
+                <button
+                  onClick={handleSendFeedback}
+                  disabled={!feedbackText.trim()}
+                  className={`w-full py-3 font-bold rounded-xl transition-colors ${
+                    feedbackText.trim()
+                      ? 'bg-primary text-white hover:bg-primary-light'
+                      : 'bg-white/10 text-muted cursor-not-allowed'
+                  }`}
+                >
+                  Send {feedbackType === 'bug' ? 'Report' : 'Feedback'}
+                </button>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <span className="material-symbols-outlined text-5xl text-green-500 mb-3">check_circle</span>
+                <p className="font-bold text-white mb-1">Thank you!</p>
+                <p className="text-sm text-muted">
+                  {feedbackType === 'bug'
+                    ? 'We\'ll look into this issue.'
+                    : 'Your feedback has been received.'
+                  }
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
