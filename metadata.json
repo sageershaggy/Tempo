@@ -1,0 +1,7 @@
+{
+  "name": "Tempo Focus",
+  "description": "A high-performance focus timer and productivity app featuring deep work tracking, social leaderboards, and AI-enhanced task management.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
