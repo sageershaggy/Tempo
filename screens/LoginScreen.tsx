@@ -10,7 +10,7 @@ export const LoginScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
   };
 
   return (
-    <div className="h-screen w-full flex flex-col items-center justify-center bg-background-dark px-6 relative">
+    <div className="h-[600px] w-full flex flex-col items-center justify-center bg-background-dark px-6 relative">
       {/* Background decoration */}
       <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none"></div>
 

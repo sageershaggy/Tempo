@@ -25,10 +25,26 @@
   }
 }
 
+/* Chrome Extension Popup Dimensions */
+html, body {
+  width: 400px;
+  min-height: 600px;
+  max-height: 600px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 body {
   background-color: #120B19;
   color: white;
   -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+  width: 400px;
+  height: 600px;
+  overflow: hidden;
 }
 
 /* Custom Scrollbar Hide */

@@ -47,7 +47,7 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
   };
 
   return (
-    <div className="h-screen w-full flex flex-col bg-background-dark relative">
+    <div className="h-[600px] w-full flex flex-col bg-background-dark relative">
         {/* Ambient Background */}
         <div className="absolute top-0 left-0 w-full h-96 bg-primary/10 rounded-full blur-[120px] pointer-events-none"></div>
 
