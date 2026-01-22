@@ -10,7 +10,7 @@ export const SplashScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ set
   }, [setScreen]);
 
   return (
-    <div className="h-screen w-full flex flex-col items-center justify-center bg-background-dark relative overflow-hidden">
+    <div className="h-[600px] w-full flex flex-col items-center justify-center bg-background-dark relative overflow-hidden">
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#7F13EC 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
       

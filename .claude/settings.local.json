@@ -10,7 +10,10 @@
       "Bash(npx tailwindcss init -p)",
       "Bash(node create-icons.js:*)",
       "Bash(where:*)",
-      "Bash(node create-png-icons.js:*)"
+      "Bash(node create-png-icons.js:*)",
+      "Bash(xxd:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)"
     ]
   }
 }

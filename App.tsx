@@ -141,8 +141,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-full flex justify-center bg-black font-sans text-white">
-      <div className="w-full max-w-md h-screen relative bg-background-dark shadow-2xl overflow-hidden sm:border-x sm:border-white/5">
+    <div className="h-[600px] w-[400px] flex justify-center bg-black font-sans text-white overflow-hidden">
+      <div className="w-full h-full relative bg-background-dark shadow-2xl overflow-hidden">
         
         {/* Persistent Audio Player (Hidden/Background) */}
         {audioState.youtubeId && (
