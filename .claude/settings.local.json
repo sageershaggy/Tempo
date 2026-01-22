@@ -5,7 +5,12 @@
       "Bash(npm install:*)",
       "Bash(npm run build:*)",
       "Bash(npm run dev:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(dir:*)",
+      "Bash(npx tailwindcss init -p)",
+      "Bash(node create-icons.js:*)",
+      "Bash(where:*)",
+      "Bash(node create-png-icons.js:*)"
     ]
   }
 }
