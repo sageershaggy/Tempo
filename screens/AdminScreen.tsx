@@ -27,7 +27,7 @@ const MOCK_USERS: MockUser[] = [
   { id: '5', email: 'jordan.lee@company.co', isPro: true, plan: 'yearly', joinedAt: '2024-03-22', lastActive: '2025-01-22', licenseKey: 'TEMPO-STU7-VWX8-YZA9-Y' },
 ];
 
-type AdminTab = 'overview' | 'users' | 'licenses' | 'payments' | 'access' | 'settings';
+type AdminTab = 'overview' | 'users' | 'feedback' | 'licenses' | 'payments' | 'access' | 'settings';
 
 export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -106,7 +106,7 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
   const stats = {
     totalUsers: users.length,
     proUsers: users.filter(u => u.isPro).length,
-    monthlyRevenue: users.filter(u => u.plan === 'monthly').length * 1 + users.filter(u => u.plan === 'yearly').length * (10/12),
+    monthlyRevenue: users.filter(u => u.plan === 'monthly').length * 1 + users.filter(u => u.plan === 'yearly').length * (10 / 12),
     yearlyRevenue: users.filter(u => u.plan === 'yearly').length * 10 + users.filter(u => u.plan === 'monthly').length * 12
   };
 
@@ -157,6 +157,7 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
         {[
           { id: 'overview', label: 'Home', icon: 'dashboard' },
           { id: 'users', label: 'Users', icon: 'group' },
+          { id: 'feedback', label: 'Reports', icon: 'bug_report' },
           { id: 'licenses', label: 'Keys', icon: 'key' },
           { id: 'payments', label: 'Pay', icon: 'payments' },
           { id: 'access', label: 'Access', icon: 'lock_open' },
@@ -165,11 +166,10 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as AdminTab)}
-            className={`flex items-center gap-1 px-2.5 py-2.5 text-[10px] font-bold whitespace-nowrap border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? 'text-primary border-primary'
-                : 'text-muted border-transparent hover:text-white'
-            }`}
+            className={`flex items-center gap-1 px-2.5 py-2.5 text-[10px] font-bold whitespace-nowrap border-b-2 transition-colors ${activeTab === tab.id
+              ? 'text-primary border-primary'
+              : 'text-muted border-transparent hover:text-white'
+              }`}
           >
             <span className="material-symbols-outlined text-xs">{tab.icon}</span>
             {tab.label}
@@ -247,6 +247,60 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
           </>
         )}
 
+        {/* Feedback/Reports Tab */}
+        {activeTab === 'feedback' && (
+          <>
+            <div className="bg-surface-dark rounded-xl border border-white/5 overflow-hidden">
+              <div className="p-3 border-b border-white/5 bg-black/20 flex justify-between items-center">
+                <p className="text-[10px] text-muted uppercase font-bold">User Reports</p>
+                <button
+                  onClick={() => {
+                    if (confirm('Clear all reports?')) {
+                      localStorage.removeItem('tempo_feedback_reports');
+                      setActiveTab('overview'); // Refresh workaround
+                      setTimeout(() => setActiveTab('feedback'), 50);
+                    }
+                  }}
+                  className="text-[9px] text-red-400 hover:text-red-300"
+                >
+                  Clear All
+                </button>
+              </div>
+              {(() => {
+                const reports = JSON.parse(localStorage.getItem('tempo_feedback_reports') || '[]');
+                if (reports.length === 0) {
+                  return (
+                    <div className="p-8 text-center">
+                      <span className="material-symbols-outlined text-4xl text-white/10 mb-2">inbox</span>
+                      <p className="text-xs text-muted">No reports found.</p>
+                    </div>
+                  );
+                }
+                return reports.map((report: any, i: number) => (
+                  <div key={i} className="p-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
+                    <div className="flex justify-between items-start mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`material-symbols-outlined text-sm ${report.type === 'bug' ? 'text-red-400' : 'text-blue-400'}`}>
+                          {report.type === 'bug' ? 'bug_report' : 'chat_bubble'}
+                        </span>
+                        <span className="text-xs font-bold capitalize">{report.type}</span>
+                      </div>
+                      <span className="text-[9px] text-muted">{new Date(report.date).toLocaleDateString()}</span>
+                    </div>
+                    <p className="text-xs text-white/80 mb-2 whitespace-pre-wrap">{report.text}</p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] text-muted">{report.user}</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase font-bold ${report.status === 'open' ? 'bg-yellow-500/20 text-yellow-500' : 'bg-green-500/20 text-green-500'}`}>
+                        {report.status}
+                      </span>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </>
+        )}
+
         {/* Users Tab */}
         {activeTab === 'users' && (
           <>
@@ -297,11 +351,10 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                   )}
                   <button
                     onClick={() => handleToggleUserPro(user.id)}
-                    className={`w-full py-1.5 rounded-lg text-[10px] font-bold transition-colors ${
-                      user.isPro
-                        ? 'bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20'
-                        : 'bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20'
-                    }`}
+                    className={`w-full py-1.5 rounded-lg text-[10px] font-bold transition-colors ${user.isPro
+                      ? 'bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20'
+                      : 'bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20'
+                      }`}
                   >
                     {user.isPro ? 'Revoke Pro' : 'Grant Pro'}
                   </button>
@@ -335,17 +388,15 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                   <div className="flex gap-2">
                     <button
                       onClick={() => setLicensePlan('monthly')}
-                      className={`flex-1 py-2 rounded-lg text-[10px] font-bold border transition-colors ${
-                        licensePlan === 'monthly' ? 'bg-white text-black border-white' : 'border-white/10 text-muted hover:border-white/30'
-                      }`}
+                      className={`flex-1 py-2 rounded-lg text-[10px] font-bold border transition-colors ${licensePlan === 'monthly' ? 'bg-white text-black border-white' : 'border-white/10 text-muted hover:border-white/30'
+                        }`}
                     >
                       Monthly ($1)
                     </button>
                     <button
                       onClick={() => setLicensePlan('yearly')}
-                      className={`flex-1 py-2 rounded-lg text-[10px] font-bold border transition-colors ${
-                        licensePlan === 'yearly' ? 'bg-primary text-white border-primary' : 'border-white/10 text-muted hover:border-white/30'
-                      }`}
+                      className={`flex-1 py-2 rounded-lg text-[10px] font-bold border transition-colors ${licensePlan === 'yearly' ? 'bg-primary text-white border-primary' : 'border-white/10 text-muted hover:border-white/30'
+                        }`}
                     >
                       Yearly ($10)
                     </button>

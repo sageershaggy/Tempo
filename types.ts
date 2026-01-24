@@ -17,7 +17,8 @@ export enum Screen {
   ADMIN = 'ADMIN',
   CALENDAR = 'CALENDAR',
   PRIVACY_POLICY = 'PRIVACY_POLICY',
-  TERMS = 'TERMS'
+  TERMS = 'TERMS',
+  INTEGRATIONS = 'INTEGRATIONS'
 }
 
 export interface Subtask {

@@ -50,26 +50,26 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   };
 
   const THEMES = [
-      { id: 'default', name: 'Royal Purple', color: 'bg-[#7F13EC]' },
-      { id: 'midnight', name: 'Midnight', color: 'bg-[#1E3A8A]', pro: true },
-      { id: 'forest', name: 'Forest', color: 'bg-[#059669]', pro: true },
-      { id: 'sunset', name: 'Sunset', color: 'bg-[#EA580C]', pro: true },
-      { id: 'amoled', name: 'AMOLED', color: 'bg-[#000000]', pro: true },
+    { id: 'default', name: 'Royal Purple', color: 'bg-[#7F13EC]' },
+    { id: 'midnight', name: 'Midnight', color: 'bg-[#1E3A8A]', pro: true },
+    { id: 'forest', name: 'Forest', color: 'bg-[#059669]', pro: true },
+    { id: 'sunset', name: 'Sunset', color: 'bg-[#EA580C]', pro: true },
+    { id: 'amoled', name: 'AMOLED', color: 'bg-[#000000]', pro: true },
   ];
 
   const TIMER_SOUNDS = ['Desk Clock', 'Digital Beep', 'Gentle Chime', 'Bell Ring', 'None'];
 
   const handleThemeSelect = (themeId: string, isThemePro: boolean) => {
-      if (isThemePro && !isPro) {
-          setScreen(Screen.TEMPO_PRO);
-      } else {
-          setActiveTheme(themeId);
-          handleSettingChange('theme', themeId);
-      }
+    if (isThemePro && !isPro) {
+      setScreen(Screen.TEMPO_PRO);
+    } else {
+      setActiveTheme(themeId);
+      handleSettingChange('theme', themeId);
+    }
   };
 
   const toggleCalendarSync = () => {
-      setCalendarSync(!calendarSync);
+    setCalendarSync(!calendarSync);
   };
 
   const handleExportData = async () => {
@@ -100,8 +100,21 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
 
   const handleSendFeedback = () => {
     if (!feedbackText.trim()) return;
-    // In a real app, this would send to a server
-    console.log('Feedback submitted:', { type: feedbackType, text: feedbackText });
+
+    // Save to local storage for Admin screen
+    const newReport = {
+      id: Date.now().toString(),
+      type: feedbackType,
+      text: feedbackText,
+      date: new Date().toISOString(),
+      status: 'open',
+      user: 'Current User' // Since we don't have real auth yet
+    };
+
+    const existingReports = JSON.parse(localStorage.getItem('tempo_feedback_reports') || '[]');
+    localStorage.setItem('tempo_feedback_reports', JSON.stringify([newReport, ...existingReports]));
+
+    console.log('Feedback submitted:', newReport);
     setFeedbackSent(true);
     setTimeout(() => {
       setShowFeedbackModal(false);
@@ -121,7 +134,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
       {/* Header */}
       <div className="sticky top-0 z-20 bg-background-dark/95 backdrop-blur-md p-4 border-b border-white/5 flex items-center justify-between">
         <button onClick={() => setScreen(Screen.TIMER)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors">
-            <span className="material-symbols-outlined text-muted">arrow_back</span>
+          <span className="material-symbols-outlined text-muted">arrow_back</span>
         </button>
         <h2 className="text-lg font-bold">Settings</h2>
         <div className="w-10"></div>
@@ -131,411 +144,407 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
 
         {/* Pro Banner (If not Pro) */}
         {!isPro && (
-            <div
-                onClick={() => setScreen(Screen.TEMPO_PRO)}
-                className="bg-gradient-to-r from-primary to-secondary p-1 rounded-2xl cursor-pointer hover:scale-[1.01] transition-transform"
-            >
-                <div className="bg-background-dark/30 backdrop-blur-sm rounded-xl p-4 flex items-center justify-between">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="material-symbols-outlined text-yellow-300">diamond</span>
-                            <span className="font-bold text-white">Upgrade to Pro</span>
-                        </div>
-                        <p className="text-[10px] text-white/80">Unlock themes, advanced stats & more</p>
-                    </div>
-                    <span className="material-symbols-outlined text-white">chevron_right</span>
+          <div
+            onClick={() => setScreen(Screen.TEMPO_PRO)}
+            className="bg-gradient-to-r from-primary to-secondary p-1 rounded-2xl cursor-pointer hover:scale-[1.01] transition-transform"
+          >
+            <div className="bg-background-dark/30 backdrop-blur-sm rounded-xl p-4 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="material-symbols-outlined text-yellow-300">diamond</span>
+                  <span className="font-bold text-white">Upgrade to Pro</span>
                 </div>
+                <p className="text-[10px] text-white/80">Unlock themes, advanced stats & more</p>
+              </div>
+              <span className="material-symbols-outlined text-white">chevron_right</span>
             </div>
+          </div>
         )}
 
         {/* Timer Templates */}
         <section>
-            <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Quick Templates</h3>
-            <div className="bg-surface-dark rounded-xl p-4 border border-white/5">
-                <p className="text-xs text-muted mb-3">Select a preset to quickly apply focus/break times</p>
-                <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => {
-                        setPomodoroFocus(25);
-                        setShortBreak(5);
-                        handleSettingChange('focusDuration', 25);
-                        handleSettingChange('shortBreak', 5);
-                      }}
-                      className={`p-3 rounded-xl border text-center transition-all ${
-                        pomodoroFocus === 25 && shortBreak === 5
-                          ? 'bg-primary/20 border-primary text-white'
-                          : 'border-white/10 text-muted hover:border-white/30'
-                      }`}
-                    >
-                      <p className="font-bold text-lg">25/5</p>
-                      <p className="text-[10px] text-muted">Classic</p>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setPomodoroFocus(50);
-                        setShortBreak(10);
-                        handleSettingChange('focusDuration', 50);
-                        handleSettingChange('shortBreak', 10);
-                      }}
-                      className={`p-3 rounded-xl border text-center transition-all ${
-                        pomodoroFocus === 50 && shortBreak === 10
-                          ? 'bg-primary/20 border-primary text-white'
-                          : 'border-white/10 text-muted hover:border-white/30'
-                      }`}
-                    >
-                      <p className="font-bold text-lg">50/10</p>
-                      <p className="text-[10px] text-muted">Deep Work</p>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setPomodoroFocus(90);
-                        setShortBreak(20);
-                        handleSettingChange('focusDuration', 90);
-                        handleSettingChange('shortBreak', 20);
-                      }}
-                      className={`p-3 rounded-xl border text-center transition-all ${
-                        pomodoroFocus === 90 && shortBreak === 20
-                          ? 'bg-primary/20 border-primary text-white'
-                          : 'border-white/10 text-muted hover:border-white/30'
-                      }`}
-                    >
-                      <p className="font-bold text-lg">90/20</p>
-                      <p className="text-[10px] text-muted">Ultra Focus</p>
-                    </button>
-                </div>
-                <p className="text-[10px] text-muted mt-3 text-center">Or customize below</p>
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Quick Templates</h3>
+          <div className="bg-surface-dark rounded-xl p-4 border border-white/5">
+            <p className="text-xs text-muted mb-3">Select a preset to quickly apply focus/break times</p>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => {
+                  setPomodoroFocus(25);
+                  setShortBreak(5);
+                  handleSettingChange('focusDuration', 25);
+                  handleSettingChange('shortBreak', 5);
+                }}
+                className={`p-3 rounded-xl border text-center transition-all ${pomodoroFocus === 25 && shortBreak === 5
+                    ? 'bg-primary/20 border-primary text-white'
+                    : 'border-white/10 text-muted hover:border-white/30'
+                  }`}
+              >
+                <p className="font-bold text-lg">25/5</p>
+                <p className="text-[10px] text-muted">Classic</p>
+              </button>
+              <button
+                onClick={() => {
+                  setPomodoroFocus(50);
+                  setShortBreak(10);
+                  handleSettingChange('focusDuration', 50);
+                  handleSettingChange('shortBreak', 10);
+                }}
+                className={`p-3 rounded-xl border text-center transition-all ${pomodoroFocus === 50 && shortBreak === 10
+                    ? 'bg-primary/20 border-primary text-white'
+                    : 'border-white/10 text-muted hover:border-white/30'
+                  }`}
+              >
+                <p className="font-bold text-lg">50/10</p>
+                <p className="text-[10px] text-muted">Deep Work</p>
+              </button>
+              <button
+                onClick={() => {
+                  setPomodoroFocus(90);
+                  setShortBreak(20);
+                  handleSettingChange('focusDuration', 90);
+                  handleSettingChange('shortBreak', 20);
+                }}
+                className={`p-3 rounded-xl border text-center transition-all ${pomodoroFocus === 90 && shortBreak === 20
+                    ? 'bg-primary/20 border-primary text-white'
+                    : 'border-white/10 text-muted hover:border-white/30'
+                  }`}
+              >
+                <p className="font-bold text-lg">90/20</p>
+                <p className="text-[10px] text-muted">Ultra Focus</p>
+              </button>
             </div>
+            <p className="text-[10px] text-muted mt-3 text-center">Or customize below</p>
+          </div>
         </section>
 
         {/* Timer Configuration */}
         <section>
-            <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Timer Configuration</h3>
-            <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Timer Configuration</h3>
+          <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
 
-                {/* Durations */}
-                <div className="p-4 space-y-4">
-                    <div className="flex justify-between items-center">
-                        <label className="text-sm font-bold text-white">Focus Duration</label>
-                        <span className="text-primary font-bold">{pomodoroFocus}m</span>
-                    </div>
-                    <input
-                      type="range" min="5" max="90" step="5"
-                      value={pomodoroFocus}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        setPomodoroFocus(val);
-                        handleSettingChange('focusDuration', val);
-                      }}
-                      className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary cursor-pointer"
-                    />
+            {/* Durations */}
+            <div className="p-4 space-y-4">
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-bold text-white">Focus Duration</label>
+                <span className="text-primary font-bold">{pomodoroFocus}m</span>
+              </div>
+              <input
+                type="range" min="5" max="90" step="5"
+                value={pomodoroFocus}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setPomodoroFocus(val);
+                  handleSettingChange('focusDuration', val);
+                }}
+                className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary cursor-pointer"
+              />
 
-                    <div className="flex justify-between items-center pt-2">
-                        <label className="text-sm font-bold text-white">Short Break</label>
-                        <span className="text-secondary font-bold">{shortBreak}m</span>
-                    </div>
-                    <input
-                      type="range" min="1" max="30" step="1"
-                      value={shortBreak}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        setShortBreak(val);
-                        handleSettingChange('shortBreak', val);
-                      }}
-                      className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-secondary cursor-pointer"
-                    />
-                </div>
-
-                {/* Long Break Config */}
-                <div className="p-4">
-                     <div className="flex justify-between items-center mb-3">
-                         <span className="text-sm font-bold">Long Break Duration</span>
-                         <span className="text-blue-400 font-bold">{longBreak}m</span>
-                     </div>
-                     <input
-                       type="range" min="10" max="60" step="5"
-                       value={longBreak}
-                       onChange={(e) => {
-                         const val = Number(e.target.value);
-                         setLongBreak(val);
-                         handleSettingChange('longBreak', val);
-                       }}
-                       className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 cursor-pointer"
-                     />
-
-                     <div className="flex justify-between items-center mt-4">
-                         <div>
-                            <p className="text-sm font-bold">Long Break Interval</p>
-                            <p className="text-[10px] text-muted">Sessions before long break</p>
-                         </div>
-                         <div className="flex items-center gap-3">
-                            <button className="w-7 h-7 rounded bg-surface-light flex items-center justify-center hover:bg-white/10" onClick={() => setLongBreakInterval(Math.max(2, longBreakInterval-1))}>-</button>
-                            <span className="text-sm font-bold">{longBreakInterval}</span>
-                            <button className="w-7 h-7 rounded bg-surface-light flex items-center justify-center hover:bg-white/10" onClick={() => setLongBreakInterval(Math.min(10, longBreakInterval+1))}>+</button>
-                         </div>
-                     </div>
-                </div>
-
-                {/* Automation Toggles */}
-                <div
-                  className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors cursor-pointer"
-                  onClick={() => {
-                    const newVal = !autoStartBreaks;
-                    setAutoStartBreaks(newVal);
-                    handleSettingChange('autoStartBreaks', newVal);
-                  }}
-                >
-                    <div>
-                        <p className="text-sm font-bold">Auto-start Breaks</p>
-                        <p className="text-[10px] text-muted">No need to manually start break</p>
-                    </div>
-                    <div className={`w-10 h-6 rounded-full relative transition-colors ${autoStartBreaks ? 'bg-primary' : 'bg-surface-light'}`}>
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${autoStartBreaks ? 'left-5' : 'left-1'}`}></div>
-                    </div>
-                </div>
-
-                <div
-                  className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors cursor-pointer"
-                  onClick={() => {
-                    const newVal = !autoStartPomos;
-                    setAutoStartPomos(newVal);
-                    handleSettingChange('autoStartPomos', newVal);
-                  }}
-                >
-                    <div>
-                        <p className="text-sm font-bold">Auto-start Pomodoros</p>
-                        <p className="text-[10px] text-muted">Seamlessly start next session</p>
-                    </div>
-                    <div className={`w-10 h-6 rounded-full relative transition-colors ${autoStartPomos ? 'bg-primary' : 'bg-surface-light'}`}>
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${autoStartPomos ? 'left-5' : 'left-1'}`}></div>
-                    </div>
-                </div>
+              <div className="flex justify-between items-center pt-2">
+                <label className="text-sm font-bold text-white">Short Break</label>
+                <span className="text-secondary font-bold">{shortBreak}m</span>
+              </div>
+              <input
+                type="range" min="1" max="30" step="1"
+                value={shortBreak}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setShortBreak(val);
+                  handleSettingChange('shortBreak', val);
+                }}
+                className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-secondary cursor-pointer"
+              />
             </div>
+
+            {/* Long Break Config */}
+            <div className="p-4">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-sm font-bold">Long Break Duration</span>
+                <span className="text-blue-400 font-bold">{longBreak}m</span>
+              </div>
+              <input
+                type="range" min="10" max="60" step="5"
+                value={longBreak}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setLongBreak(val);
+                  handleSettingChange('longBreak', val);
+                }}
+                className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 cursor-pointer"
+              />
+
+              <div className="flex justify-between items-center mt-4">
+                <div>
+                  <p className="text-sm font-bold">Long Break Interval</p>
+                  <p className="text-[10px] text-muted">Sessions before long break</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button className="w-7 h-7 rounded bg-surface-light flex items-center justify-center hover:bg-white/10" onClick={() => setLongBreakInterval(Math.max(2, longBreakInterval - 1))}>-</button>
+                  <span className="text-sm font-bold">{longBreakInterval}</span>
+                  <button className="w-7 h-7 rounded bg-surface-light flex items-center justify-center hover:bg-white/10" onClick={() => setLongBreakInterval(Math.min(10, longBreakInterval + 1))}>+</button>
+                </div>
+              </div>
+            </div>
+
+            {/* Automation Toggles */}
+            <div
+              className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors cursor-pointer"
+              onClick={() => {
+                const newVal = !autoStartBreaks;
+                setAutoStartBreaks(newVal);
+                handleSettingChange('autoStartBreaks', newVal);
+              }}
+            >
+              <div>
+                <p className="text-sm font-bold">Auto-start Breaks</p>
+                <p className="text-[10px] text-muted">No need to manually start break</p>
+              </div>
+              <div className={`w-10 h-6 rounded-full relative transition-colors ${autoStartBreaks ? 'bg-primary' : 'bg-surface-light'}`}>
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${autoStartBreaks ? 'left-5' : 'left-1'}`}></div>
+              </div>
+            </div>
+
+            <div
+              className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors cursor-pointer"
+              onClick={() => {
+                const newVal = !autoStartPomos;
+                setAutoStartPomos(newVal);
+                handleSettingChange('autoStartPomos', newVal);
+              }}
+            >
+              <div>
+                <p className="text-sm font-bold">Auto-start Pomodoros</p>
+                <p className="text-[10px] text-muted">Seamlessly start next session</p>
+              </div>
+              <div className={`w-10 h-6 rounded-full relative transition-colors ${autoStartPomos ? 'bg-primary' : 'bg-surface-light'}`}>
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${autoStartPomos ? 'left-5' : 'left-1'}`}></div>
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* Sound & Notifications */}
         <section>
-            <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Sound & Feedback</h3>
-            <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
-                {/* Timer End Sound */}
-                <div className="p-4">
-                     <div className="flex justify-between items-center mb-3">
-                       <span className="text-sm font-bold">Timer End Sound</span>
-                     </div>
-                     <div className="flex gap-2 flex-wrap">
-                       {TIMER_SOUNDS.map(sound => (
-                         <button
-                           key={sound}
-                           onClick={() => setTimerSound(sound)}
-                           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                             timerSound === sound
-                               ? 'bg-primary text-white'
-                               : 'bg-surface-light text-muted hover:bg-white/10'
-                           }`}
-                         >
-                           {sound}
-                         </button>
-                       ))}
-                     </div>
-                </div>
-
-                {/* Ticking Sound */}
-                <div className="p-4">
-                     <div className="flex justify-between items-center mb-2">
-                         <span className="text-sm font-bold">Ticking Sound</span>
-                         <span className="text-xs text-muted font-bold">{tickingEnabled ? `${tickSpeed} bpm` : 'Off'}</span>
-                     </div>
-                     <div className="flex items-center gap-4">
-                        <button
-                          onClick={() => {
-                            const newVal = !tickingEnabled;
-                            setTickingEnabled(newVal);
-                            handleSettingChange('tickingEnabled', newVal);
-                          }}
-                          className={`p-2 rounded-lg text-xs font-bold border transition-colors ${!tickingEnabled ? 'bg-white text-black border-white' : 'border-white/10 text-muted'}`}
-                        >
-                          Off
-                        </button>
-                        <input
-                            type="range" min="30" max="120" step="5"
-                            value={tickSpeed}
-                            disabled={!tickingEnabled}
-                            onChange={(e) => {
-                              const val = Number(e.target.value);
-                              setTickSpeed(val);
-                              handleSettingChange('tickingSpeed', val);
-                            }}
-                            className={`flex-1 h-1.5 rounded-full appearance-none cursor-pointer ${!tickingEnabled ? 'bg-white/5' : 'bg-surface-light [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full'}`}
-                        />
-                     </div>
-                </div>
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Sound & Feedback</h3>
+          <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
+            {/* Timer End Sound */}
+            <div className="p-4">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-sm font-bold">Timer End Sound</span>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {TIMER_SOUNDS.map(sound => (
+                  <button
+                    key={sound}
+                    onClick={() => setTimerSound(sound)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${timerSound === sound
+                        ? 'bg-primary text-white'
+                        : 'bg-surface-light text-muted hover:bg-white/10'
+                      }`}
+                  >
+                    {sound}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Ticking Sound */}
+            <div className="p-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-bold">Ticking Sound</span>
+                <span className="text-xs text-muted font-bold">{tickingEnabled ? `${tickSpeed} bpm` : 'Off'}</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => {
+                    const newVal = !tickingEnabled;
+                    setTickingEnabled(newVal);
+                    handleSettingChange('tickingEnabled', newVal);
+                  }}
+                  className={`p-2 rounded-lg text-xs font-bold border transition-colors ${!tickingEnabled ? 'bg-white text-black border-white' : 'border-white/10 text-muted'}`}
+                >
+                  Off
+                </button>
+                <input
+                  type="range" min="30" max="120" step="5"
+                  value={tickSpeed}
+                  disabled={!tickingEnabled}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setTickSpeed(val);
+                    handleSettingChange('tickingSpeed', val);
+                  }}
+                  className={`flex-1 h-1.5 rounded-full appearance-none cursor-pointer ${!tickingEnabled ? 'bg-white/5' : 'bg-surface-light [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full'}`}
+                />
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* Appearance (Pro Features) */}
         <section>
-            <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1 flex items-center gap-1">
-                Appearance <span className="bg-primary/20 text-primary-light text-[9px] px-1.5 rounded font-bold">PRO</span>
-            </h3>
-            <div className="bg-surface-dark rounded-xl p-4 border border-white/5">
-                <p className="text-sm font-bold mb-3">App Theme</p>
-                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-                    {THEMES.map(theme => (
-                        <div
-                            key={theme.id}
-                            onClick={() => handleThemeSelect(theme.id, !!theme.pro)}
-                            className="relative group cursor-pointer shrink-0"
-                        >
-                            <div className={`w-12 h-12 rounded-full ${theme.color} border-2 ${activeTheme === theme.id ? 'border-white' : 'border-transparent'} shadow-lg transition-all`}></div>
-                            <span className="text-[10px] font-medium text-muted mt-1 block text-center w-full truncate">{theme.name}</span>
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1 flex items-center gap-1">
+            Appearance <span className="bg-primary/20 text-primary-light text-[9px] px-1.5 rounded font-bold">PRO</span>
+          </h3>
+          <div className="bg-surface-dark rounded-xl p-4 border border-white/5">
+            <p className="text-sm font-bold mb-3">App Theme</p>
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+              {THEMES.map(theme => (
+                <div
+                  key={theme.id}
+                  onClick={() => handleThemeSelect(theme.id, !!theme.pro)}
+                  className="relative group cursor-pointer shrink-0"
+                >
+                  <div className={`w-12 h-12 rounded-full ${theme.color} border-2 ${activeTheme === theme.id ? 'border-white' : 'border-transparent'} shadow-lg transition-all`}></div>
+                  <span className="text-[10px] font-medium text-muted mt-1 block text-center w-full truncate">{theme.name}</span>
 
-                            {/* Pro Lock */}
-                            {theme.pro && !isPro && (
-                                <div className="absolute top-0 right-0 bg-black rounded-full p-1 border border-white/10 shadow-md">
-                                    <span className="material-symbols-outlined text-[10px] text-yellow-400 block">lock</span>
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                  {/* Pro Lock */}
+                  {theme.pro && !isPro && (
+                    <div className="absolute top-0 right-0 bg-black rounded-full p-1 border border-white/10 shadow-md">
+                      <span className="material-symbols-outlined text-[10px] text-yellow-400 block">lock</span>
+                    </div>
+                  )}
                 </div>
+              ))}
             </div>
+          </div>
         </section>
 
         {/* Data & System */}
         <section>
-            <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">System</h3>
-            <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
-                <div
-                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
-                  onClick={() => {
-                    const newVal = !notifications;
-                    setNotifications(newVal);
-                    handleSettingChange('notifications', newVal);
-                  }}
-                >
-                    <div>
-                      <p className="text-sm font-bold">Notifications</p>
-                      <p className="text-[10px] text-muted">Alert when timer ends</p>
-                    </div>
-                    <div className={`w-10 h-6 rounded-full relative transition-colors ${notifications ? 'bg-primary' : 'bg-surface-light'}`}>
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifications ? 'left-5' : 'left-1'}`}></div>
-                    </div>
-                </div>
-
-                <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors" onClick={toggleCalendarSync}>
-                    <div className="flex items-center gap-3">
-                        <div>
-                            <p className="text-sm font-bold">Calendar Sync</p>
-                            <p className="text-[10px] text-muted">
-                                {calendarSync ? 'Connected: alex@gmail.com' : 'Sync Google Calendar'}
-                            </p>
-                        </div>
-                    </div>
-                    <div className={`w-10 h-6 rounded-full relative transition-colors ${calendarSync ? 'bg-primary' : 'bg-surface-light'}`}>
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${calendarSync ? 'left-5' : 'left-1'}`}></div>
-                    </div>
-                </div>
-
-                {/* Dark Mode */}
-                <div
-                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
-                  onClick={() => {
-                    const newVal = !darkMode;
-                    setDarkMode(newVal);
-                    handleSettingChange('darkMode', newVal);
-                  }}
-                >
-                    <div>
-                      <p className="text-sm font-bold">Dark Mode</p>
-                      <p className="text-[10px] text-muted">System appearance preference</p>
-                    </div>
-                    <div className={`w-10 h-6 rounded-full relative transition-colors ${darkMode ? 'bg-primary' : 'bg-surface-light'}`}>
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${darkMode ? 'left-5' : 'left-1'}`}></div>
-                    </div>
-                </div>
-
-                {/* Pro Data Export */}
-                <div
-                    onClick={handleExportData}
-                    className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
-                >
-                    <div className="flex items-center gap-2">
-                        <p className={`text-sm font-bold ${!isPro ? 'text-muted' : 'text-white'}`}>Export Data (JSON)</p>
-                        {!isPro && <span className="material-symbols-outlined text-xs text-yellow-400">lock</span>}
-                    </div>
-                    <span className="material-symbols-outlined text-muted text-sm">download</span>
-                </div>
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">System</h3>
+          <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
+            <div
+              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
+              onClick={() => {
+                const newVal = !notifications;
+                setNotifications(newVal);
+                handleSettingChange('notifications', newVal);
+              }}
+            >
+              <div>
+                <p className="text-sm font-bold">Notifications</p>
+                <p className="text-[10px] text-muted">Alert when timer ends</p>
+              </div>
+              <div className={`w-10 h-6 rounded-full relative transition-colors ${notifications ? 'bg-primary' : 'bg-surface-light'}`}>
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifications ? 'left-5' : 'left-1'}`}></div>
+              </div>
             </div>
+
+            <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors" onClick={toggleCalendarSync}>
+              <div className="flex items-center gap-3">
+                <div>
+                  <p className="text-sm font-bold">Calendar Sync</p>
+                  <p className="text-[10px] text-muted">
+                    {calendarSync ? 'Connected: alex@gmail.com' : 'Sync Google Calendar'}
+                  </p>
+                </div>
+              </div>
+              <div className={`w-10 h-6 rounded-full relative transition-colors ${calendarSync ? 'bg-primary' : 'bg-surface-light'}`}>
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${calendarSync ? 'left-5' : 'left-1'}`}></div>
+              </div>
+            </div>
+
+            {/* Dark Mode */}
+            <div
+              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
+              onClick={() => {
+                const newVal = !darkMode;
+                setDarkMode(newVal);
+                handleSettingChange('darkMode', newVal);
+              }}
+            >
+              <div>
+                <p className="text-sm font-bold">Dark Mode</p>
+                <p className="text-[10px] text-muted">System appearance preference</p>
+              </div>
+              <div className={`w-10 h-6 rounded-full relative transition-colors ${darkMode ? 'bg-primary' : 'bg-surface-light'}`}>
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${darkMode ? 'left-5' : 'left-1'}`}></div>
+              </div>
+            </div>
+
+            {/* Pro Data Export */}
+            <div
+              onClick={handleExportData}
+              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
+            >
+              <div className="flex items-center gap-2">
+                <p className={`text-sm font-bold ${!isPro ? 'text-muted' : 'text-white'}`}>Export Data (JSON)</p>
+                {!isPro && <span className="material-symbols-outlined text-xs text-yellow-400">lock</span>}
+              </div>
+              <span className="material-symbols-outlined text-muted text-sm">download</span>
+            </div>
+          </div>
         </section>
 
         {/* Help & Support */}
         <section>
-            <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Help & Support</h3>
-            <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
-                <div
-                  onClick={() => openFeedbackModal('help')}
-                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
-                >
-                    <div className="flex items-center gap-3">
-                      <span className="material-symbols-outlined text-muted">help</span>
-                      <p className="text-sm font-bold">Help Center</p>
-                    </div>
-                    <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
-                </div>
-                <div
-                  onClick={() => openFeedbackModal('bug')}
-                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
-                >
-                    <div className="flex items-center gap-3">
-                      <span className="material-symbols-outlined text-muted">bug_report</span>
-                      <p className="text-sm font-bold">Report a Bug</p>
-                    </div>
-                    <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
-                </div>
-                <div
-                  onClick={openChromeWebStore}
-                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
-                >
-                    <div className="flex items-center gap-3">
-                      <span className="material-symbols-outlined text-muted">star</span>
-                      <p className="text-sm font-bold">Rate on Chrome Web Store</p>
-                    </div>
-                    <span className="material-symbols-outlined text-muted text-sm">open_in_new</span>
-                </div>
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Help & Support</h3>
+          <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
+            <div
+              onClick={() => openFeedbackModal('help')}
+              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-muted">help</span>
+                <p className="text-sm font-bold">Help Center</p>
+              </div>
+              <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
             </div>
+            <div
+              onClick={() => openFeedbackModal('bug')}
+              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-muted">bug_report</span>
+                <p className="text-sm font-bold">Report a Bug</p>
+              </div>
+              <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
+            </div>
+            <div
+              onClick={openChromeWebStore}
+              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-muted">star</span>
+                <p className="text-sm font-bold">Rate on Chrome Web Store</p>
+              </div>
+              <span className="material-symbols-outlined text-muted text-sm">open_in_new</span>
+            </div>
+          </div>
         </section>
 
         {/* Legal */}
         <section>
-            <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Legal</h3>
-            <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
-                <div
-                  onClick={() => setScreen(Screen.PRIVACY_POLICY)}
-                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
-                >
-                    <p className="text-sm font-bold">Privacy Policy</p>
-                    <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
-                </div>
-                <div
-                  onClick={() => setScreen(Screen.TERMS)}
-                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
-                >
-                    <p className="text-sm font-bold">Terms of Service</p>
-                    <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
-                </div>
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Legal</h3>
+          <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
+            <div
+              onClick={() => setScreen(Screen.PRIVACY_POLICY)}
+              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
+            >
+              <p className="text-sm font-bold">Privacy Policy</p>
+              <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
             </div>
+            <div
+              onClick={() => setScreen(Screen.TERMS)}
+              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
+            >
+              <p className="text-sm font-bold">Terms of Service</p>
+              <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
+            </div>
+          </div>
         </section>
 
         {/* Account */}
         <div className="text-center pt-4 space-y-4">
-            <button onClick={() => setScreen(Screen.PROFILE)} className="text-xs font-bold text-muted hover:text-white transition-colors">
-              Manage Account
+          <button onClick={() => setScreen(Screen.PROFILE)} className="text-xs font-bold text-muted hover:text-white transition-colors">
+            Manage Account
+          </button>
+          <div className="flex items-center justify-center gap-4">
+            <button onClick={() => setScreen(Screen.LOGIN)} className="text-xs font-bold text-red-400 hover:text-red-300 transition-colors">
+              Sign Out
             </button>
-            <div className="flex items-center justify-center gap-4">
-              <button onClick={() => setScreen(Screen.LOGIN)} className="text-xs font-bold text-red-400 hover:text-red-300 transition-colors">
-                Sign Out
-              </button>
-            </div>
-            <p className="text-[10px] text-muted/40 mt-2">Tempo Focus v1.0.0 (Build 1)</p>
+          </div>
+          <p className="text-[10px] text-muted/40 mt-2">Tempo Focus v1.0.0 (Build 1)</p>
         </div>
 
       </div>
@@ -584,9 +593,8 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
             ) : !feedbackSent ? (
               <div className="space-y-4">
                 <div className="text-center mb-4">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 ${
-                    feedbackType === 'bug' ? 'bg-red-500/20 text-red-400' : 'bg-primary/20 text-primary'
-                  }`}>
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 ${feedbackType === 'bug' ? 'bg-red-500/20 text-red-400' : 'bg-primary/20 text-primary'
+                    }`}>
                     <span className="material-symbols-outlined">
                       {feedbackType === 'bug' ? 'bug_report' : 'chat_bubble'}
                     </span>
@@ -611,11 +619,10 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 <button
                   onClick={handleSendFeedback}
                   disabled={!feedbackText.trim()}
-                  className={`w-full py-3 font-bold rounded-xl transition-colors ${
-                    feedbackText.trim()
+                  className={`w-full py-3 font-bold rounded-xl transition-colors ${feedbackText.trim()
                       ? 'bg-primary text-white hover:bg-primary-light'
                       : 'bg-white/10 text-muted cursor-not-allowed'
-                  }`}
+                    }`}
                 >
                   Send {feedbackType === 'bug' ? 'Report' : 'Feedback'}
                 </button>
