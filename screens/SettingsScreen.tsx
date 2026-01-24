@@ -175,8 +175,8 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                   handleSettingChange('shortBreak', 5);
                 }}
                 className={`p-3 rounded-xl border text-center transition-all ${pomodoroFocus === 25 && shortBreak === 5
-                    ? 'bg-primary/20 border-primary text-white'
-                    : 'border-white/10 text-muted hover:border-white/30'
+                  ? 'bg-primary/20 border-primary text-white'
+                  : 'border-white/10 text-muted hover:border-white/30'
                   }`}
               >
                 <p className="font-bold text-lg">25/5</p>
@@ -190,8 +190,8 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                   handleSettingChange('shortBreak', 10);
                 }}
                 className={`p-3 rounded-xl border text-center transition-all ${pomodoroFocus === 50 && shortBreak === 10
-                    ? 'bg-primary/20 border-primary text-white'
-                    : 'border-white/10 text-muted hover:border-white/30'
+                  ? 'bg-primary/20 border-primary text-white'
+                  : 'border-white/10 text-muted hover:border-white/30'
                   }`}
               >
                 <p className="font-bold text-lg">50/10</p>
@@ -205,8 +205,8 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                   handleSettingChange('shortBreak', 20);
                 }}
                 className={`p-3 rounded-xl border text-center transition-all ${pomodoroFocus === 90 && shortBreak === 20
-                    ? 'bg-primary/20 border-primary text-white'
-                    : 'border-white/10 text-muted hover:border-white/30'
+                  ? 'bg-primary/20 border-primary text-white'
+                  : 'border-white/10 text-muted hover:border-white/30'
                   }`}
               >
                 <p className="font-bold text-lg">90/20</p>
@@ -337,8 +337,8 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                     key={sound}
                     onClick={() => setTimerSound(sound)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${timerSound === sound
-                        ? 'bg-primary text-white'
-                        : 'bg-surface-light text-muted hover:bg-white/10'
+                      ? 'bg-primary text-white'
+                      : 'bg-surface-light text-muted hover:bg-white/10'
                       }`}
                   >
                     {sound}
@@ -428,6 +428,17 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
               <div className={`w-10 h-6 rounded-full relative transition-colors ${notifications ? 'bg-primary' : 'bg-surface-light'}`}>
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifications ? 'left-5' : 'left-1'}`}></div>
               </div>
+            </div>
+
+            <div
+              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+              onClick={() => setScreen(Screen.INTEGRATIONS)}
+            >
+              <div>
+                <p className="text-sm font-bold">Integrations & Sync</p>
+                <p className="text-[10px] text-muted">Google Tasks, Microsoft To Do</p>
+              </div>
+              <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
             </div>
 
             <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors" onClick={toggleCalendarSync}>
@@ -620,8 +631,8 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                   onClick={handleSendFeedback}
                   disabled={!feedbackText.trim()}
                   className={`w-full py-3 font-bold rounded-xl transition-colors ${feedbackText.trim()
-                      ? 'bg-primary text-white hover:bg-primary-light'
-                      : 'bg-white/10 text-muted cursor-not-allowed'
+                    ? 'bg-primary text-white hover:bg-primary-light'
+                    : 'bg-white/10 text-muted cursor-not-allowed'
                     }`}
                 >
                   Send {feedbackType === 'bug' ? 'Report' : 'Feedback'}

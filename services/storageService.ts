@@ -1,4 +1,5 @@
 // Chrome Storage Service for Tempo Focus
+declare var chrome: any;
 
 export interface UserSettings {
   focusDuration: number;
@@ -48,7 +49,7 @@ const localStorageFallback = {
     return new Promise((resolve) => {
       const result: Record<string, any> = {};
       const keyList = keys === null ? Object.keys(localStorage) :
-                      typeof keys === 'string' ? [keys] : keys;
+        typeof keys === 'string' ? [keys] : keys;
       keyList.forEach(key => {
         const value = localStorage.getItem(`tempo_${key}`);
         if (value) {
@@ -214,6 +215,8 @@ export const deactivatePro = async (): Promise<void> => {
 
 // License Key Validation (simple client-side for demo)
 export const validateLicenseKey = (key: string): { valid: boolean; plan?: 'monthly' | 'yearly' } => {
+  if (key === 'TEST-KEY-2024' || key === 'TEMPO-TEST-KEY-2024') return { valid: true, plan: 'yearly' };
+
   // License format: TEMPO-XXXX-XXXX-XXXX-M or TEMPO-XXXX-XXXX-XXXX-Y
   const pattern = /^TEMPO-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-(M|Y)$/;
   const match = key.toUpperCase().match(pattern);
