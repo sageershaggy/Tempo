@@ -1,45 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, AudioState, GlobalProps } from '../types';
-
-interface SoundTrack {
-  id: string;
-  name: string;
-  category: string;
-  hz?: string;
-  icon: string;
-}
-
-const TRACKS: SoundTrack[] = [
-  // Binaural
-  { id: '1', name: 'Gamma Focus', category: 'Binaural', hz: '40 Hz', icon: 'waves' },
-  { id: '2', name: 'Beta Study', category: 'Binaural', hz: '14 Hz', icon: 'psychology' },
-  { id: '16', name: 'Theta Meditation', category: 'Binaural', hz: '6 Hz', icon: 'self_improvement' },
-  { id: '17', name: 'Delta Sleep', category: 'Binaural', hz: '2 Hz', icon: 'bedtime' },
-  { id: '3', name: 'Alpha Flow', category: 'Binaural', hz: '10 Hz', icon: 'water_drop' },
-  // Solfeggio
-  { id: '4', name: 'Deep Restoration', category: 'Solfeggio', hz: '432 Hz', icon: 'spa' },
-  { id: '5', name: 'Miracle Tone', category: 'Solfeggio', hz: '528 Hz', icon: 'healing' },
-  // Ambience
-  { id: '6', name: 'Heavy Rain', category: 'Ambience', icon: 'rainy' },
-  { id: '7', name: 'Coffee Shop', category: 'Ambience', icon: 'storefront' },
-  { id: '11', name: 'Forest Stream', category: 'Ambience', icon: 'forest' },
-  { id: '12', name: 'Ocean Waves', category: 'Ambience', icon: 'surfing' },
-  { id: '13', name: 'Crackling Fire', category: 'Ambience', icon: 'fireplace' },
-  { id: '14', name: 'Night Crickets', category: 'Ambience', icon: 'nights_stay' },
-  { id: '15', name: 'Wind Chimes', category: 'Ambience', icon: 'air' },
-  // Noise
-  { id: '8', name: 'Brown Noise', category: 'Noise', icon: 'graphic_eq' },
-  { id: '9', name: 'White Noise', category: 'Noise', icon: 'static' },
-  { id: '10', name: 'Pink Noise', category: 'Noise', icon: 'blur_on' },
-  // Music
-  { id: '18', name: 'Lo-Fi Beats', category: 'Music', icon: 'headphones' },
-];
-
-const CATEGORIES = ['All', 'Binaural', 'Ambience', 'Solfeggio', 'Noise', 'Music'];
+import { configManager, AudioTrackConfig } from '../config';
+import { extractYouTubeId } from '../config/constants';
 
 export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState }) => {
   const [filter, setFilter] = useState('All');
   const [youtubeInput, setYoutubeInput] = useState('');
+
+  // Load configuration dynamically
+  const config = configManager.getConfig();
+  const TRACKS = config.audio.tracks;
+  const CATEGORIES = config.audio.categories;
+  const BINAURAL_RANGES = config.audio.binauralRanges;
   
   // Helper to update specific track settings
   const updateTrackSetting = (trackId: string, updates: Partial<{ volume: number; hz: string }>) => {
@@ -72,14 +44,13 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   };
 
   const handleYoutubePlay = () => {
-      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-      const match = youtubeInput.match(regExp);
-      if (match && match[2].length === 11) {
+      const videoId = extractYouTubeId(youtubeInput);
+      if (videoId) {
           setAudioState(prev => ({
               ...prev,
               isPlaying: true,
               activeTrackId: null, // Clear regular track
-              youtubeId: match[2]
+              youtubeId: videoId
           }));
           setYoutubeInput('');
       } else {
@@ -221,9 +192,9 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                                 
                                 {track.category === 'Binaural' && (
                                     <div className="flex gap-2 mt-3">
-                                        {['Low', 'Mid', 'High'].map(r => (
-                                            <button 
-                                                key={r} 
+                                        {BINAURAL_RANGES.map(r => (
+                                            <button
+                                                key={r}
                                                 onClick={(e) => { e.stopPropagation(); /* Mock Hz change */ }}
                                                 className="flex-1 py-1 text-[10px] font-bold border border-white/10 rounded hover:bg-white/10 transition-colors"
                                             >

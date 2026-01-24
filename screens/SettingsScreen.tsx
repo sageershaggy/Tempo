@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
 import { getSettings, saveSettings, UserSettings, exportUserData } from '../services/storageService';
+import { configManager } from '../config';
+import { STORAGE_KEYS, LIMITS } from '../config/constants';
 
 export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState, isPro }) => {
   // Modals
@@ -49,15 +51,12 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
     await saveSettings({ [key]: value });
   };
 
-  const THEMES = [
-    { id: 'default', name: 'Royal Purple', color: 'bg-[#7F13EC]' },
-    { id: 'midnight', name: 'Midnight', color: 'bg-[#1E3A8A]', pro: true },
-    { id: 'forest', name: 'Forest', color: 'bg-[#059669]', pro: true },
-    { id: 'sunset', name: 'Sunset', color: 'bg-[#EA580C]', pro: true },
-    { id: 'amoled', name: 'AMOLED', color: 'bg-[#000000]', pro: true },
-  ];
-
-  const TIMER_SOUNDS = ['Desk Clock', 'Digital Beep', 'Gentle Chime', 'Bell Ring', 'None'];
+  // Load configuration dynamically
+  const config = configManager.getConfig();
+  const THEMES = config.themes;
+  const TIMER_SOUNDS = config.timer.sounds;
+  const TIMER_TEMPLATES = config.timer.templates;
+  const TICKING_RANGE = config.timer.tickingSpeedRange;
 
   const handleThemeSelect = (themeId: string, isThemePro: boolean) => {
     if (isThemePro && !isPro) {
@@ -111,8 +110,8 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
       user: 'Current User' // Since we don't have real auth yet
     };
 
-    const existingReports = JSON.parse(localStorage.getItem('tempo_feedback_reports') || '[]');
-    localStorage.setItem('tempo_feedback_reports', JSON.stringify([newReport, ...existingReports]));
+    const existingReports = JSON.parse(localStorage.getItem(STORAGE_KEYS.FEEDBACK_REPORTS) || '[]');
+    localStorage.setItem(STORAGE_KEYS.FEEDBACK_REPORTS, JSON.stringify([newReport, ...existingReports]));
 
     console.log('Feedback submitted:', newReport);
     setFeedbackSent(true);
@@ -124,9 +123,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   };
 
   const openChromeWebStore = () => {
-    // Replace with actual Chrome Web Store URL after publishing
-    const storeUrl = 'https://chrome.google.com/webstore/category/extensions';
-    window.open(storeUrl, '_blank');
+    window.open(config.app.chromeWebStoreUrl, '_blank');
   };
 
   return (
@@ -161,57 +158,30 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
           </div>
         )}
 
-        {/* Timer Templates */}
+        {/* Timer Templates - Dynamic from config */}
         <section>
           <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Quick Templates</h3>
           <div className="bg-surface-dark rounded-xl p-4 border border-white/5">
             <p className="text-xs text-muted mb-3">Select a preset to quickly apply focus/break times</p>
             <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => {
-                  setPomodoroFocus(25);
-                  setShortBreak(5);
-                  handleSettingChange('focusDuration', 25);
-                  handleSettingChange('shortBreak', 5);
-                }}
-                className={`p-3 rounded-xl border text-center transition-all ${pomodoroFocus === 25 && shortBreak === 5
-                  ? 'bg-primary/20 border-primary text-white'
-                  : 'border-white/10 text-muted hover:border-white/30'
-                  }`}
-              >
-                <p className="font-bold text-lg">25/5</p>
-                <p className="text-[10px] text-muted">Classic</p>
-              </button>
-              <button
-                onClick={() => {
-                  setPomodoroFocus(50);
-                  setShortBreak(10);
-                  handleSettingChange('focusDuration', 50);
-                  handleSettingChange('shortBreak', 10);
-                }}
-                className={`p-3 rounded-xl border text-center transition-all ${pomodoroFocus === 50 && shortBreak === 10
-                  ? 'bg-primary/20 border-primary text-white'
-                  : 'border-white/10 text-muted hover:border-white/30'
-                  }`}
-              >
-                <p className="font-bold text-lg">50/10</p>
-                <p className="text-[10px] text-muted">Deep Work</p>
-              </button>
-              <button
-                onClick={() => {
-                  setPomodoroFocus(90);
-                  setShortBreak(20);
-                  handleSettingChange('focusDuration', 90);
-                  handleSettingChange('shortBreak', 20);
-                }}
-                className={`p-3 rounded-xl border text-center transition-all ${pomodoroFocus === 90 && shortBreak === 20
-                  ? 'bg-primary/20 border-primary text-white'
-                  : 'border-white/10 text-muted hover:border-white/30'
-                  }`}
-              >
-                <p className="font-bold text-lg">90/20</p>
-                <p className="text-[10px] text-muted">Ultra Focus</p>
-              </button>
+              {TIMER_TEMPLATES.map((template) => (
+                <button
+                  key={template.label}
+                  onClick={() => {
+                    setPomodoroFocus(template.focusMinutes);
+                    setShortBreak(template.breakMinutes);
+                    handleSettingChange('focusDuration', template.focusMinutes);
+                    handleSettingChange('shortBreak', template.breakMinutes);
+                  }}
+                  className={`p-3 rounded-xl border text-center transition-all ${pomodoroFocus === template.focusMinutes && shortBreak === template.breakMinutes
+                    ? 'bg-primary/20 border-primary text-white'
+                    : 'border-white/10 text-muted hover:border-white/30'
+                    }`}
+                >
+                  <p className="font-bold text-lg">{template.label}</p>
+                  <p className="text-[10px] text-muted">{template.description}</p>
+                </button>
+              ))}
             </div>
             <p className="text-[10px] text-muted mt-3 text-center">Or customize below</p>
           </div>
@@ -229,7 +199,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 <span className="text-primary font-bold">{pomodoroFocus}m</span>
               </div>
               <input
-                type="range" min="5" max="90" step="5"
+                type="range" min={LIMITS.MIN_FOCUS_DURATION} max={LIMITS.MAX_FOCUS_DURATION} step="5"
                 value={pomodoroFocus}
                 onChange={(e) => {
                   const val = Number(e.target.value);
@@ -244,7 +214,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 <span className="text-secondary font-bold">{shortBreak}m</span>
               </div>
               <input
-                type="range" min="1" max="30" step="1"
+                type="range" min={LIMITS.MIN_BREAK_DURATION} max={LIMITS.MAX_BREAK_DURATION} step="1"
                 value={shortBreak}
                 onChange={(e) => {
                   const val = Number(e.target.value);
@@ -262,7 +232,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 <span className="text-blue-400 font-bold">{longBreak}m</span>
               </div>
               <input
-                type="range" min="10" max="60" step="5"
+                type="range" min={LIMITS.MIN_LONG_BREAK} max={LIMITS.MAX_LONG_BREAK} step="5"
                 value={longBreak}
                 onChange={(e) => {
                   const val = Number(e.target.value);
@@ -278,9 +248,9 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                   <p className="text-[10px] text-muted">Sessions before long break</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <button className="w-7 h-7 rounded bg-surface-light flex items-center justify-center hover:bg-white/10" onClick={() => setLongBreakInterval(Math.max(2, longBreakInterval - 1))}>-</button>
+                  <button className="w-7 h-7 rounded bg-surface-light flex items-center justify-center hover:bg-white/10" onClick={() => setLongBreakInterval(Math.max(LIMITS.MIN_LONG_BREAK_INTERVAL, longBreakInterval - 1))}>-</button>
                   <span className="text-sm font-bold">{longBreakInterval}</span>
-                  <button className="w-7 h-7 rounded bg-surface-light flex items-center justify-center hover:bg-white/10" onClick={() => setLongBreakInterval(Math.min(10, longBreakInterval + 1))}>+</button>
+                  <button className="w-7 h-7 rounded bg-surface-light flex items-center justify-center hover:bg-white/10" onClick={() => setLongBreakInterval(Math.min(LIMITS.MAX_LONG_BREAK_INTERVAL, longBreakInterval + 1))}>+</button>
                 </div>
               </div>
             </div>
@@ -365,7 +335,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                   Off
                 </button>
                 <input
-                  type="range" min="30" max="120" step="5"
+                  type="range" min={TICKING_RANGE.min} max={TICKING_RANGE.max} step={TICKING_RANGE.step}
                   value={tickSpeed}
                   disabled={!tickingEnabled}
                   onChange={(e) => {
@@ -555,7 +525,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
               Sign Out
             </button>
           </div>
-          <p className="text-[10px] text-muted/40 mt-2">Tempo Focus v1.0.0 (Build 1)</p>
+          <p className="text-[10px] text-muted/40 mt-2">{config.app.name} v{config.app.version} (Build {config.app.build})</p>
         </div>
 
       </div>

@@ -1,30 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
+import { configManager } from '../config';
+import { STORAGE_KEYS, formatTimer, UI_DIMENSIONS } from '../config/constants';
 
 type TimerMode = 'pomodoro' | 'deep' | 'custom';
 
 export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState, currentTask }) => {
+  // Load configuration dynamically
+  const config = configManager.getConfig();
+  const timerModes = config.timer.modes;
+
+  // Get initial values from config
+  const getTimeForMode = (modeId: string): number => {
+    const modeConfig = timerModes.find(m => m.id === modeId);
+    return modeConfig ? modeConfig.focusMinutes * 60 : config.defaults.settings.focusDuration * 60;
+  };
+
   const [mode, setMode] = useState<TimerMode>('pomodoro');
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
+  const [timeLeft, setTimeLeft] = useState(getTimeForMode('pomodoro'));
   const [isActive, setIsActive] = useState(false);
-  const [initialTime, setInitialTime] = useState(25 * 60);
+  const [initialTime, setInitialTime] = useState(getTimeForMode('pomodoro'));
 
   // Update timer when mode changes
   useEffect(() => {
     setIsActive(false);
-    let newTime = 25 * 60;
-    if (mode === 'deep') newTime = 50 * 60;
-    if (mode === 'custom') newTime = 45 * 60; // Default custom to 45m
-
+    const newTime = getTimeForMode(mode);
     setInitialTime(newTime);
     setTimeLeft(newTime);
   }, [mode]);
 
   // Load timer state on mount
   useEffect(() => {
-    const savedTarget = localStorage.getItem('tempo_timer_target');
-    const savedMode = localStorage.getItem('tempo_timer_mode') as TimerMode;
-    const savedIsActive = localStorage.getItem('tempo_timer_active') === 'true';
+    const savedTarget = localStorage.getItem(STORAGE_KEYS.TIMER_TARGET);
+    const savedMode = localStorage.getItem(STORAGE_KEYS.TIMER_MODE) as TimerMode;
+    const savedIsActive = localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true';
 
     if (savedMode) setMode(savedMode);
 
@@ -40,8 +49,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         // Timer finished while closed
         setTimeLeft(0);
         setIsActive(false);
-        localStorage.removeItem('tempo_timer_target');
-        localStorage.removeItem('tempo_timer_active');
+        localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
+        localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
       }
     } else {
       // Not active, just ensure mode is correct (handled by setMode above)
@@ -66,7 +75,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         setTimeLeft((prev) => {
           const next = prev - 1;
           // Sync with wall clock every tick to be sure
-          const savedTarget = localStorage.getItem('tempo_timer_target');
+          const savedTarget = localStorage.getItem(STORAGE_KEYS.TIMER_TARGET);
           if (savedTarget) {
             const diff = Math.ceil((parseInt(savedTarget) - Date.now()) / 1000);
             return diff > 0 ? diff : 0;
@@ -76,8 +85,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       }, 1000);
     } else if (timeLeft === 0) {
       setIsActive(false);
-      localStorage.removeItem('tempo_timer_target');
-      localStorage.removeItem('tempo_timer_active');
+      localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
+      localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
 
       if (audioState.isPlaying && audioState.autoPlay) {
         setAudioState(prev => ({ ...prev, isPlaying: false }));
@@ -89,16 +98,16 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const toggleTimer = () => {
     const newActive = !isActive;
     setIsActive(newActive);
-    localStorage.setItem('tempo_timer_active', String(newActive));
-    localStorage.setItem('tempo_timer_mode', mode);
+    localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, String(newActive));
+    localStorage.setItem(STORAGE_KEYS.TIMER_MODE, mode);
 
     if (newActive) {
       // Starting
       const target = Date.now() + (timeLeft * 1000);
-      localStorage.setItem('tempo_timer_target', String(target));
+      localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(target));
     } else {
       // Pausing
-      localStorage.removeItem('tempo_timer_target');
+      localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
     }
   };
 
@@ -117,13 +126,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     }
   }, [isActive, audioState.autoPlay, audioState.isPlaying, audioState.youtubeId, setAudioState]);
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const progress = ((initialTime - timeLeft) / initialTime) * 283;
+  const progress = ((initialTime - timeLeft) / initialTime) * UI_DIMENSIONS.TIMER_CIRCUMFERENCE;
 
   return (
     <div className="h-full flex flex-col px-6 pt-4 pb-20 overflow-y-auto no-scrollbar">
@@ -132,7 +135,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         <div>
           <h1 className="text-lg font-bold">Tempo</h1>
           <p className="text-[10px] font-bold text-secondary uppercase tracking-wider">
-            {mode === 'pomodoro' ? 'Pomodoro' : mode === 'deep' ? 'Deep Work' : 'Custom Session'}
+            {timerModes.find(m => m.id === mode)?.name || 'Focus Session'}
           </p>
         </div>
         <button onClick={() => setScreen(Screen.SETTINGS)} className="w-8 h-8 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80">
@@ -140,26 +143,17 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         </button>
       </div>
 
-      {/* Mode Switcher */}
+      {/* Mode Switcher - Dynamic from config */}
       <div className="flex p-1 bg-surface-light rounded-xl mb-4 border border-white/5">
-        <button
-          onClick={() => setMode('pomodoro')}
-          className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${mode === 'pomodoro' ? 'bg-primary text-white shadow-lg' : 'text-muted hover:text-white'}`}
-        >
-          25/5
-        </button>
-        <button
-          onClick={() => setMode('deep')}
-          className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${mode === 'deep' ? 'bg-primary text-white shadow-lg' : 'text-muted hover:text-white'}`}
-        >
-          50/10
-        </button>
-        <button
-          onClick={() => setMode('custom')}
-          className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${mode === 'custom' ? 'bg-primary text-white shadow-lg' : 'text-muted hover:text-white'}`}
-        >
-          Custom
-        </button>
+        {timerModes.map((modeConfig) => (
+          <button
+            key={modeConfig.id}
+            onClick={() => setMode(modeConfig.id as TimerMode)}
+            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${mode === modeConfig.id ? 'bg-primary text-white shadow-lg' : 'text-muted hover:text-white'}`}
+          >
+            {modeConfig.label}
+          </button>
+        ))}
       </div>
 
       {/* Timer Circle - Compact */}
@@ -177,7 +171,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           />
         </svg>
         <div className="absolute flex flex-col items-center">
-          <span className="text-4xl font-black tracking-tighter tabular-nums">{formatTime(timeLeft)}</span>
+          <span className="text-4xl font-black tracking-tighter tabular-nums">{formatTimer(timeLeft)}</span>
           <span className="text-[10px] font-medium text-muted mt-1 uppercase tracking-widest">{isActive ? 'Focusing' : 'Ready'}</span>
         </div>
       </div>
