@@ -147,7 +147,7 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
           <span className="material-symbols-outlined text-primary text-xl">admin_panel_settings</span>
           <h2 className="font-bold text-sm">Tempo Admin</h2>
         </div>
-        <button onClick={() => setIsLoggedIn(false)} className="text-xs text-red-400 font-bold hover:text-red-300">
+        <button onClick={() => setIsLoggedIn(false)} className="text-xs text-red-400 font-bold hover:text-red-300 mr-10">
           Logout
         </button>
       </div>
@@ -178,7 +178,8 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 pb-6">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 pb-24">
+        {/* ... content ... */}
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (

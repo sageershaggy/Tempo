@@ -20,21 +20,87 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     setTimeLeft(newTime);
   }, [mode]);
 
+  // Load timer state on mount
+  useEffect(() => {
+    const savedTarget = localStorage.getItem('tempo_timer_target');
+    const savedMode = localStorage.getItem('tempo_timer_mode') as TimerMode;
+    const savedIsActive = localStorage.getItem('tempo_timer_active') === 'true';
+
+    if (savedMode) setMode(savedMode);
+
+    if (savedIsActive && savedTarget) {
+      const targetTime = parseInt(savedTarget, 10);
+      const now = Date.now();
+      const diff = Math.ceil((targetTime - now) / 1000);
+
+      if (diff > 0) {
+        setTimeLeft(diff);
+        setIsActive(true);
+      } else {
+        // Timer finished while closed
+        setTimeLeft(0);
+        setIsActive(false);
+        localStorage.removeItem('tempo_timer_target');
+        localStorage.removeItem('tempo_timer_active');
+      }
+    } else {
+      // Not active, just ensure mode is correct (handled by setMode above)
+    }
+  }, []);
+
+  // Timer Tick & Persistence
   useEffect(() => {
     let interval: any;
+
     if (isActive && timeLeft > 0) {
+      // Save state
+      const targetTime = Date.now() + (timeLeft * 1000);
+      // We only want to set the target ONCE when starting or resuming to avoid drift, 
+      // but for this simple implementation, updating it is okay or we check if it exists.
+      // Better: ONLY set localStorage if we just started.
+      // Actually, simplest is:
+      // If we are active, we trust the `tempo_timer_target` in storage is the truth source.
+      // But we need to decrement `timeLeft` for the UI.
+
       interval = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
+        setTimeLeft((prev) => {
+          const next = prev - 1;
+          // Sync with wall clock every tick to be sure
+          const savedTarget = localStorage.getItem('tempo_timer_target');
+          if (savedTarget) {
+            const diff = Math.ceil((parseInt(savedTarget) - Date.now()) / 1000);
+            return diff > 0 ? diff : 0;
+          }
+          return next;
+        });
       }, 1000);
     } else if (timeLeft === 0) {
       setIsActive(false);
-      // Stop audio when timer ends
+      localStorage.removeItem('tempo_timer_target');
+      localStorage.removeItem('tempo_timer_active');
+
       if (audioState.isPlaying && audioState.autoPlay) {
         setAudioState(prev => ({ ...prev, isPlaying: false }));
       }
     }
     return () => clearInterval(interval);
-  }, [isActive, timeLeft, audioState.isPlaying, audioState.autoPlay, setAudioState]);
+  }, [isActive, timeLeft]);
+
+  const toggleTimer = () => {
+    const newActive = !isActive;
+    setIsActive(newActive);
+    localStorage.setItem('tempo_timer_active', String(newActive));
+    localStorage.setItem('tempo_timer_mode', mode);
+
+    if (newActive) {
+      // Starting
+      const target = Date.now() + (timeLeft * 1000);
+      localStorage.setItem('tempo_timer_target', String(target));
+    } else {
+      // Pausing
+      localStorage.removeItem('tempo_timer_target');
+    }
+  };
 
   // Handle Auto-Play Logic
   useEffect(() => {
@@ -60,11 +126,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const progress = ((initialTime - timeLeft) / initialTime) * 283;
 
   return (
-    <div className="h-full flex flex-col px-6 pt-8 pb-24 overflow-y-auto no-scrollbar">
+    <div className="h-full flex flex-col px-6 pt-4 pb-20 overflow-y-auto no-scrollbar">
       {/* Header */}
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-2">
         <div>
-          <h1 className="text-xl font-bold">Tempo</h1>
+          <h1 className="text-lg font-bold">Tempo</h1>
           <p className="text-[10px] font-bold text-secondary uppercase tracking-wider">
             {mode === 'pomodoro' ? 'Pomodoro' : mode === 'deep' ? 'Deep Work' : 'Custom Session'}
           </p>
@@ -75,7 +141,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       </div>
 
       {/* Mode Switcher */}
-      <div className="flex p-1 bg-surface-light rounded-xl mb-6 border border-white/5">
+      <div className="flex p-1 bg-surface-light rounded-xl mb-4 border border-white/5">
         <button
           onClick={() => setMode('pomodoro')}
           className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${mode === 'pomodoro' ? 'bg-primary text-white shadow-lg' : 'text-muted hover:text-white'}`}
@@ -97,7 +163,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       </div>
 
       {/* Timer Circle - Compact */}
-      <div className="relative flex items-center justify-center w-56 h-56 mx-auto mb-8">
+      <div className="relative flex items-center justify-center w-48 h-48 mx-auto mb-6 shrink-0">
         <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
           <circle className="text-surface-light stroke-current" cx="50" cy="50" fill="transparent" r="45" strokeWidth="6" />
           <circle
@@ -111,18 +177,18 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           />
         </svg>
         <div className="absolute flex flex-col items-center">
-          <span className="text-5xl font-black tracking-tighter tabular-nums">{formatTime(timeLeft)}</span>
-          <span className="text-xs font-medium text-muted mt-1 uppercase tracking-widest">{isActive ? 'Focusing' : 'Ready'}</span>
+          <span className="text-4xl font-black tracking-tighter tabular-nums">{formatTime(timeLeft)}</span>
+          <span className="text-[10px] font-medium text-muted mt-1 uppercase tracking-widest">{isActive ? 'Focusing' : 'Ready'}</span>
         </div>
       </div>
 
       {/* Main Action */}
-      <div className="w-full max-w-[240px] mx-auto mb-6">
+      <div className="w-full max-w-[200px] mx-auto mb-4">
         <button
-          onClick={() => setIsActive(!isActive)}
-          className={`w-full h-12 rounded-xl font-bold text-base tracking-wide shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 ${isActive ? 'bg-surface-light text-white' : 'bg-secondary text-white shadow-[0_4px_20px_-4px_rgba(255,107,107,0.5)]'}`}
+          onClick={toggleTimer}
+          className={`w-full h-10 rounded-xl font-bold text-sm tracking-wide shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 ${isActive ? 'bg-surface-light text-white' : 'bg-secondary text-white shadow-[0_4px_20px_-4px_rgba(255,107,107,0.5)]'}`}
         >
-          <span className="material-symbols-outlined text-xl">{isActive ? 'pause' : 'play_arrow'}</span>
+          <span className="material-symbols-outlined text-lg">{isActive ? 'pause' : 'play_arrow'}</span>
           {isActive ? 'PAUSE' : 'START FOCUS'}
         </button>
       </div>
