@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+declare var chrome: any;
 import { Screen, AudioState, Task } from './types';
 import { BottomNav } from './components/BottomNav';
 import { SplashScreen } from './screens/SplashScreen';
@@ -18,6 +19,7 @@ import { AdminScreen } from './screens/AdminScreen';
 import { CalendarScreen } from './screens/CalendarScreen';
 import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen';
 import { TermsScreen } from './screens/TermsScreen';
+import { IntegrationsScreen } from './screens/IntegrationsScreen';
 
 const INITIAL_AUDIO_STATE: AudioState = {
   isPlaying: false,
@@ -70,15 +72,20 @@ const App: React.FC = () => {
   const getInitialScreen = (): Screen => {
     const params = new URLSearchParams(window.location.search);
     const screenParam = params.get('screen');
-    
-    switch (screenParam?.toLowerCase()) {
-      case 'admin': return Screen.ADMIN;
-      case 'pro': return Screen.TEMPO_PRO;
-      case 'tasks': return Screen.TASKS;
-      case 'stats': return Screen.STATS;
-      case 'settings': return Screen.SETTINGS;
-      default: return Screen.SPLASH;
+
+    if (screenParam) {
+      switch (screenParam.toLowerCase()) {
+        case 'admin': return Screen.ADMIN;
+        case 'pro': return Screen.TEMPO_PRO;
+        case 'tasks': return Screen.TASKS;
+        case 'stats': return Screen.STATS;
+        case 'settings': return Screen.SETTINGS;
+      }
     }
+
+    // Check if user has completed onboarding/splash
+    const hasOnboarded = localStorage.getItem('tempo_onboarding_complete') === 'true';
+    return hasOnboarded ? Screen.TIMER : Screen.SPLASH;
   };
 
   const [currentScreen, setCurrentScreen] = useState<Screen>(getInitialScreen());
@@ -89,15 +96,15 @@ const App: React.FC = () => {
 
   const renderScreen = () => {
     const props = {
-        setScreen: setCurrentScreen,
-        audioState,
-        setAudioState,
-        isPro,
-        setIsPro,
-        tasks,
-        setTasks,
-        currentTask,
-        setCurrentTask
+      setScreen: setCurrentScreen,
+      audioState,
+      setAudioState,
+      isPro,
+      setIsPro,
+      tasks,
+      setTasks,
+      currentTask,
+      setCurrentTask
     };
 
     switch (currentScreen) {
@@ -135,6 +142,8 @@ const App: React.FC = () => {
         return <PrivacyPolicyScreen setScreen={setCurrentScreen} />;
       case Screen.TERMS:
         return <TermsScreen setScreen={setCurrentScreen} />;
+      case Screen.INTEGRATIONS:
+        return <IntegrationsScreen setScreen={setCurrentScreen} />;
       default:
         return <TimerScreen {...props} />;
     }
@@ -142,19 +151,28 @@ const App: React.FC = () => {
 
   return (
     <div className="h-[600px] w-[400px] flex justify-center bg-black font-sans text-white overflow-hidden">
-      <div className="w-full h-full relative bg-background-dark shadow-2xl overflow-hidden">
-        
+      <div className="w-full h-full relative bg-background-dark shadow-2xl overflow-hidden group">
+
+        {/* Open in New Tab Button */}
+        <button
+          onClick={() => window.open(chrome.runtime.getURL('index.html'))}
+          className="absolute top-2 right-2 z-50 p-2 text-white/50 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+          title="Open in new tab"
+        >
+          <span className="material-symbols-outlined text-lg">open_in_new</span>
+        </button>
+
         {/* Persistent Audio Player (Hidden/Background) */}
         {audioState.youtubeId && (
-            <div className={`fixed top-0 left-0 w-1 h-1 opacity-0 pointer-events-none overflow-hidden`}>
-                 <iframe 
-                    width="200" 
-                    height="200" 
-                    src={`https://www.youtube.com/embed/${audioState.youtubeId}?autoplay=${audioState.isPlaying ? 1 : 0}&loop=1&playlist=${audioState.youtubeId}&enablejsapi=1`}
-                    title="Background Audio"
-                    allow="autoplay"
-                ></iframe>
-            </div>
+          <div className={`fixed top-0 left-0 w-1 h-1 opacity-0 pointer-events-none overflow-hidden`}>
+            <iframe
+              width="200"
+              height="200"
+              src={`https://www.youtube.com/embed/${audioState.youtubeId}?autoplay=${audioState.isPlaying ? 1 : 0}&loop=1&playlist=${audioState.youtubeId}&enablejsapi=1`}
+              title="Background Audio"
+              allow="autoplay"
+            ></iframe>
+          </div>
         )}
 
         {renderScreen()}
