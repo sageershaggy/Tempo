@@ -1,17 +1,19 @@
 import React from 'react';
 import { Screen, NavProps } from '../types';
+import { configManager } from '../config';
+import { SCREENS_WITHOUT_NAV } from '../config/constants';
 
 export const BottomNav: React.FC<NavProps> = ({ currentScreen, setScreen }) => {
   // Hide nav on splash, onboarding, login, or modal-like screens
-  if ([Screen.SPLASH, Screen.LOGIN, Screen.ONBOARDING, Screen.QUICK_ADD].includes(currentScreen)) return null;
+  if (SCREENS_WITHOUT_NAV.includes(currentScreen as any)) return null;
 
-  const navItems = [
-    { id: Screen.TIMER, icon: 'timer', label: 'Timer' },
-    { id: Screen.TASKS, icon: 'check_circle', label: 'Tasks' },
-    { id: Screen.STATS, icon: 'bar_chart', label: 'Stats' },
-    { id: Screen.SOCIAL, icon: 'group', label: 'Social' },
-    { id: Screen.PROFILE, icon: 'person', label: 'Profile' },
-  ];
+  // Load navigation items from config
+  const config = configManager.getConfig();
+  const navItems = config.navigation.map(item => ({
+    id: Screen[item.id as keyof typeof Screen],
+    icon: item.icon,
+    label: item.label,
+  }));
 
   return (
     <div className="fixed bottom-0 left-0 w-full bg-surface-dark/95 backdrop-blur-md border-t border-white/5 pb-6 pt-2 px-6 z-40">

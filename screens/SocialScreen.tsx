@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
 import { getStats, UserStats } from '../services/storageService';
+import { configManager } from '../config';
+import { STORAGE_KEYS, EXTERNAL_URLS } from '../config/constants';
 
 interface LeaderboardUser {
   rank: number;
@@ -24,7 +26,7 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
       setStats(statsData);
 
       // Load user profile name
-      const savedProfile = localStorage.getItem('tempo_userProfile');
+      const savedProfile = localStorage.getItem(STORAGE_KEYS.USER_PROFILE);
       if (savedProfile) {
         const parsed = JSON.parse(savedProfile);
         if (parsed.displayName) {
@@ -53,22 +55,20 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
   const myHours = Math.floor((stats?.totalFocusMinutes || 0) / 60);
   const myStreak = stats?.currentStreak || 0;
 
-  // Generate leaderboard with your real stats integrated
-  const topUsers = [
-    { rank: 2, name: "Mike", hours: "32h", img: 1012, streak: 8 },
-    { rank: 1, name: "Sarah", hours: "48h", img: 1027, streak: 12 },
-    { rank: 3, name: "Jess", hours: "28h", img: 1011, streak: 5 },
-  ];
+  // Load leaderboard data from config
+  const config = configManager.getConfig();
+  const mockLeaderboard = config.social.mockLeaderboard;
 
-  // Calculate your rank based on hours
+  // Calculate your rank based on hours - build from config data
   const allUsers: LeaderboardUser[] = [
-    { rank: 1, name: "Sarah", hours: "48h", img: 1027, streak: 12 },
-    { rank: 2, name: "Mike", hours: "32h", img: 1012, streak: 8 },
-    { rank: 3, name: "Jess", hours: "28h", img: 1011, streak: 5 },
-    { rank: 4, name: "Alex Chen", hours: "42h", img: 1005, streak: 4 },
-    { rank: 5, name: "Jordan Lee", hours: "38h", img: 1014, streak: 3 },
+    ...mockLeaderboard.map((u, idx) => ({
+      rank: idx + 1,
+      name: u.name,
+      hours: u.hours,
+      img: u.img,
+      streak: u.streak,
+    })),
     { rank: 0, name: userName, hours: `${myHours}h`, img: 0, streak: myStreak, me: true },
-    { rank: 7, name: "Casey West", hours: "12h", img: 1024, streak: 0 }
   ];
 
   // Sort by hours and assign ranks
@@ -123,41 +123,41 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
           {/* Rank 2 */}
           <div className="flex flex-col items-center w-1/3 mb-4">
             <div className="relative">
-              <img src="https://picsum.photos/id/1012/200/200" className="w-20 h-20 rounded-full border-2 border-surface-dark shadow-lg" alt="Mike" />
+              <img src={`${EXTERNAL_URLS.PICSUM_PHOTOS}/id/${mockLeaderboard[1]?.img || 1012}/200/200`} className="w-20 h-20 rounded-full border-2 border-surface-dark shadow-lg" alt={mockLeaderboard[1]?.name || 'User'} />
               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-surface-dark px-2 rounded-full border border-white/10 text-xs font-bold">#2</div>
             </div>
-            <p className="mt-3 font-semibold text-sm">Mike</p>
+            <p className="mt-3 font-semibold text-sm">{mockLeaderboard[1]?.name || 'User'}</p>
             <div className="flex items-center gap-1 text-secondary text-xs font-bold">
-              <span className="material-symbols-outlined text-sm">local_fire_department</span> 8
+              <span className="material-symbols-outlined text-sm">local_fire_department</span> {mockLeaderboard[1]?.streak || 0}
             </div>
-            <p className="text-xs text-muted">32h</p>
+            <p className="text-xs text-muted">{mockLeaderboard[1]?.hours || '0h'}</p>
           </div>
 
           {/* Rank 1 */}
           <div className="flex flex-col items-center w-1/3 mb-8">
             <span className="material-symbols-outlined text-yellow-400 text-4xl mb-2 animate-bounce">emoji_events</span>
             <div className="relative">
-              <img src="https://picsum.photos/id/1027/200/200" className="w-24 h-24 rounded-full border-4 border-primary shadow-[0_0_20px_rgba(127,19,236,0.6)]" alt="Sarah" />
+              <img src={`${EXTERNAL_URLS.PICSUM_PHOTOS}/id/${mockLeaderboard[0]?.img || 1027}/200/200`} className="w-24 h-24 rounded-full border-4 border-primary shadow-[0_0_20px_rgba(127,19,236,0.6)]" alt={mockLeaderboard[0]?.name || 'User'} />
               <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-primary px-3 py-0.5 rounded-full border-2 border-background-dark text-sm font-bold">#1</div>
             </div>
-            <p className="mt-4 font-bold text-lg">Sarah</p>
+            <p className="mt-4 font-bold text-lg">{mockLeaderboard[0]?.name || 'User'}</p>
             <div className="flex items-center gap-1 bg-secondary/10 px-3 py-1 rounded-full text-secondary font-bold text-sm mt-1">
-              <span className="material-symbols-outlined text-sm">local_fire_department</span> 12 Days
+              <span className="material-symbols-outlined text-sm">local_fire_department</span> {mockLeaderboard[0]?.streak || 0} Days
             </div>
-            <p className="text-sm text-white/60 mt-1">48h Focused</p>
+            <p className="text-sm text-white/60 mt-1">{mockLeaderboard[0]?.hours || '0h'} Focused</p>
           </div>
 
           {/* Rank 3 */}
           <div className="flex flex-col items-center w-1/3 mb-4">
             <div className="relative">
-              <img src="https://picsum.photos/id/1011/200/200" className="w-20 h-20 rounded-full border-2 border-surface-dark shadow-lg" alt="Jess" />
+              <img src={`${EXTERNAL_URLS.PICSUM_PHOTOS}/id/${mockLeaderboard[2]?.img || 1011}/200/200`} className="w-20 h-20 rounded-full border-2 border-surface-dark shadow-lg" alt={mockLeaderboard[2]?.name || 'User'} />
               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-surface-dark px-2 rounded-full border border-white/10 text-xs font-bold">#3</div>
             </div>
-            <p className="mt-3 font-semibold text-sm">Jess</p>
+            <p className="mt-3 font-semibold text-sm">{mockLeaderboard[2]?.name || 'User'}</p>
             <div className="flex items-center gap-1 text-secondary text-xs font-bold">
-              <span className="material-symbols-outlined text-sm">local_fire_department</span> 5
+              <span className="material-symbols-outlined text-sm">local_fire_department</span> {mockLeaderboard[2]?.streak || 0}
             </div>
-            <p className="text-xs text-muted">28h</p>
+            <p className="text-xs text-muted">{mockLeaderboard[2]?.hours || '0h'}</p>
           </div>
         </div>
       </div>
@@ -174,7 +174,7 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                     {userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                   </div>
                 ) : (
-                  <img src={`https://picsum.photos/id/${user.img}/100/100`} className="w-12 h-12 rounded-full border border-white/10" alt={user.name} />
+                  <img src={`${EXTERNAL_URLS.PICSUM_PHOTOS}/id/${user.img}/100/100`} className="w-12 h-12 rounded-full border border-white/10" alt={user.name} />
                 )}
                 <div>
                   <p className="font-semibold">{user.me ? userName : user.name}</p>
