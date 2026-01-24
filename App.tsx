@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 declare var chrome: any;
 import { Screen, AudioState, Task } from './types';
 import { BottomNav } from './components/BottomNav';
@@ -20,79 +20,84 @@ import { CalendarScreen } from './screens/CalendarScreen';
 import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen';
 import { TermsScreen } from './screens/TermsScreen';
 import { IntegrationsScreen } from './screens/IntegrationsScreen';
+import { configManager } from './config';
+import { STORAGE_KEYS, UI_DIMENSIONS, EXTERNAL_URLS } from './config/constants';
+import { getTasks, saveTasks } from './services/storageService';
 
-const INITIAL_AUDIO_STATE: AudioState = {
-  isPlaying: false,
-  activeTrackId: null,
-  youtubeId: null,
-  volume: 70,
-  autoPlay: false,
-  trackSettings: {}
+// Create initial audio state from config
+const createInitialAudioState = (): AudioState => {
+  const config = configManager.getConfig();
+  return {
+    isPlaying: false,
+    activeTrackId: null,
+    youtubeId: null,
+    volume: config.defaults.audio.volume,
+    autoPlay: config.defaults.audio.autoPlay,
+    trackSettings: {}
+  };
 };
 
-const INITIAL_TASKS: Task[] = [
-  {
-    id: '1',
-    title: 'Review Q3 Financials',
-    category: 'Finance',
-    priority: 'High',
-    dueDate: new Date(new Date().setHours(14, 0, 0, 0)).toISOString(),
-    completed: false,
-    createdAt: Date.now() - 100000,
-    updatedAt: Date.now() - 50000,
-    notes: 'Focus on the marketing budget variances.',
-    subtasks: []
-  },
-  {
-    id: '2',
-    title: 'Call Architect',
-    category: 'Project A',
-    priority: 'Medium',
-    dueDate: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString(),
-    completed: false,
-    createdAt: Date.now() - 200000,
-    subtasks: [
-      { id: 's1', title: 'Discuss blueprints', completed: false },
-      { id: 's2', title: 'Confirm budget', completed: true }
-    ]
-  },
-  {
-    id: '3',
-    title: 'Update Client Presentation',
-    category: 'Design',
-    priority: 'Low',
-    dueDate: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
-    completed: false,
-    createdAt: Date.now() - 300000,
-    subtasks: []
-  }
-];
+// Screen routing map for dynamic URL-based navigation
+const SCREEN_ROUTES: Record<string, Screen> = {
+  admin: Screen.ADMIN,
+  pro: Screen.TEMPO_PRO,
+  tasks: Screen.TASKS,
+  stats: Screen.STATS,
+  settings: Screen.SETTINGS,
+  timer: Screen.TIMER,
+  social: Screen.SOCIAL,
+  profile: Screen.PROFILE,
+  audio: Screen.AUDIO,
+  milestones: Screen.MILESTONES,
+  calendar: Screen.CALENDAR,
+};
 
 const App: React.FC = () => {
   const getInitialScreen = (): Screen => {
     const params = new URLSearchParams(window.location.search);
     const screenParam = params.get('screen');
 
+    // Dynamic screen routing from URL params
     if (screenParam) {
-      switch (screenParam.toLowerCase()) {
-        case 'admin': return Screen.ADMIN;
-        case 'pro': return Screen.TEMPO_PRO;
-        case 'tasks': return Screen.TASKS;
-        case 'stats': return Screen.STATS;
-        case 'settings': return Screen.SETTINGS;
-      }
+      const route = SCREEN_ROUTES[screenParam.toLowerCase()];
+      if (route) return route;
     }
 
     // Check if user has completed onboarding/splash
-    const hasOnboarded = localStorage.getItem('tempo_onboarding_complete') === 'true';
+    const hasOnboarded = localStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE) === 'true';
     return hasOnboarded ? Screen.TIMER : Screen.SPLASH;
   };
 
   const [currentScreen, setCurrentScreen] = useState<Screen>(getInitialScreen());
-  const [audioState, setAudioState] = useState<AudioState>(INITIAL_AUDIO_STATE);
+  const [audioState, setAudioState] = useState<AudioState>(createInitialAudioState());
   const [isPro, setIsPro] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load tasks from storage on mount
+  useEffect(() => {
+    const loadTasks = async () => {
+      try {
+        const savedTasks = await getTasks();
+        if (savedTasks && savedTasks.length > 0) {
+          setTasks(savedTasks);
+        }
+      } catch (error) {
+        console.error('Failed to load tasks:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadTasks();
+  }, []);
+
+  // Save tasks when they change
+  useEffect(() => {
+    if (!isLoading && tasks.length >= 0) {
+      saveTasks(tasks);
+    }
+  }, [tasks, isLoading]);
 
   const renderScreen = () => {
     const props = {
@@ -150,7 +155,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-[600px] w-[400px] flex justify-center bg-black font-sans text-white overflow-hidden">
+    <div className={`h-[${UI_DIMENSIONS.POPUP_HEIGHT}px] w-[${UI_DIMENSIONS.POPUP_WIDTH}px] flex justify-center bg-black font-sans text-white overflow-hidden`}>
       <div className="w-full h-full relative bg-background-dark shadow-2xl overflow-hidden group">
 
         {/* Open in New Tab Button */}
@@ -168,7 +173,7 @@ const App: React.FC = () => {
             <iframe
               width="200"
               height="200"
-              src={`https://www.youtube.com/embed/${audioState.youtubeId}?autoplay=${audioState.isPlaying ? 1 : 0}&loop=1&playlist=${audioState.youtubeId}&enablejsapi=1`}
+              src={`${EXTERNAL_URLS.YOUTUBE_EMBED}/${audioState.youtubeId}?autoplay=${audioState.isPlaying ? 1 : 0}&loop=1&playlist=${audioState.youtubeId}&enablejsapi=1`}
               title="Background Audio"
               allow="autoplay"
             ></iframe>

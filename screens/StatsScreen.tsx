@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
 import { getStats, UserStats } from '../services/storageService';
+import { configManager } from '../config';
 
 export const StatsScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
   const [stats, setStats] = useState<UserStats | null>(null);
@@ -82,18 +83,9 @@ export const StatsScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
     .sort((a, b) => b.count - a.count)
     .slice(0, 3);
 
+  // Get category icon from config
   const getCategoryIcon = (name: string) => {
-    const icons: Record<string, string> = {
-      'Finance': 'attach_money',
-      'Development': 'code',
-      'Design': 'palette',
-      'Marketing': 'campaign',
-      'Research': 'science',
-      'Writing': 'edit_note',
-      'Meeting': 'groups',
-      'Project A': 'folder',
-    };
-    return icons[name] || 'task_alt';
+    return configManager.getCategoryIcon(name);
   };
 
   const getCategoryColor = (idx: number) => {

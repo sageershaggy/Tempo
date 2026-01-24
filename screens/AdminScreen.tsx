@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Screen } from '../types';
 import { generateLicenseKey, getAdminConfig, saveAdminConfig, AdminConfig } from '../services/storageService';
+import { configManager } from '../config';
+import { STORAGE_KEYS } from '../config/constants';
 
 interface GeneratedLicense {
   key: string;
@@ -19,13 +21,20 @@ interface MockUser {
   licenseKey?: string;
 }
 
-const MOCK_USERS: MockUser[] = [
-  { id: '1', email: 'alex.morgan@gmail.com', isPro: true, plan: 'yearly', joinedAt: '2024-01-15', lastActive: '2025-01-22', licenseKey: 'TEMPO-ABC1-DEF2-GHI3-Y' },
-  { id: '2', email: 'sarah.chen@outlook.com', isPro: true, plan: 'monthly', joinedAt: '2024-06-20', lastActive: '2025-01-21', licenseKey: 'TEMPO-JKL4-MNO5-PQR6-M' },
-  { id: '3', email: 'mike.wilson@yahoo.com', isPro: false, plan: null, joinedAt: '2024-09-10', lastActive: '2025-01-20' },
-  { id: '4', email: 'jess.taylor@gmail.com', isPro: false, plan: null, joinedAt: '2024-11-05', lastActive: '2025-01-19' },
-  { id: '5', email: 'jordan.lee@company.co', isPro: true, plan: 'yearly', joinedAt: '2024-03-22', lastActive: '2025-01-22', licenseKey: 'TEMPO-STU7-VWX8-YZA9-Y' },
-];
+// Load users from localStorage or return empty array (users should come from backend in production)
+const loadMockUsers = (): MockUser[] => {
+  try {
+    const saved = localStorage.getItem('tempo_admin_users');
+    if (saved) return JSON.parse(saved);
+  } catch (e) {
+    console.error('Failed to load users:', e);
+  }
+  return [];
+};
+
+const saveMockUsers = (users: MockUser[]): void => {
+  localStorage.setItem('tempo_admin_users', JSON.stringify(users));
+};
 
 type AdminTab = 'overview' | 'users' | 'feedback' | 'licenses' | 'payments' | 'access' | 'settings';
 
@@ -43,21 +52,33 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
     globalAccessEndDate: null
   });
 
-  const [users, setUsers] = useState<MockUser[]>(MOCK_USERS);
+  const [users, setUsers] = useState<MockUser[]>(loadMockUsers());
   const [userSearch, setUserSearch] = useState('');
   const [userFilter, setUserFilter] = useState<'all' | 'pro' | 'free'>('all');
   const [generatedLicenses, setGeneratedLicenses] = useState<GeneratedLicense[]>([]);
   const [licenseEmail, setLicenseEmail] = useState('');
   const [licensePlan, setLicensePlan] = useState<'monthly' | 'yearly'>('yearly');
 
+  // Load admin password from config
+  const appConfig = configManager.getConfig();
+  const ADMIN_PASSWORD = appConfig.admin.passwordHash;
+  const PRICING = appConfig.pricing;
+
   useEffect(() => {
     getAdminConfig().then(setConfig);
   }, []);
 
+  // Save users when they change
+  useEffect(() => {
+    saveMockUsers(users);
+  }, [users]);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === 'admin123') {
+    // Note: In production, use proper authentication with hashed passwords
+    if (password === ADMIN_PASSWORD) {
       setIsLoggedIn(true);
+      localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN, 'authenticated');
     } else {
       alert('Invalid Admin Key');
     }

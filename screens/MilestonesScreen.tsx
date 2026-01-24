@@ -1,15 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Screen, Milestone } from '../types';
+import { STORAGE_KEYS } from '../config/constants';
 
-// Mock Data
-const INITIAL_MILESTONES: Milestone[] = [
-    { id: 'm1', title: 'Launch MVP Beta', dueDate: '2023-11-15', color: 'bg-primary', progress: 75 },
-    { id: 'm2', title: 'Complete User Research', dueDate: '2023-10-30', color: 'bg-secondary', progress: 100 },
-    { id: 'm3', title: 'Design System v2', dueDate: '2023-12-01', color: 'bg-blue-500', progress: 30 },
-];
+// Load milestones from storage or use empty array
+const loadMilestones = (): Milestone[] => {
+    try {
+        const saved = localStorage.getItem(STORAGE_KEYS.USER_MILESTONES);
+        if (saved) {
+            return JSON.parse(saved);
+        }
+    } catch (e) {
+        console.error('Failed to load milestones:', e);
+    }
+    return [];
+};
+
+const saveMilestones = (milestones: Milestone[]): void => {
+    localStorage.setItem(STORAGE_KEYS.USER_MILESTONES, JSON.stringify(milestones));
+};
 
 export const MilestonesScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
-    const [milestones] = useState<Milestone[]>(INITIAL_MILESTONES);
+    const [milestones, setMilestones] = useState<Milestone[]>(loadMilestones);
+
+    // Save milestones when they change
+    useEffect(() => {
+        saveMilestones(milestones);
+    }, [milestones]);
 
     return (
         <div className="h-full flex flex-col bg-background-dark pb-24 overflow-y-auto no-scrollbar">

@@ -1,6 +1,9 @@
 // Chrome Storage Service for Tempo Focus
 declare var chrome: any;
 
+import { configManager } from '../config';
+import { TIME } from '../config/constants';
+
 export interface UserSettings {
   focusDuration: number;
   shortBreak: number;
@@ -105,19 +108,20 @@ const storage = {
   } : localStorageFallback
 };
 
-// Settings
+// Settings - Load defaults from config
 export const getSettings = async (): Promise<UserSettings> => {
+  const config = configManager.getConfig();
   const defaults: UserSettings = {
-    focusDuration: 25,
-    shortBreak: 5,
-    longBreak: 15,
-    autoStartBreaks: false,
-    autoStartPomos: false,
-    notifications: true,
-    darkMode: true,
-    theme: 'default',
-    tickingEnabled: false,
-    tickingSpeed: 60
+    focusDuration: config.defaults.settings.focusDuration,
+    shortBreak: config.defaults.settings.shortBreak,
+    longBreak: config.defaults.settings.longBreak,
+    autoStartBreaks: config.defaults.settings.autoStartBreaks,
+    autoStartPomos: config.defaults.settings.autoStartPomos,
+    notifications: config.defaults.settings.notifications,
+    darkMode: config.defaults.settings.darkMode,
+    theme: config.defaults.settings.theme,
+    tickingEnabled: config.defaults.settings.tickingEnabled,
+    tickingSpeed: config.defaults.settings.tickingSpeed
   };
   const data = await storage.sync.get('settings');
   return { ...defaults, ...(data.settings || {}) };
@@ -128,12 +132,13 @@ export const saveSettings = async (settings: Partial<UserSettings>): Promise<voi
   await storage.sync.set({ settings: { ...current, ...settings } });
 };
 
-// Stats
+// Stats - Load defaults from config
 export const getStats = async (): Promise<UserStats> => {
+  const config = configManager.getConfig();
   const defaults: UserStats = {
-    totalSessions: 0,
-    totalFocusMinutes: 0,
-    currentStreak: 0,
+    totalSessions: config.defaults.stats.totalSessions,
+    totalFocusMinutes: config.defaults.stats.totalFocusMinutes,
+    currentStreak: config.defaults.stats.currentStreak,
     lastSessionDate: null,
     weeklyData: {}
   };
@@ -190,8 +195,8 @@ export const getProStatus = async (): Promise<ProStatus> => {
 
 export const activatePro = async (licenseKey: string, plan: 'monthly' | 'yearly'): Promise<boolean> => {
   const expiry = plan === 'yearly'
-    ? Date.now() + (365 * 24 * 60 * 60 * 1000)
-    : Date.now() + (30 * 24 * 60 * 60 * 1000);
+    ? Date.now() + TIME.YEAR_365
+    : Date.now() + TIME.MONTH_30;
 
   await storage.sync.set({
     isPro: true,
@@ -215,11 +220,15 @@ export const deactivatePro = async (): Promise<void> => {
 
 // License Key Validation (simple client-side for demo)
 export const validateLicenseKey = (key: string): { valid: boolean; plan?: 'monthly' | 'yearly' } => {
-  if (key === 'TEST-KEY-2024' || key === 'TEMPO-TEST-KEY-2024') return { valid: true, plan: 'yearly' };
+  const config = configManager.getConfig();
 
-  // License format: TEMPO-XXXX-XXXX-XXXX-M or TEMPO-XXXX-XXXX-XXXX-Y
-  const pattern = /^TEMPO-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-(M|Y)$/;
-  const match = key.toUpperCase().match(pattern);
+  // Check test keys from config
+  if (config.pricing.testLicenseKeys.includes(key)) {
+    return { valid: true, plan: 'yearly' };
+  }
+
+  // License format from config pattern
+  const match = key.toUpperCase().match(config.pricing.licensePattern);
 
   if (!match) return { valid: false };
 
@@ -235,15 +244,16 @@ export const generateLicenseKey = (plan: 'monthly' | 'yearly'): string => {
   return `TEMPO-${segment()}-${segment()}-${segment()}-${suffix}`;
 };
 
-// Admin Config
+// Admin Config - Load defaults from config
 export const getAdminConfig = async (): Promise<AdminConfig> => {
+  const config = configManager.getConfig();
   const defaults: AdminConfig = {
     stripeMonthlyLink: '',
     stripeYearlyLink: '',
-    maintenanceMode: false,
-    freeTrialEnabled: true,
-    freeTrialDays: 7,
-    globalAccessEnabled: false,
+    maintenanceMode: config.defaults.admin.maintenanceMode,
+    freeTrialEnabled: config.defaults.admin.freeTrialEnabled,
+    freeTrialDays: config.defaults.admin.freeTrialDays,
+    globalAccessEnabled: config.defaults.admin.globalAccessEnabled,
     globalAccessEndDate: null
   };
   const data = await storage.local.get('adminConfig');

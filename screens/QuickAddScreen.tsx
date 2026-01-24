@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import { Screen, Task, GlobalProps } from '../types';
 import { enhanceTaskDescription } from '../services/geminiService';
-
-const CATEGORIES = ['Design System', 'Marketing', 'Development', 'Personal'];
+import { configManager } from '../config';
+import { generateId } from '../config/constants';
 
 export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, setCurrentTask }) => {
+  // Load categories from config
+  const config = configManager.getConfig();
+  const CATEGORIES = config.categories.task;
+  const defaultCategory = config.categories.defaultTaskCategory;
+
   const [input, setInput] = useState('');
   const [notes, setNotes] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('Design System');
+  const [selectedCategory, setSelectedCategory] = useState(defaultCategory);
   const [startTimerAfter, setStartTimerAfter] = useState(true);
   const [isEnhancing, setIsEnhancing] = useState(false);
 
@@ -26,7 +31,7 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
     if (!input.trim()) return;
 
     const newTask: Task = {
-      id: `task-${Date.now()}`,
+      id: generateId('task'),
       title: input.trim(),
       category: selectedCategory,
       priority: 'Medium',

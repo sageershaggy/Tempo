@@ -1,29 +1,13 @@
 import React, { useState } from 'react';
 import { Screen } from '../types';
+import { configManager } from '../config';
 
 export const OnboardingScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
   const [step, setStep] = useState(0);
 
-  const steps = [
-    {
-      title: "Master Your Focus",
-      desc: "Stay in the zone with our customizable Pomodoro timer designed for deep work sessions.",
-      icon: "timer",
-      color: "text-primary"
-    },
-    {
-      title: "Set the Vibe",
-      desc: "Enhance concentration with binaural beats, brown noise, and custom soundscapes.",
-      icon: "graphic_eq",
-      color: "text-secondary"
-    },
-    {
-      title: "Track Progress",
-      desc: "Visualize your daily habits with detailed task history and performance analytics.",
-      icon: "bar_chart",
-      color: "text-blue-500"
-    }
-  ];
+  // Load onboarding steps from config
+  const config = configManager.getConfig();
+  const steps = config.onboarding;
 
   const handleNext = () => {
     if (step < steps.length - 1) {
