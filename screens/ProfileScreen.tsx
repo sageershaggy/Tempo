@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
-import { getStats, getProStatus, exportUserData, UserStats, ProStatus } from '../services/storageService';
+import { getStats, exportUserData, UserStats } from '../services/storageService';
 
 interface UserProfile {
   displayName: string;
@@ -8,10 +8,9 @@ interface UserProfile {
   avatarUrl: string;
 }
 
-export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen, isPro, setIsPro }) => {
+export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [stats, setStats] = useState<UserStats | null>(null);
-  const [proStatus, setProStatus] = useState<ProStatus | null>(null);
   const [syncEnabled, setSyncEnabled] = useState(true);
   const [profile, setProfile] = useState<UserProfile>({
     displayName: 'Tempo User',
@@ -23,10 +22,7 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen, isPro, setIsPr
   useEffect(() => {
     const loadData = async () => {
       const statsData = await getStats();
-      const proData = await getProStatus();
       setStats(statsData);
-      setProStatus(proData);
-      setIsPro(proData.isPro);
 
       // Load profile from localStorage
       const savedProfile = localStorage.getItem('tempo_userProfile');
@@ -37,7 +33,7 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen, isPro, setIsPr
       }
     };
     loadData();
-  }, [setIsPro]);
+  }, []);
 
   const handleSaveProfile = () => {
     setProfile(editForm);
@@ -101,16 +97,6 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen, isPro, setIsPr
           <div className="flex-1">
             <h3 className="text-2xl font-bold">{profile.displayName}</h3>
             <p className="text-sm text-muted mb-2">{profile.email || 'No email set'}</p>
-            {isPro ? (
-              <span className="bg-primary/20 text-primary-light border border-primary/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Pro Member</span>
-            ) : (
-              <button
-                onClick={() => setScreen(Screen.TEMPO_PRO)}
-                className="bg-white/10 text-white border border-white/20 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase hover:bg-white/20 transition-colors"
-              >
-                Upgrade to Pro
-              </button>
-            )}
           </div>
         </div>
 
@@ -170,26 +156,6 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen, isPro, setIsPr
               </div>
             </div>
           </div>
-
-          {/* Pro Status */}
-          {isPro && proStatus && (
-            <div>
-              <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Pro Subscription</h4>
-              <div className="bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl p-5 border border-primary/20">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-bold text-white">Pro {proStatus.plan === 'yearly' ? 'Annual' : 'Monthly'}</p>
-                    <p className="text-xs text-muted">
-                      {proStatus.proExpiry
-                        ? `Expires: ${new Date(proStatus.proExpiry).toLocaleDateString()}`
-                        : 'Lifetime access'}
-                    </p>
-                  </div>
-                  <span className="material-symbols-outlined text-yellow-400 text-3xl">verified</span>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Support */}
           <div>

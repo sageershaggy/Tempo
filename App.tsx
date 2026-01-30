@@ -14,7 +14,6 @@ import { SocialScreen } from './screens/SocialScreen';
 import { QuickAddScreen } from './screens/QuickAddScreen';
 import { AudioScreen } from './screens/AudioScreen';
 import { MilestonesScreen } from './screens/MilestonesScreen';
-import { TempoProScreen } from './screens/TempoProScreen';
 import { AdminScreen } from './screens/AdminScreen';
 import { CalendarScreen } from './screens/CalendarScreen';
 import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen';
@@ -40,8 +39,7 @@ const createInitialAudioState = (): AudioState => {
 // Screen routing map for dynamic URL-based navigation
 const SCREEN_ROUTES: Record<string, Screen> = {
   admin: Screen.ADMIN,
-  pro: Screen.TEMPO_PRO,
-  tasks: Screen.TASKS,
+tasks: Screen.TASKS,
   stats: Screen.STATS,
   settings: Screen.SETTINGS,
   timer: Screen.TIMER,
@@ -70,8 +68,7 @@ const App: React.FC = () => {
 
   const [currentScreen, setCurrentScreen] = useState<Screen>(getInitialScreen());
   const [audioState, setAudioState] = useState<AudioState>(createInitialAudioState());
-  const [isPro, setIsPro] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>([]);
+const [tasks, setTasks] = useState<Task[]>([]);
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -104,8 +101,6 @@ const App: React.FC = () => {
       setScreen: setCurrentScreen,
       audioState,
       setAudioState,
-      isPro,
-      setIsPro,
       tasks,
       setTasks,
       currentTask,
@@ -137,9 +132,7 @@ const App: React.FC = () => {
         return <AudioScreen {...props} />;
       case Screen.MILESTONES:
         return <MilestonesScreen setScreen={setCurrentScreen} />;
-      case Screen.TEMPO_PRO:
-        return <TempoProScreen {...props} />;
-      case Screen.ADMIN:
+case Screen.ADMIN:
         return <AdminScreen setScreen={setCurrentScreen} />;
       case Screen.CALENDAR:
         return <CalendarScreen setScreen={setCurrentScreen} />;
