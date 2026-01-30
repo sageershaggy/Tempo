@@ -4,7 +4,7 @@ import { getSettings, saveSettings, UserSettings, exportUserData } from '../serv
 import { configManager } from '../config';
 import { STORAGE_KEYS, LIMITS } from '../config/constants';
 
-export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState, isPro }) => {
+export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState }) => {
   // Modals
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackType, setFeedbackType] = useState<'bug' | 'feedback' | 'help'>('feedback');
@@ -58,13 +58,9 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   const TIMER_TEMPLATES = config.timer.templates;
   const TICKING_RANGE = config.timer.tickingSpeedRange;
 
-  const handleThemeSelect = (themeId: string, isThemePro: boolean) => {
-    if (isThemePro && !isPro) {
-      setScreen(Screen.TEMPO_PRO);
-    } else {
-      setActiveTheme(themeId);
-      handleSettingChange('theme', themeId);
-    }
+  const handleThemeSelect = (themeId: string) => {
+    setActiveTheme(themeId);
+    handleSettingChange('theme', themeId);
   };
 
   const toggleCalendarSync = () => {
@@ -72,10 +68,6 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   };
 
   const handleExportData = async () => {
-    if (!isPro) {
-      setScreen(Screen.TEMPO_PRO);
-      return;
-    }
     try {
       const data = await exportUserData();
       const blob = new Blob([data], { type: 'application/json' });
@@ -138,25 +130,6 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
       </div>
 
       <div className="p-6 space-y-8">
-
-        {/* Pro Banner (If not Pro) */}
-        {!isPro && (
-          <div
-            onClick={() => setScreen(Screen.TEMPO_PRO)}
-            className="bg-gradient-to-r from-primary to-secondary p-1 rounded-2xl cursor-pointer hover:scale-[1.01] transition-transform"
-          >
-            <div className="bg-background-dark/30 backdrop-blur-sm rounded-xl p-4 flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="material-symbols-outlined text-yellow-300">diamond</span>
-                  <span className="font-bold text-white">Upgrade to Pro</span>
-                </div>
-                <p className="text-[10px] text-white/80">Unlock themes, advanced stats & more</p>
-              </div>
-              <span className="material-symbols-outlined text-white">chevron_right</span>
-            </div>
-          </div>
-        )}
 
         {/* Timer Templates - Dynamic from config */}
         <section>
@@ -352,8 +325,8 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
 
         {/* Appearance (Pro Features) */}
         <section>
-          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1 flex items-center gap-1">
-            Appearance <span className="bg-primary/20 text-primary-light text-[9px] px-1.5 rounded font-bold">PRO</span>
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">
+            Appearance
           </h3>
           <div className="bg-surface-dark rounded-xl p-4 border border-white/5">
             <p className="text-sm font-bold mb-3">App Theme</p>
@@ -361,18 +334,12 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
               {THEMES.map(theme => (
                 <div
                   key={theme.id}
-                  onClick={() => handleThemeSelect(theme.id, !!theme.pro)}
+                  onClick={() => handleThemeSelect(theme.id)}
                   className="relative group cursor-pointer shrink-0"
                 >
                   <div className={`w-12 h-12 rounded-full ${theme.color} border-2 ${activeTheme === theme.id ? 'border-white' : 'border-transparent'} shadow-lg transition-all`}></div>
                   <span className="text-[10px] font-medium text-muted mt-1 block text-center w-full truncate">{theme.name}</span>
 
-                  {/* Pro Lock */}
-                  {theme.pro && !isPro && (
-                    <div className="absolute top-0 right-0 bg-black rounded-full p-1 border border-white/10 shadow-md">
-                      <span className="material-symbols-outlined text-[10px] text-yellow-400 block">lock</span>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -449,8 +416,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
               className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
             >
               <div className="flex items-center gap-2">
-                <p className={`text-sm font-bold ${!isPro ? 'text-muted' : 'text-white'}`}>Export Data (JSON)</p>
-                {!isPro && <span className="material-symbols-outlined text-xs text-yellow-400">lock</span>}
+                <p className="text-sm font-bold text-white">Export Data (JSON)</p>
               </div>
               <span className="material-symbols-outlined text-muted text-sm">download</span>
             </div>
@@ -551,10 +517,6 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 <div className="bg-black/20 rounded-xl p-4 border border-white/5">
                   <h4 className="font-bold text-sm mb-2">How do I start a focus session?</h4>
                   <p className="text-xs text-muted">Tap the play button on the Timer screen to start your focus session. You can adjust the duration in Settings.</p>
-                </div>
-                <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                  <h4 className="font-bold text-sm mb-2">How do I upgrade to Pro?</h4>
-                  <p className="text-xs text-muted">Go to Settings and tap "Upgrade to Pro" or visit the Tempo Pro screen from the banner.</p>
                 </div>
                 <div className="bg-black/20 rounded-xl p-4 border border-white/5">
                   <h4 className="font-bold text-sm mb-2">Is my data synced across devices?</h4>

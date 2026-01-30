@@ -13,8 +13,7 @@ export enum Screen {
   QUICK_ADD = 'QUICK_ADD',
   AUDIO = 'AUDIO',
   MILESTONES = 'MILESTONES',
-  TEMPO_PRO = 'TEMPO_PRO',
-  ADMIN = 'ADMIN',
+ADMIN = 'ADMIN',
   CALENDAR = 'CALENDAR',
   PRIVACY_POLICY = 'PRIVACY_POLICY',
   TERMS = 'TERMS',
@@ -68,9 +67,7 @@ export interface GlobalProps {
   setScreen: (screen: Screen) => void;
   audioState: AudioState;
   setAudioState: React.Dispatch<React.SetStateAction<AudioState>>;
-  isPro: boolean;
-  setIsPro: React.Dispatch<React.SetStateAction<boolean>>;
-  tasks: Task[];
+tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   currentTask: Task | null;
   setCurrentTask: React.Dispatch<React.SetStateAction<Task | null>>;
