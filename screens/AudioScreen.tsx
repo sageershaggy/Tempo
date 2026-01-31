@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Screen, AudioState, GlobalProps } from '../types';
 import { configManager, AudioTrackConfig } from '../config';
 import { extractYouTubeId } from '../config/constants';
+import { playSound, stopSound, setVolume as setSoundVolume, isBuiltInTrack } from '../services/soundGenerator';
 
 export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState }) => {
   const [filter, setFilter] = useState('All');
@@ -27,18 +28,25 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     }));
   };
 
-  const toggleTrack = (track: SoundTrack) => {
+  const toggleTrack = (track: AudioTrackConfig) => {
       const isCurrent = audioState.activeTrackId === track.id;
       if (isCurrent && audioState.isPlaying) {
           // Pause
+          stopSound();
           setAudioState(prev => ({ ...prev, isPlaying: false }));
       } else {
+          // Stop previous sound
+          stopSound();
           // Play new
-          setAudioState(prev => ({ 
-              ...prev, 
-              isPlaying: true, 
+          if (isBuiltInTrack(track.id)) {
+              const trackVolume = (audioState.trackSettings[track.id]?.volume ?? 50) / 100 * (audioState.volume / 100);
+              playSound(track.id, trackVolume);
+          }
+          setAudioState(prev => ({
+              ...prev,
+              isPlaying: true,
               activeTrackId: track.id,
-              youtubeId: null // Clear YT if regular track plays
+              youtubeId: null
           }));
       }
   };
@@ -58,8 +66,23 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       }
   };
 
-  const filteredTracks = filter === 'All' 
-    ? TRACKS 
+  // Stop built-in sound when audio is paused externally
+  useEffect(() => {
+    if (!audioState.isPlaying) {
+      stopSound();
+    }
+  }, [audioState.isPlaying]);
+
+  // Sync volume changes to the active built-in sound
+  useEffect(() => {
+    if (audioState.isPlaying && audioState.activeTrackId && isBuiltInTrack(audioState.activeTrackId)) {
+      const trackVol = (audioState.trackSettings[audioState.activeTrackId]?.volume ?? 50) / 100;
+      setSoundVolume(trackVol * (audioState.volume / 100));
+    }
+  }, [audioState.volume, audioState.trackSettings, audioState.activeTrackId]);
+
+  const filteredTracks = filter === 'All'
+    ? TRACKS
     : TRACKS.filter(t => t.category === filter);
 
   // Visualizer Bars Generation
@@ -171,7 +194,10 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                                     <p className="text-[10px] text-muted">{track.category}</p>
                                 </div>
                             </div>
-                            {track.hz && <span className="text-[10px] font-bold text-secondary bg-secondary/10 px-2 py-0.5 rounded">{track.hz}</span>}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {isBuiltInTrack(track.id) && <span className="text-[8px] font-bold text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded uppercase">Built-in</span>}
+                              {track.hz && <span className="text-[10px] font-bold text-secondary bg-secondary/10 px-2 py-0.5 rounded">{track.hz}</span>}
+                            </div>
                         </div>
 
                         {/* Expanded Controls */}
@@ -184,7 +210,13 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                                         min="0" max="100" 
                                         value={settings.volume}
                                         onClick={(e) => e.stopPropagation()}
-                                        onChange={(e) => updateTrackSetting(track.id, { volume: Number(e.target.value) })}
+                                        onChange={(e) => {
+                                            const newVol = Number(e.target.value);
+                                            updateTrackSetting(track.id, { volume: newVol });
+                                            if (isBuiltInTrack(track.id) && audioState.isPlaying) {
+                                              setSoundVolume((newVol / 100) * (audioState.volume / 100));
+                                            }
+                                        }}
                                         className="flex-1 h-1 bg-white/20 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary cursor-pointer"
                                     />
                                     <span className="text-xs font-mono w-8 text-right">{settings.volume}%</span>

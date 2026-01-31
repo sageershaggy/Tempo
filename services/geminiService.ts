@@ -5,7 +5,6 @@ const genAI = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const enhanceTaskDescription = async (rawInput: string): Promise<string> => {
   if (!genAI) {
-    console.warn("API Key not found, returning raw input");
     return rawInput;
   }
 

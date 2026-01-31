@@ -162,7 +162,7 @@ export const defaultAppConfig: AppConfig = {
       { focusMinutes: 90, breakMinutes: 20, label: '90/20', description: 'Ultra Focus' },
     ],
     sounds: ['Desk Clock', 'Digital Beep', 'Gentle Chime', 'Bell Ring', 'None'],
-    tickingSpeedRange: { min: 30, max: 120, step: 5 },
+    tickingSpeedRange: { min: 1, max: 120, step: 1 },
   },
 
   audio: {

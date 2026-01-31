@@ -2,260 +2,301 @@ import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
 import { getStats, UserStats } from '../services/storageService';
 import { configManager } from '../config';
-import { STORAGE_KEYS, EXTERNAL_URLS } from '../config/constants';
+import { STORAGE_KEYS } from '../config/constants';
+
+type TimePeriod = 'daily' | 'weekly' | 'monthly';
 
 interface LeaderboardUser {
   rank: number;
   name: string;
-  hours: string;
-  img: number;
+  hours: number;
   streak: number;
+  points: number;
   me?: boolean;
 }
 
+const POINT_TIERS = [
+  { label: 'Top 3', maxRank: 3, points: 100 },
+  { label: 'Top 10', maxRank: 10, points: 50 },
+  { label: 'Top 25', maxRank: 25, points: 35 },
+  { label: 'Top 50', maxRank: 50, points: 20 },
+  { label: 'Top 100', maxRank: 100, points: 10 },
+  { label: 'Participant', maxRank: Infinity, points: 5 },
+];
+
+const getPointsForRank = (rank: number): number => {
+  for (const tier of POINT_TIERS) {
+    if (rank <= tier.maxRank) return tier.points;
+  }
+  return 5;
+};
+
+const getTierForRank = (rank: number): string => {
+  for (const tier of POINT_TIERS) {
+    if (rank <= tier.maxRank) return tier.label;
+  }
+  return 'Participant';
+};
+
+// Mock data multipliers for different time periods
+const PERIOD_MULTIPLIERS: Record<TimePeriod, number> = {
+  daily: 1,
+  weekly: 5,
+  monthly: 18,
+};
+
 export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteSent, setInviteSent] = useState(false);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [userName, setUserName] = useState('You');
+  const [gamificationEnabled, setGamificationEnabled] = useState(false);
+  const [period, setPeriod] = useState<TimePeriod>('weekly');
 
   useEffect(() => {
     const loadData = async () => {
       const statsData = await getStats();
       setStats(statsData);
 
-      // Load user profile name
       const savedProfile = localStorage.getItem(STORAGE_KEYS.USER_PROFILE);
       if (savedProfile) {
         const parsed = JSON.parse(savedProfile);
-        if (parsed.displayName) {
-          setUserName(parsed.displayName);
-        }
+        if (parsed.displayName) setUserName(parsed.displayName);
       }
+
+      const savedGamification = localStorage.getItem('tempo_gamification');
+      if (savedGamification === 'true') setGamificationEnabled(true);
     };
     loadData();
   }, []);
 
-  const handleSendInvite = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteEmail.trim()) return;
-
-    // Simulate API call
-    setTimeout(() => {
-      setInviteSent(true);
-      setTimeout(() => {
-        setInviteSent(false);
-        setShowInviteModal(false);
-        setInviteEmail('');
-      }, 2000);
-    }, 500);
+  const toggleGamification = () => {
+    const newVal = !gamificationEnabled;
+    setGamificationEnabled(newVal);
+    localStorage.setItem('tempo_gamification', String(newVal));
   };
 
-  const myHours = Math.floor((stats?.totalFocusMinutes || 0) / 60);
+  const multiplier = PERIOD_MULTIPLIERS[period];
+  const myHoursTotal = Math.floor((stats?.totalFocusMinutes || 0) / 60);
+  const myHours = period === 'daily' ? Math.max(1, Math.floor(myHoursTotal / 30)) : period === 'weekly' ? Math.max(1, Math.floor(myHoursTotal / 4)) : myHoursTotal;
   const myStreak = stats?.currentStreak || 0;
 
-  // Load leaderboard data from config
   const config = configManager.getConfig();
   const mockLeaderboard = config.social.mockLeaderboard;
 
-  // Calculate your rank based on hours - build from config data
+  // Build leaderboard with period-adjusted hours
   const allUsers: LeaderboardUser[] = [
-    ...mockLeaderboard.map((u, idx) => ({
-      rank: idx + 1,
-      name: u.name,
-      hours: u.hours,
-      img: u.img,
-      streak: u.streak,
-    })),
-    { rank: 0, name: userName, hours: `${myHours}h`, img: 0, streak: myStreak, me: true },
+    ...mockLeaderboard.map((u) => {
+      const baseHours = parseInt(u.hours) || 0;
+      const adjustedHours = period === 'daily' ? Math.max(1, Math.floor(baseHours / 30)) : period === 'weekly' ? Math.max(1, Math.floor(baseHours / 4)) : baseHours;
+      return {
+        rank: 0,
+        name: u.name,
+        hours: adjustedHours,
+        streak: u.streak,
+        points: 0,
+      };
+    }),
+    { rank: 0, name: userName, hours: myHours, streak: myStreak, points: 0, me: true },
   ];
 
-  // Sort by hours and assign ranks
   const sortedUsers = allUsers
-    .map(u => ({ ...u, hoursNum: parseInt(u.hours) || 0 }))
-    .sort((a, b) => b.hoursNum - a.hoursNum)
-    .map((u, idx) => ({ ...u, rank: idx + 1 }));
+    .sort((a, b) => b.hours - a.hours)
+    .map((u, idx) => ({ ...u, rank: idx + 1, points: getPointsForRank(idx + 1) }));
 
-  const yourRank = sortedUsers.find(u => u.me)?.rank || 6;
+  const yourRank = sortedUsers.find(u => u.me)?.rank || sortedUsers.length;
+  const yourPoints = getPointsForRank(yourRank);
+  const yourTier = getTierForRank(yourRank);
 
-  // Get squad (users around your rank)
-  const squadUsers = sortedUsers.filter(u => u.rank >= 4);
+  const getInitials = (name: string) =>
+    name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+  const getRankDisplay = (rank: number) => {
+    if (rank === 1) return { color: 'text-yellow-400', icon: 'emoji_events', bg: 'bg-yellow-400/10' };
+    if (rank === 2) return { color: 'text-gray-300', icon: 'military_tech', bg: 'bg-gray-300/10' };
+    if (rank === 3) return { color: 'text-amber-600', icon: 'military_tech', bg: 'bg-amber-600/10' };
+    return { color: 'text-muted', icon: '', bg: '' };
+  };
 
   return (
-    <div className="h-full flex flex-col bg-background-dark pb-24 overflow-y-auto no-scrollbar relative">
-      <div className="sticky top-0 bg-background-dark/95 backdrop-blur-sm z-20 p-4 border-b border-white/5 flex items-center justify-between">
-        <button onClick={() => setScreen(Screen.TIMER)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5">
-          <span className="material-symbols-outlined">arrow_back</span>
+    <div className="h-full flex flex-col bg-background-dark pb-24 overflow-y-auto no-scrollbar">
+      {/* Header */}
+      <div className="sticky top-0 bg-background-dark/95 backdrop-blur-md z-20 px-5 py-3 border-b border-white/5 flex items-center justify-between">
+        <button onClick={() => setScreen(Screen.TIMER)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-white hover:bg-white/5 transition-all">
+          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
         </button>
-        <h2 className="font-bold text-lg">Tempo Friends</h2>
-        <button className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5">
-          <span className="material-symbols-outlined">notifications</span>
-        </button>
+        <h2 className="font-bold text-sm">Compete</h2>
+        <div className="w-8"></div>
       </div>
 
-      {/* Your Rank Banner */}
-      <div className="px-4 pt-4">
-        <div className="bg-gradient-to-r from-primary/20 to-secondary/20 rounded-xl p-4 border border-primary/20 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted uppercase">Your Rank</p>
-            <p className="text-2xl font-black">#{yourRank}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-muted uppercase">Total Focus</p>
-            <p className="text-2xl font-black text-primary">{myHours}h</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-muted uppercase">Streak</p>
-            <div className="flex items-center gap-1">
-              <span className="material-symbols-outlined text-secondary">local_fire_department</span>
-              <span className="text-2xl font-black text-secondary">{myStreak}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="relative px-4 pt-6 pb-8">
-        {/* Glow Background */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-primary/20 blur-[60px] rounded-full pointer-events-none"></div>
-
-        <div className="flex justify-center items-end gap-4 w-full relative z-10">
-          {/* Rank 2 */}
-          <div className="flex flex-col items-center w-1/3 mb-4">
-            <div className="relative">
-              <img src={`${EXTERNAL_URLS.PICSUM_PHOTOS}/id/${mockLeaderboard[1]?.img || 1012}/200/200`} className="w-20 h-20 rounded-full border-2 border-surface-dark shadow-lg" alt={mockLeaderboard[1]?.name || 'User'} />
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-surface-dark px-2 rounded-full border border-white/10 text-xs font-bold">#2</div>
-            </div>
-            <p className="mt-3 font-semibold text-sm">{mockLeaderboard[1]?.name || 'User'}</p>
-            <div className="flex items-center gap-1 text-secondary text-xs font-bold">
-              <span className="material-symbols-outlined text-sm">local_fire_department</span> {mockLeaderboard[1]?.streak || 0}
-            </div>
-            <p className="text-xs text-muted">{mockLeaderboard[1]?.hours || '0h'}</p>
-          </div>
-
-          {/* Rank 1 */}
-          <div className="flex flex-col items-center w-1/3 mb-8">
-            <span className="material-symbols-outlined text-yellow-400 text-4xl mb-2 animate-bounce">emoji_events</span>
-            <div className="relative">
-              <img src={`${EXTERNAL_URLS.PICSUM_PHOTOS}/id/${mockLeaderboard[0]?.img || 1027}/200/200`} className="w-24 h-24 rounded-full border-4 border-primary shadow-[0_0_20px_rgba(127,19,236,0.6)]" alt={mockLeaderboard[0]?.name || 'User'} />
-              <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-primary px-3 py-0.5 rounded-full border-2 border-background-dark text-sm font-bold">#1</div>
-            </div>
-            <p className="mt-4 font-bold text-lg">{mockLeaderboard[0]?.name || 'User'}</p>
-            <div className="flex items-center gap-1 bg-secondary/10 px-3 py-1 rounded-full text-secondary font-bold text-sm mt-1">
-              <span className="material-symbols-outlined text-sm">local_fire_department</span> {mockLeaderboard[0]?.streak || 0} Days
-            </div>
-            <p className="text-sm text-white/60 mt-1">{mockLeaderboard[0]?.hours || '0h'} Focused</p>
-          </div>
-
-          {/* Rank 3 */}
-          <div className="flex flex-col items-center w-1/3 mb-4">
-            <div className="relative">
-              <img src={`${EXTERNAL_URLS.PICSUM_PHOTOS}/id/${mockLeaderboard[2]?.img || 1011}/200/200`} className="w-20 h-20 rounded-full border-2 border-surface-dark shadow-lg" alt={mockLeaderboard[2]?.name || 'User'} />
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-surface-dark px-2 rounded-full border border-white/10 text-xs font-bold">#3</div>
-            </div>
-            <p className="mt-3 font-semibold text-sm">{mockLeaderboard[2]?.name || 'User'}</p>
-            <div className="flex items-center gap-1 text-secondary text-xs font-bold">
-              <span className="material-symbols-outlined text-sm">local_fire_department</span> {mockLeaderboard[2]?.streak || 0}
-            </div>
-            <p className="text-xs text-muted">{mockLeaderboard[2]?.hours || '0h'}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="px-4">
-        <h3 className="text-muted text-xs font-bold uppercase tracking-wider mb-4 pl-2">Your Squad</h3>
-        <div className="space-y-3">
-          {squadUsers.map((user) => (
-            <div key={user.rank} className={`flex items-center justify-between p-3 rounded-xl border ${user.me ? 'bg-white/10 border-white/20' : 'bg-surface-dark/40 border-white/5'}`}>
-              <div className="flex items-center gap-4">
-                <span className="text-muted font-bold w-4 text-center">{user.rank}</span>
-                {user.me ? (
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-sm font-bold">
-                    {userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                  </div>
-                ) : (
-                  <img src={`${EXTERNAL_URLS.PICSUM_PHOTOS}/id/${user.img}/100/100`} className="w-12 h-12 rounded-full border border-white/10" alt={user.name} />
-                )}
-                <div>
-                  <p className="font-semibold">{user.me ? userName : user.name}</p>
-                  <p className="text-xs text-muted">Total: {user.hours}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 bg-background-dark/50 px-3 py-1.5 rounded-lg border border-white/5">
-                <span className={`material-symbols-outlined text-sm ${user.streak > 0 ? 'text-secondary' : 'text-muted'}`}>local_fire_department</span>
-                <span className={`font-bold text-sm ${user.streak > 0 ? 'text-secondary' : 'text-muted'}`}>{user.streak}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Info Banner */}
-      <div className="px-4 mt-6">
-        <div className="bg-surface-dark/50 rounded-xl p-4 border border-white/5 text-center">
-          <span className="material-symbols-outlined text-muted text-2xl mb-2">info</span>
-          <p className="text-xs text-muted">
-            Social features are currently in demo mode. Invite friends to compete on the leaderboard when the feature launches!
-          </p>
-        </div>
-      </div>
-
-      <div className="fixed bottom-24 w-full max-w-md px-6 z-30 pointer-events-none">
-        <button
-          onClick={() => setShowInviteModal(true)}
-          className="pointer-events-auto w-full h-12 bg-primary hover:bg-primary-light text-white font-bold rounded-xl shadow-xl shadow-primary/30 flex items-center justify-center gap-2 transition-colors"
+      <div className="p-5 space-y-4">
+        {/* Gamification Toggle */}
+        <div
+          className="bg-surface-dark rounded-xl border border-white/5 p-3.5 cursor-pointer hover:bg-white/[0.02] transition-colors"
+          onClick={toggleGamification}
         >
-          <span className="material-symbols-outlined">person_add</span>
-          Invite a Friend
-        </button>
-      </div>
-
-      {/* Invite Modal */}
-      {showInviteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm bg-surface-dark rounded-2xl border border-white/10 p-6 shadow-2xl relative">
-            <button
-              onClick={() => setShowInviteModal(false)}
-              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10"
-            >
-              <span className="material-symbols-outlined text-muted">close</span>
-            </button>
-
-            <div className="text-center mb-6">
-              <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-3 text-primary">
-                <span className="material-symbols-outlined">mail</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[18px] text-primary">trophy</span>
               </div>
-              <h3 className="text-lg font-bold">Invite to Squad</h3>
-              <p className="text-sm text-muted">Compete on the leaderboard together.</p>
+              <div>
+                <p className="text-sm font-bold">Compete Mode</p>
+                <p className="text-[10px] text-muted">Share daily hours & compete with others</p>
+              </div>
             </div>
-
-            {!inviteSent ? (
-              <form onSubmit={handleSendInvite} className="space-y-4">
-                <div>
-                  <label className="text-xs font-bold uppercase text-muted mb-1 block">Friend's Email</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="friend@example.com"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:outline-none"
-                    autoFocus
-                  />
-                </div>
-                <button type="submit" className="w-full py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-colors">
-                  Send Invite
-                </button>
-              </form>
-            ) : (
-              <div className="text-center py-4 animate-fade-in">
-                <span className="material-symbols-outlined text-4xl text-green-500 mb-2">check_circle</span>
-                <p className="font-bold text-white">Invite Sent!</p>
-              </div>
-            )}
+            <div className={`w-10 h-6 rounded-full relative transition-colors ${gamificationEnabled ? 'bg-primary' : 'bg-surface-light'}`}>
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${gamificationEnabled ? 'left-5' : 'left-1'}`}></div>
+            </div>
           </div>
         </div>
-      )}
+
+        {gamificationEnabled ? (
+          <>
+            {/* Your Stats Card */}
+            <div className="bg-surface-dark rounded-xl border border-white/5 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-xs font-bold">
+                    {getInitials(userName)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">{userName}</p>
+                    <p className="text-[10px] text-muted">Rank #{yourRank} · {yourTier}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-base font-black text-primary">{myHours}h</p>
+                    <p className="text-[9px] text-muted uppercase">Focus</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-base font-black text-secondary">{yourPoints}</p>
+                    <p className="text-[9px] text-muted uppercase">Pts</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Period Tabs */}
+            <div className="flex p-0.5 bg-surface-dark rounded-lg border border-white/5">
+              {(['daily', 'weekly', 'monthly'] as TimePeriod[]).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={`flex-1 py-2 rounded-md text-[11px] font-semibold transition-all capitalize ${
+                    period === p ? 'bg-primary text-white shadow-md shadow-primary/25' : 'text-muted hover:text-white/70'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+
+            {/* Point Tiers Info */}
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+              {POINT_TIERS.slice(0, 4).map((tier) => (
+                <div key={tier.label} className="flex-1 min-w-0 bg-surface-dark rounded-lg border border-white/5 p-2 text-center">
+                  <p className="text-xs font-black text-white">{tier.points}</p>
+                  <p className="text-[8px] text-muted uppercase tracking-wider">{tier.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Leaderboard */}
+            <div>
+              <h3 className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2 ml-0.5">
+                {period === 'daily' ? "Today's" : period === 'weekly' ? 'This Week' : 'This Month'} Rankings
+              </h3>
+              <div className="bg-surface-dark rounded-xl border border-white/5 divide-y divide-white/5">
+                {sortedUsers.map((user) => {
+                  const rankStyle = getRankDisplay(user.rank);
+                  return (
+                    <div
+                      key={user.name}
+                      className={`flex items-center justify-between p-3 transition-colors ${user.me ? 'bg-primary/5' : ''}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 text-center">
+                          {user.rank <= 3 ? (
+                            <span className={`material-symbols-outlined text-sm ${rankStyle.color}`}>
+                              {rankStyle.icon}
+                            </span>
+                          ) : (
+                            <span className="text-sm font-black text-muted">{user.rank}</span>
+                          )}
+                        </div>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                          user.me
+                            ? 'bg-gradient-to-br from-teal-400 to-blue-500'
+                            : 'bg-white/10'
+                        }`}>
+                          {getInitials(user.name)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`text-xs font-semibold truncate ${user.me ? 'text-white' : 'text-white/80'}`}>
+                            {user.name} {user.me && <span className="text-[10px] text-primary font-bold">(you)</span>}
+                          </p>
+                          <p className="text-[10px] text-muted">{user.hours}h focused</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-0.5">
+                          <span className={`material-symbols-outlined text-xs ${user.streak > 0 ? 'text-secondary' : 'text-muted/30'}`}>
+                            local_fire_department
+                          </span>
+                          <span className={`text-[10px] font-bold ${user.streak > 0 ? 'text-secondary' : 'text-muted/30'}`}>
+                            {user.streak}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                          +{user.points}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        ) : (
+          /* Disabled State */
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="w-16 h-16 rounded-full bg-surface-dark border border-white/5 flex items-center justify-center mb-4">
+              <span className="material-symbols-outlined text-3xl text-muted">leaderboard</span>
+            </div>
+            <h3 className="text-sm font-bold mb-1">Competition Off</h3>
+            <p className="text-[11px] text-muted max-w-[220px] leading-relaxed">
+              Enable Compete Mode to share your focus hours and compete with other Tempo users on daily, weekly, and monthly leaderboards.
+            </p>
+            <div className="mt-5 grid grid-cols-3 gap-2 w-full max-w-[260px]">
+              <div className="bg-surface-dark rounded-lg border border-white/5 p-2.5 text-center">
+                <span className="material-symbols-outlined text-yellow-400 text-base">emoji_events</span>
+                <p className="text-[9px] text-muted mt-1">Daily</p>
+              </div>
+              <div className="bg-surface-dark rounded-lg border border-white/5 p-2.5 text-center">
+                <span className="material-symbols-outlined text-primary text-base">calendar_month</span>
+                <p className="text-[9px] text-muted mt-1">Weekly</p>
+              </div>
+              <div className="bg-surface-dark rounded-lg border border-white/5 p-2.5 text-center">
+                <span className="material-symbols-outlined text-secondary text-base">star</span>
+                <p className="text-[9px] text-muted mt-1">Monthly</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Demo Notice */}
+        <div className="bg-surface-dark/50 rounded-xl p-3.5 border border-white/5">
+          <div className="flex items-start gap-3">
+            <span className="material-symbols-outlined text-muted text-base mt-0.5">info</span>
+            <div>
+              <p className="text-xs font-semibold text-white/70 mb-0.5">Demo Mode</p>
+              <p className="text-[10px] text-muted leading-relaxed">
+                Social features use sample data. Your stats are real - leaderboard opponents are placeholders. Multiplayer coming soon.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
