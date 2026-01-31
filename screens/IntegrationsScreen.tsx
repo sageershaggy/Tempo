@@ -195,10 +195,10 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
         const profileData = { name: profile.name, email: profile.email, picture: profile.picture };
         setGoogleProfile(profileData);
         localStorage.setItem('tempo_google_profile', JSON.stringify(profileData));
-        localStorage.setItem('tempo_user_profile', JSON.stringify({
+        localStorage.setItem('tempo_userProfile', JSON.stringify({
           displayName: profile.name,
           email: profile.email,
-          picture: profile.picture,
+          avatarUrl: profile.picture,
         }));
       }
 
