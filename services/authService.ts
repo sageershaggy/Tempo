@@ -95,7 +95,14 @@ class AuthService {
       return { success: true, profile: this.profile };
     } catch (error: any) {
       console.error('[Auth] Google sign-in failed:', error);
-      return { success: false, error: error.message || 'Sign-in failed' };
+      let errorMessage = error.message || 'Sign-in failed';
+
+      // Check for common configuration errors
+      if (errorMessage.toLowerCase().includes('bad client id')) {
+        errorMessage = 'Missing Google Client ID. Please add your Client ID to manifest.json.';
+      }
+
+      return { success: false, error: errorMessage };
     }
   }
 
