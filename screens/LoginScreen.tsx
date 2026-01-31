@@ -78,35 +78,18 @@ export const LoginScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
             )}
           </button>
 
-          {/* Microsoft SSO Button */}
-          <button
-            onClick={handleGuestLogin}
-            className="w-full h-12 bg-[#2F2F2F] border border-white/10 text-white rounded-lg font-bold text-sm flex items-center justify-center gap-3 hover:bg-[#3F3F3F] transition-colors"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 21 21">
-              <rect x="1" y="1" width="9" height="9" fill="#F25022" />
-              <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
-              <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
-              <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
-            </svg>
-            Continue with Microsoft
-          </button>
-
-          {/* Divider */}
-          <div className="flex items-center gap-3 py-1">
-            <div className="flex-1 h-px bg-white/10"></div>
-            <span className="text-[10px] text-muted uppercase tracking-wider">or</span>
-            <div className="flex-1 h-px bg-white/10"></div>
+          {/* Guest Login */}
+          <div className="pt-2">
+            <button
+              onClick={handleGuestLogin}
+              className="w-full h-12 bg-transparent text-muted hover:text-white text-xs font-medium transition-colors"
+            >
+              Continue as Guest (Offline)
+            </button>
           </div>
 
           {/* Guest Login */}
-          <button
-            onClick={handleGuestLogin}
-            className="w-full h-12 bg-surface-light border border-white/5 text-white rounded-lg font-bold text-sm flex items-center justify-center gap-2 hover:bg-white/5 transition-colors"
-          >
-            <span className="material-symbols-outlined text-lg text-muted">person</span>
-            Continue as Guest
-          </button>
+
         </div>
 
         {/* Error Message */}

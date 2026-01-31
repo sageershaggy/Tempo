@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Screen, Task, Subtask, GlobalProps } from '../types';
 import { suggestSubtasks, analyzeTaskPriority } from '../services/geminiService';
+import { configManager } from '../config';
 
 const MOCK_MILESTONES = [
     { id: 'm1', title: 'Launch MVP Beta', progress: 75, color: 'bg-primary' },
@@ -21,11 +22,26 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
     // Bulk Select State
     const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
     const [isSelectionMode, setIsSelectionMode] = useState(false);
+    const [syncInterval, setSyncInterval] = useState<string>('Off');
+
+    // Auto-sync effect
+    React.useEffect(() => {
+        if (syncInterval === 'Off') return;
+        const minutes = parseInt(syncInterval);
+        if (isNaN(minutes)) return;
+
+        const interval = setInterval(() => {
+            console.log('Auto-syncing...');
+            // In a real implementation, this would trigger the sync service
+        }, minutes * 60000);
+        return () => clearInterval(interval);
+    }, [syncInterval]);
 
     // --- Derived State: Categories ---
     const categories = useMemo(() => {
-        const cats = new Set(tasks.map(t => t.category).filter(Boolean));
-        return Array.from(cats);
+        const configCats = configManager.getConfig().categories.task || [];
+        const taskCats = Array.from(new Set(tasks.map(t => t.category).filter(Boolean)));
+        return Array.from(new Set([...configCats, ...taskCats]));
     }, [tasks]);
 
     // --- Filtering & Sorting Logic ---
@@ -220,6 +236,22 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                         >
                             <span className="material-symbols-outlined text-lg">sync</span>
                         </button>
+                        {/* Sync Interval Selector */}
+                        <div className="relative group">
+                            <button className="w-10 h-10 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80 text-white transition-colors">
+                                <span className="text-[10px] font-bold">{syncInterval === 'Off' ? 'Off' : `${syncInterval}m`}</span>
+                            </button>
+                            <select
+                                value={syncInterval}
+                                onChange={(e) => setSyncInterval(e.target.value)}
+                                className="absolute inset-0 opacity-0 cursor-pointer"
+                            >
+                                <option value="Off">Manual</option>
+                                <option value="10">10m</option>
+                                <option value="20">20m</option>
+                                <option value="30">30m</option>
+                            </select>
+                        </div>
                         <button
                             onClick={() => setScreen(Screen.CALENDAR)}
                             className="w-10 h-10 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80 text-white transition-colors"
@@ -265,8 +297,8 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                             key={f}
                             onClick={() => setFilter(f)}
                             className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${filter === f
-                                    ? 'bg-white text-black border-white'
-                                    : 'bg-transparent text-muted border-white/10 hover:border-white/30'
+                                ? 'bg-white text-black border-white'
+                                : 'bg-transparent text-muted border-white/10 hover:border-white/30'
                                 }`}
                         >
                             {f}
@@ -344,211 +376,230 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center gap-3">
-                                                {/* Interactive Custom Date Picker */}
+                                            <div className="flex items-center gap-2">
+                                                {/* Date Picker */}
                                                 <div
-                                                    className="relative group z-10"
+                                                    className="relative z-20 group"
                                                     onClick={(e) => e.stopPropagation()}
+                                                    onMouseDown={(e) => e.stopPropagation()}
                                                 >
-                                                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${overdue
-                                                            ? 'border-secondary/50 text-secondary bg-secondary/5 hover:bg-secondary/10'
-                                                            : 'border-white/10 text-muted bg-white/5 hover:bg-white/10 hover:text-white'
+                                                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${overdue && !task.completed
+                                                        ? 'border-secondary/50 text-secondary bg-secondary/10'
+                                                        : 'border-white/10 text-muted hover:text-white bg-white/5 hover:bg-white/10'
                                                         }`}>
                                                         <span className="material-symbols-outlined text-[16px]">calendar_month</span>
-                                                        <span className="text-xs font-bold whitespace-nowrap">{formatDateDisplay(task.dueDate)}</span>
+                                                        <span className={`text-xs font-bold whitespace-nowrap ${!task.dueDate && 'text-muted/70 group-hover:text-white'}`}>
+                                                            {formatDateDisplay(task.dueDate)}
+                                                        </span>
+                                                        <input
+                                                            type="datetime-local"
+                                                            value={task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 16) : ''}
+                                                            onChange={(e) => handleUpdateTask(task.id, { dueDate: new Date(e.target.value).toISOString() })}
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                        />
                                                     </div>
-                                                    <input
-                                                        type="datetime-local"
-                                                        value={task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 16) : ''}
-                                                        onChange={(e) => handleUpdateTask(task.id, { dueDate: new Date(e.target.value).toISOString() })}
-                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                                    />
                                                 </div>
 
-                                                {task.category && (
-                                                    <span className="text-[10px] font-bold text-muted bg-white/5 px-2 py-1 rounded border border-white/5">
-                                                        {task.category}
-                                                    </span>
-                                                )}
+                                                {/* Category Selector */}
+                                                <div
+                                                    className="relative z-20"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    onMouseDown={(e) => e.stopPropagation()}
+                                                >
+                                                    <select
+                                                        value={task.category || ''}
+                                                        onChange={(e) => handleUpdateTask(task.id, { category: e.target.value })}
+                                                        className="appearance-none bg-white/5 border border-white/10 text-[10px] font-bold text-muted hover:text-white rounded-lg pl-3 pr-6 py-1.5 focus:outline-none focus:border-primary/50 transition-colors cursor-pointer w-full"
+                                                    >
+                                                        <option value="">No Category</option>
+                                                        {categories.map(c => (
+                                                            <option key={c} value={c} className="bg-surface-dark text-white">{c}</option>
+                                                        ))}
+                                                    </select>
+                                                    <span className="material-symbols-outlined text-[12px] text-muted absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
 
-                                {/* Expanded Details */}
-                                {expanded && !isSelectionMode && (
-                                    <div className="bg-black/20 border-t border-white/5 p-4 transition-all">
-                                        <div className="mb-6 grid gap-4 animate-fade-in">
+                                    {/* Expanded Details */}
+                                    {expanded && !isSelectionMode && (
+                                        <div className="bg-black/20 border-t border-white/5 p-4 transition-all">
+                                            <div className="mb-6 grid gap-4 animate-fade-in">
 
-                                            {/* Milestone Display */}
-                                            {linkedMilestone && (
-                                                <div className="bg-surface-light border border-white/5 rounded-lg p-3">
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <span className="text-xs font-bold text-white flex items-center gap-1">
-                                                            <span className="material-symbols-outlined text-sm text-secondary">flag</span> {linkedMilestone.title}
-                                                        </span>
-                                                        <span className="text-[10px] text-muted font-bold">{linkedMilestone.progress}% Complete</span>
+                                                {/* Milestone Display */}
+                                                {linkedMilestone && (
+                                                    <div className="bg-surface-light border border-white/5 rounded-lg p-3">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <span className="text-xs font-bold text-white flex items-center gap-1">
+                                                                <span className="material-symbols-outlined text-sm text-secondary">flag</span> {linkedMilestone.title}
+                                                            </span>
+                                                            <span className="text-[10px] text-muted font-bold">{linkedMilestone.progress}% Complete</span>
+                                                        </div>
+                                                        <div className="w-full bg-black/50 h-1.5 rounded-full overflow-hidden">
+                                                            <div className={`h-full ${linkedMilestone.color}`} style={{ width: `${linkedMilestone.progress}%` }}></div>
+                                                        </div>
                                                     </div>
-                                                    <div className="w-full bg-black/50 h-1.5 rounded-full overflow-hidden">
-                                                        <div className={`h-full ${linkedMilestone.color}`} style={{ width: `${linkedMilestone.progress}%` }}></div>
+                                                )}
+
+                                                {/* Milestone & Priority Selectors */}
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="text-[10px] uppercase font-bold text-muted block mb-1">Milestone Link</label>
+                                                        <div className="relative">
+                                                            <select
+                                                                value={task.milestoneId || ''}
+                                                                onChange={(e) => handleUpdateTask(task.id, { milestoneId: e.target.value })}
+                                                                className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white focus:border-primary/50 focus:outline-none appearance-none cursor-pointer hover:bg-white/10 transition-colors"
+                                                            >
+                                                                <option value="">No Milestone</option>
+                                                                {MOCK_MILESTONES.map(m => (
+                                                                    <option key={m.id} value={m.id}>{m.title}</option>
+                                                                ))}
+                                                            </select>
+                                                            <span className="material-symbols-outlined absolute right-2 top-2 text-xs text-muted pointer-events-none">expand_more</span>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] uppercase font-bold text-muted block mb-1">Priority AI</label>
+                                                        <div className="flex gap-2 items-center">
+                                                            <select
+                                                                value={task.priority}
+                                                                onChange={(e) => handleUpdateTask(task.id, { priority: e.target.value as any })}
+                                                                className="flex-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white focus:border-primary/50 focus:outline-none cursor-pointer hover:bg-white/10 transition-colors"
+                                                            >
+                                                                <option value="High">High</option>
+                                                                <option value="Medium">Medium</option>
+                                                                <option value="Low">Low</option>
+                                                            </select>
+                                                            <button
+                                                                onClick={() => handleAnalyzePriority(task)}
+                                                                className="w-9 h-9 bg-primary/20 rounded-lg flex items-center justify-center hover:bg-primary/40 text-primary border border-primary/30 transition-colors"
+                                                                title="Suggest Priority"
+                                                            >
+                                                                <span className={`material-symbols-outlined text-sm ${analyzingPriority === task.id ? 'animate-spin' : ''}`}>auto_awesome</span>
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            )}
 
-                                            {/* Milestone & Priority Selectors */}
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="text-[10px] uppercase font-bold text-muted block mb-1">Milestone Link</label>
-                                                    <div className="relative">
-                                                        <select
-                                                            value={task.milestoneId || ''}
-                                                            onChange={(e) => handleUpdateTask(task.id, { milestoneId: e.target.value })}
-                                                            className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white focus:border-primary/50 focus:outline-none appearance-none cursor-pointer hover:bg-white/10 transition-colors"
-                                                        >
-                                                            <option value="">No Milestone</option>
-                                                            {MOCK_MILESTONES.map(m => (
-                                                                <option key={m.id} value={m.id}>{m.title}</option>
-                                                            ))}
-                                                        </select>
-                                                        <span className="material-symbols-outlined absolute right-2 top-2 text-xs text-muted pointer-events-none">expand_more</span>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] uppercase font-bold text-muted block mb-1">Priority AI</label>
-                                                    <div className="flex gap-2 items-center">
-                                                        <select
-                                                            value={task.priority}
-                                                            onChange={(e) => handleUpdateTask(task.id, { priority: e.target.value as any })}
-                                                            className="flex-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white focus:border-primary/50 focus:outline-none cursor-pointer hover:bg-white/10 transition-colors"
-                                                        >
-                                                            <option value="High">High</option>
-                                                            <option value="Medium">Medium</option>
-                                                            <option value="Low">Low</option>
-                                                        </select>
+                                                {/* AI Priority Suggestion Result */}
+                                                {prioritySuggestion && prioritySuggestion.taskId === task.id && (
+                                                    <div className="bg-gradient-to-r from-primary/10 to-transparent p-2 rounded border border-primary/20 flex items-center justify-between animate-fade-in">
+                                                        <span className="text-xs text-white">AI suggests: <span className="font-bold text-primary">{prioritySuggestion.suggestion}</span></span>
                                                         <button
-                                                            onClick={() => handleAnalyzePriority(task)}
-                                                            className="w-9 h-9 bg-primary/20 rounded-lg flex items-center justify-center hover:bg-primary/40 text-primary border border-primary/30 transition-colors"
-                                                            title="Suggest Priority"
+                                                            onClick={() => {
+                                                                handleUpdateTask(task.id, { priority: prioritySuggestion.suggestion });
+                                                                setPrioritySuggestion(null);
+                                                            }}
+                                                            className="text-[10px] bg-primary text-white px-2 py-1 rounded font-bold hover:bg-primary-light transition-colors"
                                                         >
-                                                            <span className={`material-symbols-outlined text-sm ${analyzingPriority === task.id ? 'animate-spin' : ''}`}>auto_awesome</span>
+                                                            Apply
                                                         </button>
                                                     </div>
+                                                )}
+
+                                                <div>
+                                                    <label className="text-[10px] uppercase font-bold text-muted block mb-1">Notes</label>
+                                                    <textarea
+                                                        value={task.notes || ''}
+                                                        onChange={(e) => handleUpdateTask(task.id, { notes: e.target.value })}
+                                                        placeholder="Add detailed notes here..."
+                                                        className="w-full bg-white/5 border border-white/10 rounded p-3 text-xs text-white min-h-[80px] focus:border-primary/50 focus:outline-none resize-none leading-relaxed hover:bg-white/10 transition-colors"
+                                                    />
                                                 </div>
                                             </div>
 
-                                            {/* AI Priority Suggestion Result */}
-                                            {prioritySuggestion && prioritySuggestion.taskId === task.id && (
-                                                <div className="bg-gradient-to-r from-primary/10 to-transparent p-2 rounded border border-primary/20 flex items-center justify-between animate-fade-in">
-                                                    <span className="text-xs text-white">AI suggests: <span className="font-bold text-primary">{prioritySuggestion.suggestion}</span></span>
-                                                    <button
-                                                        onClick={() => {
-                                                            handleUpdateTask(task.id, { priority: prioritySuggestion.suggestion });
-                                                            setPrioritySuggestion(null);
-                                                        }}
-                                                        className="text-[10px] bg-primary text-white px-2 py-1 rounded font-bold hover:bg-primary-light transition-colors"
-                                                    >
-                                                        Apply
-                                                    </button>
-                                                </div>
-                                            )}
+                                            {/* Subtasks */}
+                                            <div className="space-y-2 mb-4">
+                                                {task.subtasks.map(st => (
+                                                    <div key={st.id} className="flex items-center gap-3 pl-2 group/sub">
+                                                        <button
+                                                            onClick={() => handleToggleSubtask(task.id, st.id)}
+                                                            className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${st.completed ? 'bg-white/40 border-transparent' : 'border-white/20 hover:border-white/50'}`}
+                                                        >
+                                                            {st.completed && <span className="material-symbols-outlined text-black text-[10px] font-bold">check</span>}
+                                                        </button>
+                                                        <span className={`text-sm flex-1 transition-colors ${st.completed ? 'text-muted line-through' : 'text-gray-300'}`}>{st.title}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
 
-                                            <div>
-                                                <label className="text-[10px] uppercase font-bold text-muted block mb-1">Notes</label>
-                                                <textarea
-                                                    value={task.notes || ''}
-                                                    onChange={(e) => handleUpdateTask(task.id, { notes: e.target.value })}
-                                                    placeholder="Add detailed notes here..."
-                                                    className="w-full bg-white/5 border border-white/10 rounded p-3 text-xs text-white min-h-[80px] focus:border-primary/50 focus:outline-none resize-none leading-relaxed hover:bg-white/10 transition-colors"
+                                            <div className="flex items-center gap-2 mb-4 pl-2">
+                                                <span className="material-symbols-outlined text-muted text-sm">add</span>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Add a subtask..."
+                                                    className="bg-transparent border-none text-sm text-white placeholder-white/20 focus:ring-0 w-full p-0"
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            handleAddSubtask(task.id, e.currentTarget.value);
+                                                            e.currentTarget.value = '';
+                                                        }
+                                                    }}
                                                 />
                                             </div>
-                                        </div>
 
-                                        {/* Subtasks */}
-                                        <div className="space-y-2 mb-4">
-                                            {task.subtasks.map(st => (
-                                                <div key={st.id} className="flex items-center gap-3 pl-2 group/sub">
-                                                    <button
-                                                        onClick={() => handleToggleSubtask(task.id, st.id)}
-                                                        className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${st.completed ? 'bg-white/40 border-transparent' : 'border-white/20 hover:border-white/50'}`}
-                                                    >
-                                                        {st.completed && <span className="material-symbols-outlined text-black text-[10px] font-bold">check</span>}
-                                                    </button>
-                                                    <span className={`text-sm flex-1 transition-colors ${st.completed ? 'text-muted line-through' : 'text-gray-300'}`}>{st.title}</span>
-                                                </div>
-                                            ))}
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => handleGenerateSubtasks(task.id, task.title)}
+                                                    disabled={loadingAI === task.id}
+                                                    className="flex-1 py-2.5 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center gap-2 text-xs font-bold text-primary-light hover:bg-primary/20 transition-colors"
+                                                >
+                                                    <span className={`material-symbols-outlined text-sm ${loadingAI === task.id ? 'animate-spin' : ''}`}>
+                                                        {loadingAI === task.id ? 'sync' : 'auto_awesome'}
+                                                    </span>
+                                                    AI Subtasks
+                                                </button>
+                                                <button
+                                                    onClick={() => setScreen(Screen.TIMER)}
+                                                    className="flex-1 py-2.5 rounded-xl bg-white text-black font-bold text-xs flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">play_arrow</span>
+                                                    Start Timer
+                                                </button>
+                                            </div>
                                         </div>
+                                    )}
 
-                                        <div className="flex items-center gap-2 mb-4 pl-2">
-                                            <span className="material-symbols-outlined text-muted text-sm">add</span>
-                                            <input
-                                                type="text"
-                                                placeholder="Add a subtask..."
-                                                className="bg-transparent border-none text-sm text-white placeholder-white/20 focus:ring-0 w-full p-0"
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        handleAddSubtask(task.id, e.currentTarget.value);
-                                                        e.currentTarget.value = '';
-                                                    }
-                                                }}
-                                            />
+                                    {/* Simple Expansion Chevron */}
+                                    {!expanded && !isSelectionMode && task.subtasks.length > 0 && (
+                                        <div
+                                            className="bg-black/20 border-t border-white/5 py-1 flex justify-center cursor-pointer hover:bg-white/5 transition-colors"
+                                            onClick={() => setExpandedTask(task.id)}
+                                        >
+                                            <span className="material-symbols-outlined text-muted text-sm">expand_more</span>
                                         </div>
-
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleGenerateSubtasks(task.id, task.title)}
-                                                disabled={loadingAI === task.id}
-                                                className="flex-1 py-2.5 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center gap-2 text-xs font-bold text-primary-light hover:bg-primary/20 transition-colors"
-                                            >
-                                                <span className={`material-symbols-outlined text-sm ${loadingAI === task.id ? 'animate-spin' : ''}`}>
-                                                    {loadingAI === task.id ? 'sync' : 'auto_awesome'}
-                                                </span>
-                                                AI Subtasks
-                                            </button>
-                                            <button
-                                                onClick={() => setScreen(Screen.TIMER)}
-                                                className="flex-1 py-2.5 rounded-xl bg-white text-black font-bold text-xs flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
-                                            >
-                                                <span className="material-symbols-outlined text-sm">play_arrow</span>
-                                                Start Timer
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Simple Expansion Chevron */}
-                                {!expanded && !isSelectionMode && task.subtasks.length > 0 && (
-                                    <div
-                                        className="bg-black/20 border-t border-white/5 py-1 flex justify-center cursor-pointer hover:bg-white/5 transition-colors"
-                                        onClick={() => setExpandedTask(task.id)}
-                                    >
-                                        <span className="material-symbols-outlined text-muted text-sm">expand_more</span>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
+                                );
+                        })
+                    )}
                             </div>
-                        );
-                    })
-                )}
-            </div>
 
-            {/* Floating Action Button (Standard) */}
-            {!isSelectionMode && (
-                <div className="absolute bottom-24 right-6 z-30">
-                    <button onClick={() => setScreen(Screen.QUICK_ADD)} className="w-14 h-14 bg-secondary rounded-full shadow-[0_4px_20px_-5px_rgba(255,107,107,0.5)] flex items-center justify-center hover:scale-110 transition-transform active:scale-95 text-white">
-                        <span className="material-symbols-outlined text-3xl">add</span>
-                    </button>
-                </div>
-            )}
+            {/* Floating Action Button */ }
+                        {
+                            !isSelectionMode && (
+                                <div className="absolute bottom-24 right-6 z-30">
+                                    <button onClick={() => setScreen(Screen.QUICK_ADD)} className="w-14 h-14 bg-secondary rounded-full shadow-[0_4px_20px_-5px_rgba(255,107,107,0.5)] flex items-center justify-center hover:scale-110 transition-transform active:scale-95 text-white">
+                                        <span className="material-symbols-outlined text-3xl">add</span>
+                                    </button>
+                                </div>
+                            )
+                        }
 
-            {/* Bulk Action Bar */}
-            {isSelectionMode && selectedTaskIds.size > 0 && (
-                <div className="absolute bottom-24 left-4 right-4 bg-surface-light border border-white/10 p-3 rounded-2xl shadow-2xl flex items-center justify-between z-40 animate-slide-up">
-                    <span className="text-sm font-bold px-2">{selectedTaskIds.size} selected</span>
-                    <div className="flex gap-2">
-                        <button onClick={handleBulkComplete} className="px-3 py-2 bg-green-500/20 text-green-400 rounded-lg text-xs font-bold border border-green-500/30 hover:bg-green-500/30 transition-colors">Complete</button>
-                        <button onClick={handleBulkDelete} className="px-3 py-2 bg-red-500/20 text-red-400 rounded-lg text-xs font-bold border border-red-500/30 hover:bg-red-500/30 transition-colors">Delete</button>
-                    </div>
-                </div>
-            )}
+                        {/* Bulk Action Bar */ }
+                        {
+                            isSelectionMode && selectedTaskIds.size > 0 && (
+                                <div className="absolute bottom-24 left-4 right-4 bg-surface-light border border-white/10 p-3 rounded-2xl shadow-2xl flex items-center justify-between z-40 animate-slide-up">
+                                    <span className="text-sm font-bold px-2">{selectedTaskIds.size} selected</span>
+                                    <div className="flex gap-2">
+                                        <button onClick={handleBulkComplete} className="px-3 py-2 bg-green-500/20 text-green-400 rounded-lg text-xs font-bold border border-green-500/30 hover:bg-green-500/30 transition-colors">Complete</button>
+                                        <button onClick={handleBulkDelete} className="px-3 py-2 bg-red-500/20 text-red-400 rounded-lg text-xs font-bold border border-red-500/30 hover:bg-red-500/30 transition-colors">Delete</button>
+                                    </div>
+                                </div>
+                            )
+                        }
         </div>
-    );
+            );
 };

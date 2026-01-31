@@ -50,7 +50,7 @@ const createInitialAudioState = (): AudioState => {
 // Screen routing map for dynamic URL-based navigation
 const SCREEN_ROUTES: Record<string, Screen> = {
   admin: Screen.ADMIN,
-tasks: Screen.TASKS,
+  tasks: Screen.TASKS,
   stats: Screen.STATS,
   settings: Screen.SETTINGS,
   timer: Screen.TIMER,
@@ -72,26 +72,34 @@ const App: React.FC = () => {
       if (route) return route;
     }
 
-    // Check if user has completed onboarding/splash
+    // Check for login status
+    const loginMethod = localStorage.getItem('tempo_login_method');
+    if (!loginMethod) return Screen.LOGIN;
+
+    // Check if user has completed onboarding
     const hasOnboarded = localStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE) === 'true';
-    return hasOnboarded ? Screen.TIMER : Screen.SPLASH;
+    return hasOnboarded ? Screen.TIMER : Screen.ONBOARDING;
   };
 
   const [currentScreen, setCurrentScreen] = useState<Screen>(getInitialScreen());
   const [audioState, setAudioState] = useState<AudioState>(createInitialAudioState());
-const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load and apply theme on mount
+  // Load configuration and theme on mount
   useEffect(() => {
-    const loadTheme = async () => {
+    const initApp = async () => {
+      // 1. Load config (templates, categories, etc.)
+      await configManager.loadConfig();
+
+      // 2. Load user settings (theme, timer durations)
       const settings = await getSettings();
       if (settings.theme) {
         applyTheme(settings.theme);
       }
     };
-    loadTheme();
+    initApp();
   }, []);
 
   // Load tasks from storage on mount
@@ -154,7 +162,7 @@ const [tasks, setTasks] = useState<Task[]>([]);
         return <AudioScreen {...props} />;
       case Screen.MILESTONES:
         return <MilestonesScreen setScreen={setCurrentScreen} />;
-case Screen.ADMIN:
+      case Screen.ADMIN:
         return <AdminScreen setScreen={setCurrentScreen} />;
       case Screen.CALENDAR:
         return <CalendarScreen {...props} />;

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
 import { STORAGE_KEYS } from '../config/constants';
 import { googleTasksService } from '../services/googleTasks';
-import { microsoftToDoService } from '../services/microsoftToDo';
+
 import { authService, UserProfile } from '../services/authService';
 
 interface IntegrationCardProps {
@@ -125,23 +125,21 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({
   </div>
 );
 
+
 export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks }) => {
   const [googleConnected, setGoogleConnected] = useState(false);
-  const [msConnected, setMsConnected] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [googleSyncResult, setGoogleSyncResult] = useState<string | null>(null);
-  const [msSyncResult, setMsSyncResult] = useState<string | null>(null);
   const [googleLastSync, setGoogleLastSync] = useState<string | null>(null);
-  const [msLastSync, setMsLastSync] = useState<string | null>(null);
   const [googleProfile, setGoogleProfile] = useState<{ name: string; email: string; picture?: string } | null>(null);
-  const [msProfile, setMsProfile] = useState<{ name: string; email: string; picture?: string } | null>(null);
+
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Check connection status
     setGoogleConnected(googleTasksService.isConnected());
-    setMsConnected(microsoftToDoService.isConnected());
+
 
     // Load saved state
     try {
@@ -149,23 +147,19 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
       if (saved) {
         const state = JSON.parse(saved);
         if (state.google) setGoogleConnected(true);
-        if (state.microsoft) setMsConnected(true);
       }
-    } catch (e) {}
+    } catch (e) { }
 
     // Load saved profiles
     try {
       const gProfile = localStorage.getItem('tempo_google_profile');
       if (gProfile) setGoogleProfile(JSON.parse(gProfile));
-      const mProfile = localStorage.getItem('tempo_ms_profile');
-      if (mProfile) setMsProfile(JSON.parse(mProfile));
-    } catch (e) {}
+      if (gProfile) setGoogleProfile(JSON.parse(gProfile));
+    } catch (e) { }
 
     // Load last sync times
     const gSync = googleTasksService.getLastSyncTime();
     if (gSync) setGoogleLastSync(formatTimeAgo(gSync));
-    const mSync = microsoftToDoService.getLastSyncTime();
-    if (mSync) setMsLastSync(formatTimeAgo(mSync));
   }, []);
 
   const formatTimeAgo = (timestamp: number): string => {
@@ -176,8 +170,8 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
     return new Date(timestamp).toLocaleDateString();
   };
 
-  const saveIntegrationState = (google: boolean, microsoft: boolean) => {
-    localStorage.setItem(STORAGE_KEYS.INTEGRATIONS, JSON.stringify({ google, microsoft }));
+  const saveIntegrationState = (google: boolean) => {
+    localStorage.setItem(STORAGE_KEYS.INTEGRATIONS, JSON.stringify({ google }));
   };
 
   // Google Connect - triggers Google SSO login flow then connects Tasks
@@ -212,7 +206,7 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
       const tasksAuth = await googleTasksService.authenticate();
       if (tasksAuth) {
         setGoogleConnected(true);
-        saveIntegrationState(true, msConnected);
+        saveIntegrationState(true);
       } else {
         setError('Connected to Google but failed to access Tasks. Please try again.');
       }
@@ -230,7 +224,7 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
     setGoogleSyncResult(null);
     setGoogleLastSync(null);
     localStorage.removeItem('tempo_google_profile');
-    saveIntegrationState(false, msConnected);
+    saveIntegrationState(false);
   };
 
   const handleGoogleSync = async () => {
@@ -253,63 +247,7 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
     setSyncing(null);
   };
 
-  // Microsoft Connect - triggers Microsoft SSO login flow
-  const handleMsConnect = async () => {
-    setLoading('microsoft');
-    setError(null);
 
-    try {
-      const success = await microsoftToDoService.authenticate();
-      if (success) {
-        setMsConnected(true);
-        // Try to get profile from token (for dev mode, use mock)
-        const profileData = { name: 'Microsoft User', email: 'user@outlook.com' };
-        setMsProfile(profileData);
-        localStorage.setItem('tempo_ms_profile', JSON.stringify(profileData));
-        saveIntegrationState(googleConnected, true);
-      } else {
-        setError('Microsoft sign-in failed. Please try again.');
-      }
-    } catch (e: any) {
-      setError(e.message || 'Connection failed');
-    }
-
-    setLoading(null);
-  };
-
-  const handleMsDisconnect = async () => {
-    await microsoftToDoService.disconnect();
-    setMsConnected(false);
-    setMsProfile(null);
-    setMsSyncResult(null);
-    setMsLastSync(null);
-    localStorage.removeItem('tempo_ms_profile');
-    saveIntegrationState(googleConnected, false);
-  };
-
-  const handleMsSync = async () => {
-    setSyncing('microsoft');
-    setMsSyncResult(null);
-    try {
-      const lists = await microsoftToDoService.getTaskLists();
-      const listId = lists[0]?.id;
-      if (!listId) throw new Error('No task lists found');
-
-      const result = await microsoftToDoService.syncBidirectional(tasks, listId);
-      const existingTitles = new Set(tasks.map(t => t.title));
-      const newTasks = result.pulled.filter(t => !existingTitles.has(t.title));
-      if (newTasks.length > 0) {
-        setTasks(prev => [...prev, ...newTasks]);
-      }
-      setMsSyncResult(
-        `✓ Pushed ${result.pushed.created} new, ${result.pushed.updated} updated. Pulled ${newTasks.length} new tasks.`
-      );
-      setMsLastSync('Just now');
-    } catch (e: any) {
-      setMsSyncResult(`✗ Sync failed: ${e.message}`);
-    }
-    setSyncing(null);
-  };
 
   return (
     <div className="h-full flex flex-col bg-background-dark animate-fade-in font-sans">
@@ -375,28 +313,34 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
         />
 
         {/* Microsoft To Do */}
-        <IntegrationCard
-          title="Microsoft To Do"
-          icon={
-            <svg className="w-5 h-5" viewBox="0 0 21 21">
-              <rect x="1" y="1" width="9" height="9" fill="#F25022" />
-              <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
-              <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
-              <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
-            </svg>
-          }
-          description="Sign in with Microsoft to sync with To Do and Outlook."
-          isConnected={msConnected}
-          userProfile={msProfile}
-          isLoading={loading === 'microsoft'}
-          isSyncing={syncing === 'microsoft'}
-          onConnect={handleMsConnect}
-          onDisconnect={handleMsDisconnect}
-          onSync={handleMsSync}
-          lastSync={msLastSync}
-          syncResult={msSyncResult}
-          connectLabel="Sign in with Microsoft"
-        />
+        {/* Google Keep */}
+        <div className="bg-surface-dark rounded-xl border border-white/5 overflow-hidden">
+          <div className="p-4">
+            <div className="flex gap-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center border border-white/10 shrink-0">
+                <span className="material-symbols-outlined text-[#FDB52C]">lightbulb</span>
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-sm">Google Keep</h3>
+                  <span className="flex items-center gap-1 text-[9px] font-bold text-muted bg-white/5 px-1.5 py-0.5 rounded-full">
+                    Shortcut
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted mt-0.5">Quickly access your notes and thoughts.</p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <button
+                onClick={() => window.open('https://keep.google.com', '_blank')}
+                className="w-full py-2.5 rounded-lg text-xs font-bold bg-[#FDB52C] text-black hover:bg-[#FDB52C]/90 transition-all flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">open_in_new</span>
+                Open Google Keep
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Setup Info */}
         <div className="bg-surface-dark/50 rounded-xl p-3.5 border border-white/5">
