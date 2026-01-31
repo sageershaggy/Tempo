@@ -6,6 +6,50 @@ let sharedCtx: AudioContext | null = null;
 let activeGain: GainNode | null = null;
 let activeNodes: AudioNode[] = [];
 let isPlaying = false;
+let currentTrackId: string | null = null;
+let currentVolume: number = 0.5;
+
+// Binaural range frequency mappings
+// Each range maps to {base, beat} where the binaural beat = right - left frequency
+export type BinauralRange = 'Low' | 'Mid' | 'High';
+
+interface BinauralPreset {
+  baseFreq: number;
+  beatFreq: number; // The binaural beat frequency (difference between L and R)
+  label: string;
+}
+
+// Each track has range presets: Low (delta/theta), Mid (alpha), High (beta/gamma)
+const BINAURAL_RANGE_MAP: Record<string, Record<BinauralRange, BinauralPreset>> = {
+  '1': { // Gamma Focus - default 40Hz
+    Low:  { baseFreq: 200, beatFreq: 6,  label: '6 Hz (Theta)' },
+    Mid:  { baseFreq: 200, beatFreq: 10, label: '10 Hz (Alpha)' },
+    High: { baseFreq: 200, beatFreq: 40, label: '40 Hz (Gamma)' },
+  },
+  '2': { // Beta Study - default 14Hz
+    Low:  { baseFreq: 200, beatFreq: 4,  label: '4 Hz (Theta)' },
+    Mid:  { baseFreq: 200, beatFreq: 10, label: '10 Hz (Alpha)' },
+    High: { baseFreq: 200, beatFreq: 14, label: '14 Hz (Beta)' },
+  },
+  '3': { // Alpha Flow - default 10Hz
+    Low:  { baseFreq: 200, beatFreq: 3,  label: '3 Hz (Delta)' },
+    Mid:  { baseFreq: 200, beatFreq: 10, label: '10 Hz (Alpha)' },
+    High: { baseFreq: 200, beatFreq: 30, label: '30 Hz (Gamma)' },
+  },
+  '16': { // Theta Meditation - default 6Hz
+    Low:  { baseFreq: 200, beatFreq: 2,  label: '2 Hz (Delta)' },
+    Mid:  { baseFreq: 200, beatFreq: 6,  label: '6 Hz (Theta)' },
+    High: { baseFreq: 200, beatFreq: 12, label: '12 Hz (Alpha)' },
+  },
+  '17': { // Delta Sleep - default 2Hz
+    Low:  { baseFreq: 200, beatFreq: 1,  label: '1 Hz (Deep Delta)' },
+    Mid:  { baseFreq: 200, beatFreq: 4,  label: '4 Hz (Theta)' },
+    High: { baseFreq: 200, beatFreq: 8,  label: '8 Hz (Alpha)' },
+  },
+};
+
+// Track which range is active per track
+const activeRanges: Record<string, BinauralRange> = {};
 
 const getContext = (): AudioContext => {
   if (!sharedCtx || sharedCtx.state === 'closed') {
@@ -69,6 +113,7 @@ export const stopSound = () => {
   }
 
   isPlaying = false;
+  currentTrackId = null;
   // Don't close the context - reuse it
 };
 
@@ -85,26 +130,21 @@ export const playSound = async (trackId: string, volume: number = 0.5): Promise<
   gainNode.gain.value = Math.max(0, Math.min(1, volume));
   gainNode.connect(ctx.destination);
   activeGain = gainNode;
+  currentTrackId = trackId;
+  currentVolume = volume;
+
+  // Check if this is a binaural track with a specific range set
+  const rangeMap = BINAURAL_RANGE_MAP[trackId];
+  if (rangeMap) {
+    const range = activeRanges[trackId] || getDefaultRange(trackId);
+    const preset = rangeMap[range];
+    createBinaural(ctx, gainNode, preset.baseFreq, preset.baseFreq + preset.beatFreq);
+    isPlaying = true;
+    return;
+  }
 
   // Map track IDs to sound generation
   switch (trackId) {
-    // Binaural beats
-    case '1': // Gamma Focus 40Hz
-      createBinaural(ctx, gainNode, 200, 240);
-      break;
-    case '2': // Beta Study 14Hz
-      createBinaural(ctx, gainNode, 200, 214);
-      break;
-    case '3': // Alpha Flow 10Hz
-      createBinaural(ctx, gainNode, 200, 210);
-      break;
-    case '16': // Theta Meditation 6Hz
-      createBinaural(ctx, gainNode, 200, 206);
-      break;
-    case '17': // Delta Sleep 2Hz
-      createBinaural(ctx, gainNode, 200, 202);
-      break;
-
     // Solfeggio
     case '4': // 432 Hz
       createTone(ctx, gainNode, 432);
@@ -128,10 +168,56 @@ export const playSound = async (trackId: string, volume: number = 0.5): Promise<
       // No built-in sound for this track
       gainNode.disconnect();
       activeGain = null;
+      currentTrackId = null;
       return;
   }
 
   isPlaying = true;
+};
+
+// Get default range for a binaural track based on its original frequency
+const getDefaultRange = (trackId: string): BinauralRange => {
+  switch (trackId) {
+    case '1': return 'High';  // Gamma Focus = High range
+    case '2': return 'High';  // Beta Study = High range
+    case '3': return 'Mid';   // Alpha Flow = Mid range
+    case '16': return 'Mid';  // Theta Meditation = Mid range
+    case '17': return 'Low';  // Delta Sleep = Low range
+    default: return 'Mid';
+  }
+};
+
+// Switch binaural range for currently playing track
+export const switchBinauralRange = async (trackId: string, range: BinauralRange): Promise<string | null> => {
+  activeRanges[trackId] = range;
+  const rangeMap = BINAURAL_RANGE_MAP[trackId];
+  if (!rangeMap) return null;
+
+  const preset = rangeMap[range];
+
+  // If this track is currently playing, restart with new frequency
+  if (isPlaying && currentTrackId === trackId) {
+    await playSound(trackId, currentVolume);
+  }
+
+  return preset.label;
+};
+
+// Get the current range for a binaural track
+export const getBinauralRange = (trackId: string): BinauralRange => {
+  return activeRanges[trackId] || getDefaultRange(trackId);
+};
+
+// Get range info for display
+export const getBinauralRangeInfo = (trackId: string, range: BinauralRange): BinauralPreset | null => {
+  const rangeMap = BINAURAL_RANGE_MAP[trackId];
+  if (!rangeMap) return null;
+  return rangeMap[range];
+};
+
+// Check if a track is binaural
+export const isBinauralTrack = (trackId: string): boolean => {
+  return trackId in BINAURAL_RANGE_MAP;
 };
 
 const createBinaural = (ctx: AudioContext, gainNode: GainNode, freqL: number, freqR: number) => {
@@ -190,9 +276,12 @@ export const setVolume = (volume: number) => {
   if (activeGain) {
     activeGain.gain.value = Math.max(0, Math.min(1, volume));
   }
+  currentVolume = volume;
 };
 
 export const isSoundPlaying = (): boolean => isPlaying;
+
+export const getCurrentTrackId = (): string | null => currentTrackId;
 
 export const isBuiltInTrack = (trackId: string): boolean => {
   return ['1', '2', '3', '4', '5', '8', '9', '10', '16', '17'].includes(trackId);

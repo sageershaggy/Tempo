@@ -163,15 +163,18 @@ case Screen.ADMIN:
       case Screen.TERMS:
         return <TermsScreen setScreen={setCurrentScreen} />;
       case Screen.INTEGRATIONS:
-        return <IntegrationsScreen setScreen={setCurrentScreen} />;
+        return <IntegrationsScreen {...props} />;
       default:
         return <TimerScreen {...props} />;
     }
   };
 
+  // Detect if running in a full browser tab (not popup)
+  const isFullTab = window.innerWidth > 500;
+
   return (
-    <div className={`h-[${UI_DIMENSIONS.POPUP_HEIGHT}px] w-[${UI_DIMENSIONS.POPUP_WIDTH}px] flex justify-center bg-black font-sans text-white overflow-hidden`}>
-      <div className="w-full h-full relative bg-background-dark shadow-2xl overflow-hidden group">
+    <div className={`${isFullTab ? 'min-h-screen w-full flex items-center justify-center bg-black/95' : `h-[${UI_DIMENSIONS.POPUP_HEIGHT}px] w-[${UI_DIMENSIONS.POPUP_WIDTH}px] flex justify-center`} bg-black font-sans text-white overflow-hidden`}>
+      <div className={`${isFullTab ? 'w-[420px] h-[680px] rounded-3xl border border-white/10 shadow-[0_0_80px_rgba(127,19,236,0.15)]' : 'w-full h-full'} relative bg-background-dark shadow-2xl overflow-hidden group`}>
 
         {/* Persistent Audio Player (Hidden/Background) */}
         {audioState.youtubeId && (
