@@ -142,7 +142,7 @@ export const getStats = async (): Promise<UserStats> => {
     lastSessionDate: null,
     weeklyData: {}
   };
-  const data = await storage.sync.get('stats');
+  const data = await storage.local.get('stats');
   return { ...defaults, ...(data.stats || {}) };
 };
 
@@ -170,7 +170,7 @@ export const updateStats = async (sessionMinutes: number): Promise<void> => {
   stats.lastSessionDate = today;
   stats.weeklyData[today] = (stats.weeklyData[today] || 0) + sessionMinutes;
 
-  await storage.sync.set({ stats });
+  await storage.local.set({ stats });
 };
 
 // Pro Status
@@ -267,12 +267,12 @@ export const saveAdminConfig = async (config: Partial<AdminConfig>): Promise<voi
 
 // Tasks persistence
 export const getTasks = async () => {
-  const data = await storage.sync.get('tasks');
+  const data = await storage.local.get('tasks');
   return data.tasks || [];
 };
 
 export const saveTasks = async (tasks: any[]): Promise<void> => {
-  await storage.sync.set({ tasks });
+  await storage.local.set({ tasks });
 };
 
 // Export all user data

@@ -44,6 +44,12 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
       setActiveTheme(settings.theme);
       setTickingEnabled(settings.tickingEnabled);
       setTickSpeed(settings.tickingSpeed);
+
+      // Ensure templates are loaded from latest config
+      const currentConfig = configManager.getConfig();
+      if (currentConfig.timer.templates && currentConfig.timer.templates.length > 0) {
+        setTemplates(currentConfig.timer.templates);
+      }
     };
     loadSettings();
   }, []);

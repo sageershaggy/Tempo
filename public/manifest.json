@@ -26,12 +26,10 @@
   ],
   "host_permissions": [
     "https://checkout.stripe.com/*",
-    "https://tasks.googleapis.com/*",
-    "https://graph.microsoft.com/*",
-    "https://login.microsoftonline.com/*"
+    "https://tasks.googleapis.com/*"
   ],
   "oauth2": {
-    "client_id": "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+    "client_id": "747255011734-08rlb67q18s1ia4r3gemjn5p4v0su5p4.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/userinfo.profile",
