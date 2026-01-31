@@ -394,8 +394,14 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                         <input
                                                             type="datetime-local"
                                                             value={task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 16) : ''}
-                                                            onChange={(e) => handleUpdateTask(task.id, { dueDate: new Date(e.target.value).toISOString() })}
-                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50"
+                                                            onChange={(e) => {
+                                                                if (!e.target.value) return;
+                                                                const d = new Date(e.target.value);
+                                                                if (!isNaN(d.getTime())) {
+                                                                    handleUpdateTask(task.id, { dueDate: d.toISOString() });
+                                                                }
+                                                            }}
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50 text-[0px]"
                                                         />
                                                     </div>
                                                 </div>
