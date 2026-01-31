@@ -75,15 +75,26 @@ export class MicrosoftToDoService {
       const hash = new URL(responseUrl).hash.substring(1);
       const params = new URLSearchParams(hash);
       const accessToken = params.get('access_token');
+      const error = params.get('error');
+
+      if (error) {
+        throw new Error(params.get('error_description') || error);
+      }
 
       if (!accessToken) throw new Error('No access token in response');
 
       this.token = accessToken;
       localStorage.setItem('ms_todo_token', this.token);
       return true;
-    } catch (e) {
+    } catch (e: any) {
       console.error('[MS To Do] Auth failed:', e);
-      return false;
+
+      let msg = e.message || 'Connection failed';
+      if (msg.includes('unauthorized_client') || msg.includes('client_id')) {
+        throw new Error('Missing Microsoft Client ID. Update MS_CLIENT_ID in services/microsoftToDo.ts');
+      }
+
+      throw e;
     }
   }
 
@@ -219,18 +230,22 @@ export class MicrosoftToDoService {
 
   private getMockData(endpoint: string, options: RequestInit): any {
     if (endpoint === '/lists' && (!options.method || options.method === 'GET')) {
-      return { value: [
-        { id: 'mslist1', displayName: 'Tasks' },
-        { id: 'mslist2', displayName: 'Important' },
-        { id: 'mslist3', displayName: 'Work Projects' },
-      ]};
+      return {
+        value: [
+          { id: 'mslist1', displayName: 'Tasks' },
+          { id: 'mslist2', displayName: 'Important' },
+          { id: 'mslist3', displayName: 'Work Projects' },
+        ]
+      };
     }
     if (endpoint.includes('/tasks') && (!options.method || options.method === 'GET')) {
-      return { value: [
-        { id: 'mt1', title: 'Schedule Dentist Appointment', status: 'notStarted', lastModifiedDateTime: new Date().toISOString() },
-        { id: 'mt2', title: 'Buy Groceries', status: 'completed', lastModifiedDateTime: new Date().toISOString() },
-        { id: 'mt3', title: 'Team Standup Notes', status: 'notStarted', dueDateTime: { dateTime: new Date(Date.now() + 86400000).toISOString(), timeZone: 'UTC' } },
-      ]};
+      return {
+        value: [
+          { id: 'mt1', title: 'Schedule Dentist Appointment', status: 'notStarted', lastModifiedDateTime: new Date().toISOString() },
+          { id: 'mt2', title: 'Buy Groceries', status: 'completed', lastModifiedDateTime: new Date().toISOString() },
+          { id: 'mt3', title: 'Team Standup Notes', status: 'notStarted', dueDateTime: { dateTime: new Date(Date.now() + 86400000).toISOString(), timeZone: 'UTC' } },
+        ]
+      };
     }
     if (options.method === 'POST') {
       const body = JSON.parse(options.body as string || '{}');

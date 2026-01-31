@@ -27,6 +27,8 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   const [calendarSync, setCalendarSync] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [activeTheme, setActiveTheme] = useState('default');
+  const [templates, setTemplates] = useState(configManager.getConfig().timer.templates);
+  const [isEditingTemplates, setIsEditingTemplates] = useState(false);
 
   // Load settings on mount
   useEffect(() => {
@@ -55,7 +57,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   const config = configManager.getConfig();
   const THEMES = config.themes;
   const TIMER_SOUNDS = config.timer.sounds;
-  const TIMER_TEMPLATES = config.timer.templates;
+  const TIMER_TEMPLATES = config.timer.templates; // This will be replaced by 'templates' state
   const TICKING_RANGE = config.timer.tickingSpeedRange;
 
   const handleThemeSelect = (themeId: string) => {
@@ -137,32 +139,55 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
 
       <div className="p-6 space-y-8">
 
-        {/* Timer Templates - Dynamic from config */}
+        {/* Quick Templates */}
         <section>
-          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Quick Templates</h3>
+          <div className="flex justify-between items-end mb-3 ml-1">
+            <h3 className="text-xs font-bold text-muted uppercase tracking-wider">Quick Templates</h3>
+            <button
+              onClick={() => setIsEditingTemplates(!isEditingTemplates)}
+              className="text-[10px] font-bold text-primary hover:text-primary-light transition-colors"
+            >
+              {isEditingTemplates ? 'Done' : 'Edit'}
+            </button>
+          </div>
           <div className="bg-surface-dark rounded-xl p-4 border border-white/5">
-            <p className="text-xs text-muted mb-3">Select a preset to quickly apply focus/break times</p>
-            <div className="grid grid-cols-3 gap-2">
-              {TIMER_TEMPLATES.map((template) => (
-                <button
-                  key={template.label}
-                  onClick={() => {
-                    setPomodoroFocus(template.focusMinutes);
-                    setShortBreak(template.breakMinutes);
-                    handleSettingChange('focusDuration', template.focusMinutes);
-                    handleSettingChange('shortBreak', template.breakMinutes);
-                  }}
-                  className={`p-3 rounded-xl border text-center transition-all ${pomodoroFocus === template.focusMinutes && shortBreak === template.breakMinutes
-                    ? 'bg-primary/20 border-primary text-white'
-                    : 'border-white/10 text-muted hover:border-white/30'
-                    }`}
-                >
-                  <p className="font-bold text-lg">{template.label}</p>
-                  <p className="text-[10px] text-muted">{template.description}</p>
-                </button>
+            <div className="grid grid-cols-3 gap-3">
+              {templates.map(template => (
+                <div key={template.id} className="relative">
+                  <button
+                    onClick={() => {
+                      if (isEditingTemplates) return;
+                      setPomodoroFocus(template.focusMinutes);
+                      setShortBreak(template.breakMinutes);
+                      handleSettingChange('focusDuration', template.focusMinutes);
+                      handleSettingChange('shortBreak', template.breakMinutes);
+                    }}
+                    disabled={isEditingTemplates}
+                    className={`w-full p-3 rounded-xl border text-center transition-all ${!isEditingTemplates && pomodoroFocus === template.focusMinutes && shortBreak === template.breakMinutes
+                      ? 'bg-primary/20 border-primary text-white'
+                      : 'border-white/10 text-muted hover:border-white/30'
+                      } ${isEditingTemplates ? 'opacity-60 cursor-default' : ''}`}
+                  >
+                    <p className="font-bold text-lg">{template.label}</p>
+                    <p className="text-[10px] text-muted">{template.description}</p>
+                  </button>
+                  {isEditingTemplates && (
+                    <button
+                      onClick={() => {
+                        const newTemplates = templates.filter(t => t.id !== template.id);
+                        setTemplates(newTemplates);
+                        configManager.saveConfig({
+                          timer: { ...configManager.getConfig().timer, templates: newTemplates }
+                        });
+                      }}
+                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">close</span>
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
-            <p className="text-[10px] text-muted mt-3 text-center">Or customize below</p>
           </div>
         </section>
 
@@ -202,6 +227,32 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 }}
                 className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-secondary cursor-pointer"
               />
+
+              {/* Save as Preset */}
+              <button
+                onClick={() => {
+                  const label = prompt('Enter name for this preset (e.g., "Power Hour"):');
+                  if (!label) return;
+
+                  const newTemplate = {
+                    id: label.toLowerCase().replace(/\s+/g, '-'),
+                    label,
+                    description: `${pomodoroFocus}/${shortBreak}`,
+                    focusMinutes: pomodoroFocus,
+                    breakMinutes: shortBreak
+                  };
+
+                  const newTemplates = [...templates, newTemplate];
+                  setTemplates(newTemplates);
+                  configManager.saveConfig({
+                    timer: { ...configManager.getConfig().timer, templates: newTemplates }
+                  });
+                }}
+                className="w-full mt-2 py-2.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-center text-muted hover:text-white transition-colors flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[14px]">save</span>
+                Save as new preset
+              </button>
             </div>
 
             {/* Long Break Config */}
@@ -376,9 +427,58 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 >
                   <div className={`w-12 h-12 rounded-full ${theme.color} border-2 ${activeTheme === theme.id ? 'border-white' : 'border-transparent'} shadow-lg transition-all`}></div>
                   <span className="text-[10px] font-medium text-muted mt-1 block text-center w-full truncate">{theme.name}</span>
-
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Categories Management */}
+        <section>
+          <div className="flex justify-between items-end mb-3 ml-1">
+            <h3 className="text-xs font-bold text-muted uppercase tracking-wider">Categories</h3>
+          </div>
+          <div className="bg-surface-dark rounded-xl p-4 border border-white/5">
+            <p className="text-xs text-muted mb-3">Customize your project tags</p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {config.categories.task.map(cat => (
+                <div key={cat} className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-light rounded-lg border border-white/5 group">
+                  <span className="text-xs font-bold">{cat}</span>
+                  {cat !== config.categories.defaultTaskCategory && (
+                    <button
+                      onClick={() => {
+                        const newCats = config.categories.task.filter(c => c !== cat);
+                        configManager.saveConfig({
+                          categories: { ...config.categories, task: newCats }
+                        });
+                        // Create a force update or better yet, genericize state management
+                        // For now, reloading would be needed or lifting state, but 
+                        // we will just re-render by updating local dummy state
+                        setScreen(prev => prev);
+                      }}
+                      className="text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">close</span>
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                onClick={() => {
+                  const name = prompt('Enter new category name:');
+                  if (name && !config.categories.task.includes(name)) {
+                    const newCats = [...config.categories.task, name];
+                    configManager.saveConfig({
+                      categories: { ...config.categories, task: newCats }
+                    });
+                    setScreen(prev => prev);
+                  }
+                }}
+                className="px-3 py-1.5 rounded-lg border border-dashed border-white/20 text-xs font-bold text-muted hover:text-white hover:border-white/40 transition-all flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[14px]">add</span>
+                Add
+              </button>
             </div>
           </div>
         </section>

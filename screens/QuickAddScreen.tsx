@@ -115,23 +115,24 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
           </div>
         )}
 
-        {/* Project Category */}
+        {/* Project Category Dropdown */}
         <div>
           <label className="text-[10px] font-bold uppercase text-muted tracking-wider mb-1.5 block">Project</label>
-          <div className="flex gap-2 overflow-x-auto no-scrollbar">
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-all ${
-                  selectedCategory === cat
-                    ? 'bg-primary text-white'
-                    : 'bg-surface-dark text-muted border border-white/10 hover:bg-white/5'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
+          <div className="relative">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full appearance-none bg-surface-dark border border-white/10 rounded-lg px-3.5 py-3 text-sm font-semibold text-white focus:border-primary focus:outline-none cursor-pointer"
+            >
+              {CATEGORIES.map(cat => (
+                <option key={cat} value={cat} className="bg-background-dark text-white">
+                  {cat}
+                </option>
+              ))}
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <span className="material-symbols-outlined text-muted text-sm">expand_more</span>
+            </div>
           </div>
         </div>
 
@@ -160,11 +161,10 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
         <button
           onClick={handleCreateTask}
           disabled={!input.trim()}
-          className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all ${
-            input.trim()
+          className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all ${input.trim()
               ? 'bg-primary text-white hover:bg-primary-light'
               : 'bg-white/10 text-white/30 cursor-not-allowed'
-          }`}
+            }`}
         >
           <span className="material-symbols-outlined text-base">add_task</span>
           Create Task

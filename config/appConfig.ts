@@ -195,21 +195,19 @@ export const defaultAppConfig: AppConfig = {
     binauralRanges: ['Low', 'Mid', 'High'],
   },
 
-  themes: [
-    { id: 'default', name: 'Royal Purple', color: 'bg-[#7F13EC]', cssVar: '#7F13EC', pro: false },
-    { id: 'midnight', name: 'Midnight', color: 'bg-[#1E3A8A]', cssVar: '#1E3A8A', pro: true },
-    { id: 'forest', name: 'Forest', color: 'bg-[#059669]', cssVar: '#059669', pro: true },
-    { id: 'sunset', name: 'Sunset', color: 'bg-[#EA580C]', cssVar: '#EA580C', pro: true },
-    { id: 'amoled', name: 'AMOLED', color: 'bg-[#000000]', cssVar: '#000000', pro: true },
-  ],
+    { id: 'default', name: 'Royal Purple', color: 'bg-gradient-to-br from-[#7F13EC] to-[#5a0db5]', cssVar: '#7F13EC', pro: false },
+{ id: 'nebula', name: 'Nebula', color: 'bg-gradient-to-br from-[#6366F1] to-[#D946EF]', cssVar: '#8B5CF6', pro: true },
+{ id: 'sunset', name: 'Sunset', color: 'bg-gradient-to-br from-[#F59E0B] to-[#EF4444]', cssVar: '#F97316', pro: true },
+{ id: 'ocean', name: 'Ocean', color: 'bg-gradient-to-br from-[#06B6D4] to-[#3B82F6]', cssVar: '#0EA5E9', pro: true },
+{ id: 'midnight', name: 'Midnight', color: 'bg-gradient-to-br from-[#1E293B] to-[#0F172A]', cssVar: '#64748B', pro: true },
 
-  navigation: [
-    { id: 'TIMER', icon: 'timer', label: 'Timer' },
-    { id: 'TASKS', icon: 'check_circle', label: 'Tasks' },
-    { id: 'STATS', icon: 'bar_chart', label: 'Stats' },
-    { id: 'SOCIAL', icon: 'group', label: 'Social' },
-    { id: 'PROFILE', icon: 'person', label: 'Profile' },
-  ],
+navigation: [
+  { id: 'TIMER', icon: 'timer', label: 'Timer' },
+  { id: 'TASKS', icon: 'check_circle', label: 'Tasks' },
+  { id: 'STATS', icon: 'bar_chart', label: 'Stats' },
+  { id: 'SOCIAL', icon: 'group', label: 'Social' },
+  { id: 'PROFILE', icon: 'person', label: 'Profile' },
+],
 
   onboarding: [
     {
@@ -232,81 +230,81 @@ export const defaultAppConfig: AppConfig = {
     },
   ],
 
-  categories: {
-    task: ['Design System', 'Marketing', 'Development', 'Personal'],
+    categories: {
+  task: ['Design System', 'Marketing', 'Development', 'Personal'],
     defaultTaskCategory: 'Design System',
-    iconMap: {
-      Finance: 'attach_money',
+      iconMap: {
+    Finance: 'attach_money',
       Development: 'code',
-      Design: 'palette',
-      Marketing: 'campaign',
-      Research: 'science',
-      Writing: 'edit_note',
-      Meeting: 'groups',
-      'Project A': 'folder',
-      'Design System': 'design_services',
-      Personal: 'person',
+        Design: 'palette',
+          Marketing: 'campaign',
+            Research: 'science',
+              Writing: 'edit_note',
+                Meeting: 'groups',
+                  'Project A': 'folder',
+                    'Design System': 'design_services',
+                      Personal: 'person',
     },
-    colorPalette: [
-      '#7F13EC', '#FF6B6B', '#1E3A8A', '#059669', '#EA580C',
-      '#8B5CF6', '#EC4899', '#14B8A6', '#F59E0B', '#6366F1',
-    ],
+  colorPalette: [
+    '#7F13EC', '#FF6B6B', '#1E3A8A', '#059669', '#EA580C',
+    '#8B5CF6', '#EC4899', '#14B8A6', '#F59E0B', '#6366F1',
+  ],
   },
 
-  social: {
-    mockLeaderboard: [
-      { name: 'Sarah', hours: '48h', img: 1027, streak: 12 },
-      { name: 'Mike', hours: '32h', img: 1012, streak: 8 },
-      { name: 'Jess', hours: '28h', img: 1011, streak: 5 },
-      { name: 'Alex Chen', hours: '42h', img: 1005, streak: 4 },
-      { name: 'Jordan Lee', hours: '38h', img: 1014, streak: 3 },
-      { name: 'Casey West', hours: '12h', img: 1024, streak: 0 },
-    ],
+social: {
+  mockLeaderboard: [
+    { name: 'Sarah', hours: '48h', img: 1027, streak: 12 },
+    { name: 'Mike', hours: '32h', img: 1012, streak: 8 },
+    { name: 'Jess', hours: '28h', img: 1011, streak: 5 },
+    { name: 'Alex Chen', hours: '42h', img: 1005, streak: 4 },
+    { name: 'Jordan Lee', hours: '38h', img: 1014, streak: 3 },
+    { name: 'Casey West', hours: '12h', img: 1024, streak: 0 },
+  ],
   },
 
-  admin: {
-    // In production, use proper auth with bcrypt or similar
-    // This is a SHA-256 hash of 'admin123' for demo purposes
-    passwordHash: 'admin123', // TODO: Replace with secure authentication
+admin: {
+  // In production, use proper auth with bcrypt or similar
+  // This is a SHA-256 hash of 'admin123' for demo purposes
+  passwordHash: 'admin123', // TODO: Replace with secure authentication
   },
 
-  pricing: {
-    monthly: { price: 1, label: '$1/mo' },
-    yearly: { price: 10, label: '$10/yr' },
-    testLicenseKeys: ['TEST-KEY-2024', 'TEMPO-TEST-KEY-2024'],
+pricing: {
+  monthly: { price: 1, label: '$1/mo' },
+  yearly: { price: 10, label: '$10/yr' },
+  testLicenseKeys: ['TEST-KEY-2024', 'TEMPO-TEST-KEY-2024'],
     licensePattern: /^TEMPO-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-(M|Y)$/,
   },
 
-  defaults: {
-    audio: {
-      volume: 70,
+defaults: {
+  audio: {
+    volume: 70,
       autoPlay: false,
     },
-    settings: {
-      focusDuration: 25,
+  settings: {
+    focusDuration: 25,
       shortBreak: 5,
-      longBreak: 15,
-      longBreakInterval: 4,
-      autoStartBreaks: false,
-      autoStartPomos: false,
-      notifications: true,
-      darkMode: true,
-      theme: 'default',
-      tickingEnabled: false,
-      tickingSpeed: 60,
+        longBreak: 15,
+          longBreakInterval: 4,
+            autoStartBreaks: false,
+              autoStartPomos: false,
+                notifications: true,
+                  darkMode: true,
+                    theme: 'default',
+                      tickingEnabled: false,
+                        tickingSpeed: 60,
     },
-    stats: {
-      totalSessions: 0,
+  stats: {
+    totalSessions: 0,
       totalFocusMinutes: 0,
-      currentStreak: 0,
+        currentStreak: 0,
     },
-    admin: {
-      freeTrialEnabled: true,
+  admin: {
+    freeTrialEnabled: true,
       freeTrialDays: 7,
-      maintenanceMode: false,
-      globalAccessEnabled: false,
+        maintenanceMode: false,
+          globalAccessEnabled: false,
     },
-  },
+},
 };
 
 // Config manager for loading and accessing configuration
