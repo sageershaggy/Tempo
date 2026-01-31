@@ -520,7 +520,11 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 <div>
                   <p className="text-sm font-bold">Calendar Sync</p>
                   <p className="text-[10px] text-muted">
-                    {calendarSync ? 'Connected: alex@gmail.com' : 'Sync Google Calendar'}
+                    {calendarSync
+                      ? (JSON.parse(localStorage.getItem('tempo_user_profile') || '{}').email
+                        ? `Connected: ${JSON.parse(localStorage.getItem('tempo_user_profile') || '{}').email}`
+                        : 'Connected')
+                      : 'Sync Google Calendar'}
                   </p>
                 </div>
               </div>

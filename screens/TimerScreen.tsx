@@ -102,7 +102,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.03);
           osc.start(ctx.currentTime);
           osc.stop(ctx.currentTime + 0.03);
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const intervalMs = (60 / tickSpeed) * 1000;
@@ -325,24 +325,24 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       </div>
 
       {/* Timer Circle */}
-      <div className="flex flex-col items-center justify-center">
-        <div className="relative flex items-center justify-center w-44 h-44 mb-4">
+      <div className="flex flex-col items-center justify-center py-4">
+        <div className="relative flex items-center justify-center w-64 h-64 mb-6">
           <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-            <circle className="stroke-surface-light" cx="50" cy="50" fill="transparent" r="44" strokeWidth="5" />
+            <circle className="stroke-surface-light" cx="50" cy="50" fill="transparent" r="44" strokeWidth="4" />
             <circle
               className="stroke-primary transition-all duration-1000 ease-linear"
               cx="50" cy="50"
               fill="transparent" r="44"
-              strokeWidth="5"
+              strokeWidth="4"
               strokeDasharray="276.5"
               strokeDashoffset={276.5 - ((initialTime - timeLeft) / initialTime) * 276.5}
               strokeLinecap="round"
-              style={{ filter: isActive ? 'drop-shadow(0 0 8px var(--color-primary))' : 'none' }}
+              style={{ filter: isActive ? 'drop-shadow(0 0 12px var(--color-primary))' : 'none' }}
             />
           </svg>
           <div className="absolute flex flex-col items-center">
-            <span className="text-[38px] font-black tracking-tight tabular-nums leading-none">{formatTimer(timeLeft)}</span>
-            <span className="text-[9px] font-semibold text-muted mt-1 uppercase tracking-[0.15em]">{isActive ? 'Focusing' : 'Ready'}</span>
+            <span className="text-6xl font-black tracking-tight tabular-nums leading-none">{formatTimer(timeLeft)}</span>
+            <span className="text-xs font-bold text-muted mt-2 uppercase tracking-[0.2em]">{isActive ? 'Focusing' : 'Ready'}</span>
           </div>
         </div>
 
@@ -352,7 +352,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           className={`px-10 py-2.5 rounded-full font-bold text-sm tracking-wide flex items-center gap-2 transition-all active:scale-95 ${isActive
             ? 'bg-white/10 text-white border border-white/10 hover:bg-white/15'
             : 'bg-primary text-white shadow-lg shadow-primary/30 hover:shadow-primary/40'
-          }`}
+            }`}
         >
           <span className="material-symbols-outlined text-lg">{isActive ? 'pause' : 'play_arrow'}</span>
           {isActive ? 'PAUSE' : 'START FOCUS'}
@@ -409,11 +409,10 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             <button
               key={cat}
               onClick={() => setSoundFilter(cat)}
-              className={`px-3 py-1 rounded-full text-[10px] font-bold whitespace-nowrap transition-colors border ${
-                soundFilter === cat
+              className={`px-3 py-1 rounded-full text-[10px] font-bold whitespace-nowrap transition-colors border ${soundFilter === cat
                   ? 'bg-white text-black border-white'
                   : 'bg-white/5 text-muted border-white/5 hover:bg-white/10'
-              }`}
+                }`}
             >
               {cat}
             </button>
@@ -428,15 +427,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               <button
                 key={track.id}
                 onClick={() => handleToggleTrack(track)}
-                className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${
-                  isTrackActive
+                className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${isTrackActive
                     ? 'bg-primary/10 border-primary/30'
                     : 'bg-surface-dark border-white/5 hover:border-white/10'
-                }`}
+                  }`}
               >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                  isTrackActive ? 'bg-primary text-white' : 'bg-white/5 text-muted'
-                }`}>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isTrackActive ? 'bg-primary text-white' : 'bg-white/5 text-muted'
+                  }`}>
                   <span className="material-symbols-outlined text-sm">
                     {isTrackActive ? 'pause' : track.icon}
                   </span>
@@ -498,11 +495,10 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           <button
             onClick={handleYoutubePlay}
             disabled={!youtubeUrl.trim()}
-            className={`px-3 rounded-lg flex items-center justify-center transition-colors ${
-              youtubeUrl.trim()
+            className={`px-3 rounded-lg flex items-center justify-center transition-colors ${youtubeUrl.trim()
                 ? 'bg-red-500/20 text-red-400 border border-red-500/20 hover:bg-red-500/30'
                 : 'bg-white/5 text-muted/30 border border-white/5'
-            }`}
+              }`}
           >
             <span className="material-symbols-outlined text-base">play_circle</span>
           </button>
