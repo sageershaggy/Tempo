@@ -61,6 +61,12 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   const handleThemeSelect = (themeId: string) => {
     setActiveTheme(themeId);
     handleSettingChange('theme', themeId);
+    // Apply theme CSS variables immediately
+    const theme = THEMES.find(t => t.id === themeId);
+    if (theme) {
+      document.documentElement.style.setProperty('--color-primary', theme.cssVar);
+      document.documentElement.style.setProperty('--color-primary-light', theme.cssVar + 'CC');
+    }
   };
 
   const toggleCalendarSync = () => {
@@ -269,6 +275,27 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
         <section>
           <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Sound & Feedback</h3>
           <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
+            {/* App Volume */}
+            <div className="p-4">
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm text-muted">volume_up</span>
+                  <span className="text-sm font-bold">App Volume</span>
+                </div>
+                <span className="text-primary font-bold text-sm">{audioState.volume}%</span>
+              </div>
+              <input
+                type="range" min="0" max="100" step="5"
+                value={audioState.volume}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setAudioState(prev => ({ ...prev, volume: val }));
+                }}
+                className="w-full h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary cursor-pointer"
+              />
+              <p className="text-[10px] text-muted mt-2">Controls all app sounds including background audio and ticking</p>
+            </div>
+
             {/* Timer End Sound */}
             <div className="p-4">
               <div className="flex justify-between items-center mb-3">
@@ -297,16 +324,26 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 <span className="text-xs text-muted font-bold">{tickingEnabled ? `${tickSpeed} bpm` : 'Off'}</span>
               </div>
               <div className="flex items-center gap-4">
-                <button
-                  onClick={() => {
-                    const newVal = !tickingEnabled;
-                    setTickingEnabled(newVal);
-                    handleSettingChange('tickingEnabled', newVal);
-                  }}
-                  className={`p-2 rounded-lg text-xs font-bold border transition-colors ${!tickingEnabled ? 'bg-white text-black border-white' : 'border-white/10 text-muted'}`}
-                >
-                  Off
-                </button>
+                <div className="flex rounded-lg border border-white/10 overflow-hidden shrink-0">
+                  <button
+                    onClick={() => {
+                      setTickingEnabled(false);
+                      handleSettingChange('tickingEnabled', false);
+                    }}
+                    className={`px-3 py-1.5 text-xs font-bold transition-colors ${!tickingEnabled ? 'bg-white text-black' : 'text-muted hover:text-white'}`}
+                  >
+                    Off
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTickingEnabled(true);
+                      handleSettingChange('tickingEnabled', true);
+                    }}
+                    className={`px-3 py-1.5 text-xs font-bold transition-colors ${tickingEnabled ? 'bg-primary text-white' : 'text-muted hover:text-white'}`}
+                  >
+                    On
+                  </button>
+                </div>
                 <input
                   type="range" min={TICKING_RANGE.min} max={TICKING_RANGE.max} step={TICKING_RANGE.step}
                   value={tickSpeed}

@@ -21,7 +21,18 @@ import { TermsScreen } from './screens/TermsScreen';
 import { IntegrationsScreen } from './screens/IntegrationsScreen';
 import { configManager } from './config';
 import { STORAGE_KEYS, UI_DIMENSIONS, EXTERNAL_URLS } from './config/constants';
-import { getTasks, saveTasks } from './services/storageService';
+import { getTasks, saveTasks, getSettings } from './services/storageService';
+
+// Apply theme CSS variables to the document
+const applyTheme = (themeId: string) => {
+  const config = configManager.getConfig();
+  const theme = config.themes.find(t => t.id === themeId);
+  if (theme) {
+    document.documentElement.style.setProperty('--color-primary', theme.cssVar);
+    // Generate a lighter variant for primary-light
+    document.documentElement.style.setProperty('--color-primary-light', theme.cssVar + 'CC');
+  }
+};
 
 // Create initial audio state from config
 const createInitialAudioState = (): AudioState => {
@@ -71,6 +82,17 @@ const App: React.FC = () => {
 const [tasks, setTasks] = useState<Task[]>([]);
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Load and apply theme on mount
+  useEffect(() => {
+    const loadTheme = async () => {
+      const settings = await getSettings();
+      if (settings.theme) {
+        applyTheme(settings.theme);
+      }
+    };
+    loadTheme();
+  }, []);
 
   // Load tasks from storage on mount
   useEffect(() => {
@@ -150,15 +172,6 @@ case Screen.ADMIN:
   return (
     <div className={`h-[${UI_DIMENSIONS.POPUP_HEIGHT}px] w-[${UI_DIMENSIONS.POPUP_WIDTH}px] flex justify-center bg-black font-sans text-white overflow-hidden`}>
       <div className="w-full h-full relative bg-background-dark shadow-2xl overflow-hidden group">
-
-        {/* Open in New Tab Button */}
-        <button
-          onClick={() => window.open(chrome.runtime.getURL('index.html'))}
-          className="absolute top-2 right-2 z-50 p-2 text-white/50 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
-          title="Open in new tab"
-        >
-          <span className="material-symbols-outlined text-lg">open_in_new</span>
-        </button>
 
         {/* Persistent Audio Player (Hidden/Background) */}
         {audioState.youtubeId && (

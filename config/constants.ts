@@ -22,6 +22,9 @@ export const STORAGE_KEYS = {
   ONBOARDING_COMPLETE: 'tempo_onboarding_complete',
   APP_CONFIG: 'tempo_app_config',
 
+  // Integrations
+  INTEGRATIONS: 'tempo_integrations',
+
   // Pro Features
   IS_PRO: 'tempo_isPro',
   PRO_EXPIRY: 'tempo_proExpiry',

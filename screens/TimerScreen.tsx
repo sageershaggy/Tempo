@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Screen, GlobalProps } from '../types';
-import { configManager } from '../config';
+import { configManager, AudioTrackConfig } from '../config';
 import { STORAGE_KEYS, formatTimer, UI_DIMENSIONS } from '../config/constants';
+import { getSettings } from '../services/storageService';
+import { playSound, stopSound, isBuiltInTrack } from '../services/soundGenerator';
 
 type TimerMode = 'pomodoro' | 'deep' | 'custom';
 
@@ -10,8 +12,19 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const config = configManager.getConfig();
   const timerModes = config.timer.modes;
 
-  // Get initial values from config
-  const getTimeForMode = (modeId: string): number => {
+  // User settings for custom mode
+  const [userFocusDuration, setUserFocusDuration] = useState(config.defaults.settings.focusDuration);
+  const [userBreakDuration, setUserBreakDuration] = useState(config.defaults.settings.shortBreak);
+  const [tickingEnabled, setTickingEnabled] = useState(false);
+  const [tickSpeed, setTickSpeed] = useState(60);
+  const tickIntervalRef = useRef<any>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // Get initial values from config, using user settings for custom mode
+  const getTimeForMode = (modeId: string, customFocus?: number): number => {
+    if (modeId === 'custom') {
+      return (customFocus ?? userFocusDuration) * 60;
+    }
     const modeConfig = timerModes.find(m => m.id === modeId);
     return modeConfig ? modeConfig.focusMinutes * 60 : config.defaults.settings.focusDuration * 60;
   };
@@ -21,13 +34,94 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const [isActive, setIsActive] = useState(false);
   const [initialTime, setInitialTime] = useState(getTimeForMode('pomodoro'));
 
+  // Load user settings for custom mode and ticking
+  useEffect(() => {
+    const loadUserSettings = async () => {
+      const settings = await getSettings();
+      setUserFocusDuration(settings.focusDuration);
+      setUserBreakDuration(settings.shortBreak);
+      setTickingEnabled(settings.tickingEnabled);
+      setTickSpeed(settings.tickingSpeed);
+      // If currently on custom mode, update the timer to reflect settings
+      if (mode === 'custom' && !isActive) {
+        const newTime = settings.focusDuration * 60;
+        setInitialTime(newTime);
+        setTimeLeft(newTime);
+      }
+    };
+    loadUserSettings();
+  }, []);
+
+  // Auto-start timer when coming from QuickAdd with "Start Timer" toggle on
+  useEffect(() => {
+    const autoStart = localStorage.getItem('tempo_autoStartTimer');
+    if (autoStart === 'true') {
+      localStorage.removeItem('tempo_autoStartTimer');
+      // Small delay to ensure timer state is loaded
+      setTimeout(() => {
+        setIsActive(true);
+        const target = Date.now() + (timeLeft * 1000);
+        localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(target));
+        localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'true');
+        localStorage.setItem(STORAGE_KEYS.TIMER_MODE, mode);
+      }, 100);
+    }
+  }, []);
+
+  // Ticking sound effect
+  useEffect(() => {
+    if (tickIntervalRef.current) {
+      clearInterval(tickIntervalRef.current);
+      tickIntervalRef.current = null;
+    }
+
+    if (isActive && tickingEnabled && tickSpeed > 0) {
+      const playTick = async () => {
+        try {
+          if (!audioCtxRef.current) {
+            audioCtxRef.current = new AudioContext();
+          }
+          const ctx = audioCtxRef.current;
+          // Resume if suspended (browser requires user gesture first)
+          if (ctx.state === 'suspended') {
+            await ctx.resume();
+          }
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          // Use a woodblock-like tick: short, sharp click
+          osc.frequency.value = 1200;
+          osc.type = 'triangle';
+          gain.gain.setValueAtTime(0.3, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.03);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.03);
+        } catch (e) {
+          // Audio context may fail silently
+        }
+      };
+
+      const intervalMs = (60 / tickSpeed) * 1000;
+      playTick();
+      tickIntervalRef.current = setInterval(playTick, intervalMs);
+    }
+
+    return () => {
+      if (tickIntervalRef.current) {
+        clearInterval(tickIntervalRef.current);
+        tickIntervalRef.current = null;
+      }
+    };
+  }, [isActive, tickingEnabled, tickSpeed]);
+
   // Update timer when mode changes
   useEffect(() => {
     setIsActive(false);
     const newTime = getTimeForMode(mode);
     setInitialTime(newTime);
     setTimeLeft(newTime);
-  }, [mode]);
+  }, [mode, userFocusDuration]);
 
   // Load timer state on mount
   useEffect(() => {
@@ -126,80 +220,195 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     }
   }, [isActive, audioState.autoPlay, audioState.isPlaying, audioState.youtubeId, setAudioState]);
 
+  // Quick audio picks for the timer screen (curated focus sounds)
+  const quickAudioTracks = config.audio.tracks.filter(t =>
+    ['1', '2', '3', '8', '10', '4'].includes(t.id)
+  );
+
+  const handleQuickAudio = (track: AudioTrackConfig) => {
+    const isCurrentlyPlaying = audioState.activeTrackId === track.id && audioState.isPlaying;
+    if (isCurrentlyPlaying) {
+      stopSound();
+      setAudioState(prev => ({ ...prev, isPlaying: false, activeTrackId: null }));
+    } else {
+      stopSound();
+      if (isBuiltInTrack(track.id)) {
+        const vol = (audioState.trackSettings[track.id]?.volume ?? 50) / 100 * (audioState.volume / 100);
+        playSound(track.id, vol);
+      }
+      setAudioState(prev => ({
+        ...prev,
+        isPlaying: true,
+        activeTrackId: track.id,
+        youtubeId: null,
+      }));
+    }
+  };
+
   const progress = ((initialTime - timeLeft) / initialTime) * UI_DIMENSIONS.TIMER_CIRCUMFERENCE;
 
   return (
-    <div className="h-full flex flex-col px-6 pt-4 pb-20 overflow-y-auto no-scrollbar">
+    <div className="h-full flex flex-col px-5 pt-3 pb-24 overflow-y-auto no-scrollbar">
       {/* Header */}
-      <div className="flex justify-between items-center mb-2">
+      <div className="flex justify-between items-center mb-3">
         <div>
-          <h1 className="text-lg font-bold">Tempo</h1>
-          <p className="text-[10px] font-bold text-secondary uppercase tracking-wider">
+          <h1 className="text-base font-bold tracking-tight">Tempo</h1>
+          <p className="text-[9px] font-bold text-primary uppercase tracking-widest">
             {timerModes.find(m => m.id === mode)?.name || 'Focus Session'}
           </p>
         </div>
-        <button onClick={() => setScreen(Screen.SETTINGS)} className="w-8 h-8 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80">
-          <span className="material-symbols-outlined text-lg">tune</span>
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => {
+              try { window.open((window as any).chrome.runtime.getURL('index.html')); } catch (e) { window.open(window.location.href); }
+            }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-white hover:bg-white/5 transition-all"
+            title="Open in new tab"
+          >
+            <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+          </button>
+          <button onClick={() => setScreen(Screen.SETTINGS)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-white hover:bg-white/5 transition-all">
+            <span className="material-symbols-outlined text-[18px]">tune</span>
+          </button>
+        </div>
       </div>
 
-      {/* Mode Switcher - Dynamic from config */}
-      <div className="flex p-1 bg-surface-light rounded-xl mb-4 border border-white/5">
+      {/* Mode Switcher */}
+      <div className="flex p-0.5 bg-surface-dark rounded-lg mb-5 border border-white/5">
         {timerModes.map((modeConfig) => (
           <button
             key={modeConfig.id}
             onClick={() => setMode(modeConfig.id as TimerMode)}
-            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${mode === modeConfig.id ? 'bg-primary text-white shadow-lg' : 'text-muted hover:text-white'}`}
+            className={`flex-1 py-2 rounded-md text-[11px] font-semibold transition-all ${mode === modeConfig.id ? 'bg-primary text-white shadow-md shadow-primary/25' : 'text-muted hover:text-white/70'}`}
           >
-            {modeConfig.label}
+            {modeConfig.id === 'custom' ? `${userFocusDuration}/${userBreakDuration}` : modeConfig.label}
           </button>
         ))}
       </div>
 
-      {/* Timer Circle - Compact */}
-      <div className="relative flex items-center justify-center w-48 h-48 mx-auto mb-6 shrink-0">
-        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-          <circle className="text-surface-light stroke-current" cx="50" cy="50" fill="transparent" r="45" strokeWidth="6" />
-          <circle
-            className="text-primary stroke-current transition-all duration-1000 ease-linear drop-shadow-[0_0_15px_rgba(127,19,236,0.4)]"
-            cx="50" cy="50"
-            fill="transparent" r="45"
-            strokeWidth="6"
-            strokeDasharray="283"
-            strokeDashoffset={283 - progress}
-            strokeLinecap="round"
-          />
-        </svg>
-        <div className="absolute flex flex-col items-center">
-          <span className="text-4xl font-black tracking-tighter tabular-nums">{formatTimer(timeLeft)}</span>
-          <span className="text-[10px] font-medium text-muted mt-1 uppercase tracking-widest">{isActive ? 'Focusing' : 'Ready'}</span>
+      {/* Timer Circle */}
+      <div className="flex-1 flex flex-col items-center justify-center -mt-2">
+        <div className="relative flex items-center justify-center w-52 h-52 mb-6">
+          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+            <circle className="stroke-surface-light" cx="50" cy="50" fill="transparent" r="44" strokeWidth="5" />
+            <circle
+              className="stroke-primary transition-all duration-1000 ease-linear"
+              cx="50" cy="50"
+              fill="transparent" r="44"
+              strokeWidth="5"
+              strokeDasharray="276.5"
+              strokeDashoffset={276.5 - ((initialTime - timeLeft) / initialTime) * 276.5}
+              strokeLinecap="round"
+              style={{ filter: isActive ? 'drop-shadow(0 0 8px var(--color-primary))' : 'none' }}
+            />
+          </svg>
+          <div className="absolute flex flex-col items-center">
+            <span className="text-[42px] font-black tracking-tight tabular-nums leading-none">{formatTimer(timeLeft)}</span>
+            <span className="text-[10px] font-semibold text-muted mt-1.5 uppercase tracking-[0.15em]">{isActive ? 'Focusing' : 'Ready'}</span>
+          </div>
         </div>
-      </div>
 
-      {/* Main Action */}
-      <div className="w-full max-w-[200px] mx-auto mb-4">
+        {/* Action Button */}
         <button
           onClick={toggleTimer}
-          className={`w-full h-10 rounded-xl font-bold text-sm tracking-wide shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 ${isActive ? 'bg-surface-light text-white' : 'bg-secondary text-white shadow-[0_4px_20px_-4px_rgba(255,107,107,0.5)]'}`}
+          className={`px-10 py-2.5 rounded-full font-bold text-sm tracking-wide flex items-center gap-2 transition-all active:scale-95 ${isActive
+            ? 'bg-white/10 text-white border border-white/10 hover:bg-white/15'
+            : 'bg-primary text-white shadow-lg shadow-primary/30 hover:shadow-primary/40'
+          }`}
         >
           <span className="material-symbols-outlined text-lg">{isActive ? 'pause' : 'play_arrow'}</span>
           {isActive ? 'PAUSE' : 'START FOCUS'}
         </button>
       </div>
 
-      {/* Current Task Card - Compact */}
-      <div className="relative w-full rounded-xl bg-surface-dark p-px border border-white/5 overflow-hidden group cursor-pointer" onClick={() => setScreen(Screen.QUICK_ADD)}>
-        <div className="absolute top-0 right-0 w-20 h-20 bg-primary/20 blur-2xl rounded-full -translate-y-1/2 translate-x-1/2 group-hover:bg-primary/30 transition-all"></div>
-        <div className="relative z-10 flex items-center justify-between p-3 bg-background-dark/50 backdrop-blur-sm rounded-xl">
-          <div className="flex-1 min-w-0 mr-3">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className={`w-1.5 h-1.5 rounded-full ${currentTask ? 'bg-primary animate-pulse' : 'bg-muted'}`}></span>
-              <p className="text-primary text-[10px] font-bold uppercase tracking-wider">Current Task</p>
+      {/* Focus Audio Quick Controls */}
+      <div className="mt-5 w-full">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-semibold text-muted uppercase tracking-wider">Focus Sound</p>
+          <button
+            onClick={() => setScreen(Screen.AUDIO)}
+            className="text-[10px] font-semibold text-primary hover:text-primary-light transition-colors flex items-center gap-0.5"
+          >
+            All Sounds
+            <span className="material-symbols-outlined text-xs">chevron_right</span>
+          </button>
+        </div>
+
+        {/* Quick Sound Picks */}
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+          {/* Off button */}
+          <button
+            onClick={() => {
+              stopSound();
+              setAudioState(prev => ({ ...prev, isPlaying: false, activeTrackId: null }));
+            }}
+            className={`shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl border transition-all ${
+              !audioState.isPlaying || !audioState.activeTrackId
+                ? 'bg-white/10 border-white/20 text-white'
+                : 'bg-surface-dark border-white/5 text-muted hover:border-white/10'
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">volume_off</span>
+            <span className="text-[8px] font-bold">Off</span>
+          </button>
+
+          {/* Quick pick tracks */}
+          {quickAudioTracks.map((track) => {
+            const isActive = audioState.activeTrackId === track.id && audioState.isPlaying;
+            return (
+              <button
+                key={track.id}
+                onClick={() => handleQuickAudio(track)}
+                className={`shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl border transition-all ${
+                  isActive
+                    ? 'bg-primary/15 border-primary/30 text-primary'
+                    : 'bg-surface-dark border-white/5 text-muted hover:border-white/10 hover:text-white'
+                }`}
+              >
+                <span className="material-symbols-outlined text-base">{track.icon}</span>
+                <span className="text-[8px] font-bold truncate max-w-[48px]">{track.hz || track.name.split(' ')[0]}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Now Playing Mini Bar */}
+        {audioState.isPlaying && audioState.activeTrackId && (
+          <div className="mt-2 flex items-center gap-2 bg-surface-dark/80 rounded-lg border border-white/5 px-3 py-2">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0"></span>
+              <span className="text-[10px] font-semibold text-white/80 truncate">
+                {config.audio.tracks.find(t => t.id === audioState.activeTrackId)?.name || 'Playing'}
+              </span>
+              {config.audio.tracks.find(t => t.id === audioState.activeTrackId)?.hz && (
+                <span className="text-[9px] font-bold text-secondary">{config.audio.tracks.find(t => t.id === audioState.activeTrackId)?.hz}</span>
+              )}
             </div>
+            <button
+              onClick={() => {
+                stopSound();
+                setAudioState(prev => ({ ...prev, isPlaying: false }));
+              }}
+              className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 shrink-0"
+            >
+              <span className="material-symbols-outlined text-sm text-muted">stop</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Current Task Card */}
+      <div
+        className="mt-3 w-full rounded-xl bg-surface-dark/80 border border-white/5 cursor-pointer hover:border-white/10 transition-all"
+        onClick={() => setScreen(Screen.QUICK_ADD)}
+      >
+        <div className="flex items-center justify-between p-3.5">
+          <div className="flex-1 min-w-0 mr-3">
+            <p className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-0.5">Current Task</p>
             <h3 className="text-white text-sm font-bold truncate">{currentTask?.title || 'No task selected'}</h3>
           </div>
-          <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-            <span className="material-symbols-outlined text-sm">{currentTask ? 'edit' : 'add'}</span>
+          <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-sm text-muted">{currentTask ? 'edit' : 'add'}</span>
           </div>
         </div>
       </div>

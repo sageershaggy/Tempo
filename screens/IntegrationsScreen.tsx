@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Screen } from '../types';
+import { STORAGE_KEYS } from '../config/constants';
 
 interface IntegrationCardProps {
     title: string;
@@ -56,19 +57,50 @@ export const IntegrationsScreen: React.FC<{ setScreen: (s: Screen) => void }> = 
     const [msConnected, setMsConnected] = useState(false);
     const [loading, setLoading] = useState<string | null>(null);
 
+    // Load saved integration state on mount
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEYS.INTEGRATIONS);
+            if (saved) {
+                const state = JSON.parse(saved);
+                setGoogleConnected(state.google || false);
+                setMsConnected(state.microsoft || false);
+            }
+        } catch (e) {
+            // Ignore parse errors
+        }
+    }, []);
+
+    const saveIntegrationState = (google: boolean, microsoft: boolean) => {
+        localStorage.setItem(STORAGE_KEYS.INTEGRATIONS, JSON.stringify({ google, microsoft }));
+    };
+
     const handleConnect = async (provider: 'google' | 'microsoft') => {
         setLoading(provider);
-        // TODO: Implement actual OAuth flow here
+        // TODO: Replace with actual OAuth flow (chrome.identity.launchWebAuthFlow)
+        // For now, simulate a connection delay
         setTimeout(() => {
-            if (provider === 'google') setGoogleConnected(true);
-            if (provider === 'microsoft') setMsConnected(true);
+            if (provider === 'google') {
+                setGoogleConnected(true);
+                saveIntegrationState(true, msConnected);
+            }
+            if (provider === 'microsoft') {
+                setMsConnected(true);
+                saveIntegrationState(googleConnected, true);
+            }
             setLoading(null);
         }, 1500);
     };
 
     const handleDisconnect = (provider: 'google' | 'microsoft') => {
-        if (provider === 'google') setGoogleConnected(false);
-        if (provider === 'microsoft') setMsConnected(false);
+        if (provider === 'google') {
+            setGoogleConnected(false);
+            saveIntegrationState(false, msConnected);
+        }
+        if (provider === 'microsoft') {
+            setMsConnected(false);
+            saveIntegrationState(googleConnected, false);
+        }
     };
 
     return (
