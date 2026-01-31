@@ -157,7 +157,7 @@ const [tasks, setTasks] = useState<Task[]>([]);
 case Screen.ADMIN:
         return <AdminScreen setScreen={setCurrentScreen} />;
       case Screen.CALENDAR:
-        return <CalendarScreen setScreen={setCurrentScreen} />;
+        return <CalendarScreen {...props} />;
       case Screen.PRIVACY_POLICY:
         return <PrivacyPolicyScreen setScreen={setCurrentScreen} />;
       case Screen.TERMS:
@@ -170,11 +170,39 @@ case Screen.ADMIN:
   };
 
   // Detect if running in a full browser tab (not popup)
-  const isFullTab = window.innerWidth > 500;
+  const [isFullTab] = useState(() => window.innerWidth > 500);
 
   return (
-    <div className={`${isFullTab ? 'min-h-screen w-full flex items-center justify-center bg-black/95' : `h-[${UI_DIMENSIONS.POPUP_HEIGHT}px] w-[${UI_DIMENSIONS.POPUP_WIDTH}px] flex justify-center`} bg-black font-sans text-white overflow-hidden`}>
-      <div className={`${isFullTab ? 'w-[420px] h-[680px] rounded-3xl border border-white/10 shadow-[0_0_80px_rgba(127,19,236,0.15)]' : 'w-full h-full'} relative bg-background-dark shadow-2xl overflow-hidden group`}>
+    <div
+      className="font-sans text-white overflow-hidden"
+      style={isFullTab ? {
+        minHeight: '100vh',
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #0a0a0f 0%, #1a0a2e 50%, #0a0a0f 100%)',
+      } : {
+        height: `${UI_DIMENSIONS.POPUP_HEIGHT}px`,
+        width: `${UI_DIMENSIONS.POPUP_WIDTH}px`,
+        display: 'flex',
+        justifyContent: 'center',
+        background: '#000',
+      }}
+    >
+      <div
+        className="relative bg-background-dark shadow-2xl overflow-hidden group"
+        style={isFullTab ? {
+          width: '440px',
+          height: '720px',
+          borderRadius: '24px',
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 0 120px rgba(127,19,236,0.12), 0 20px 60px rgba(0,0,0,0.5)',
+        } : {
+          width: '100%',
+          height: '100%',
+        }}
+      >
 
         {/* Persistent Audio Player (Hidden/Background) */}
         {audioState.youtubeId && (

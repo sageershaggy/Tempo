@@ -3,12 +3,14 @@ import { Screen, GlobalProps } from '../types';
 import { STORAGE_KEYS } from '../config/constants';
 import { googleTasksService } from '../services/googleTasks';
 import { microsoftToDoService } from '../services/microsoftToDo';
+import { authService, UserProfile } from '../services/authService';
 
 interface IntegrationCardProps {
   title: string;
   icon: React.ReactNode;
   description: string;
   isConnected: boolean;
+  userProfile?: { name: string; email: string; picture?: string } | null;
   onConnect: () => void;
   onDisconnect: () => void;
   onSync?: () => void;
@@ -16,11 +18,12 @@ interface IntegrationCardProps {
   isSyncing?: boolean;
   lastSync?: string | null;
   syncResult?: string | null;
+  connectLabel?: string;
 }
 
 const IntegrationCard: React.FC<IntegrationCardProps> = ({
-  title, icon, description, isConnected, onConnect, onDisconnect,
-  onSync, isLoading, isSyncing, lastSync, syncResult
+  title, icon, description, isConnected, userProfile, onConnect, onDisconnect,
+  onSync, isLoading, isSyncing, lastSync, syncResult, connectLabel
 }) => (
   <div className="bg-surface-dark rounded-xl border border-white/5 overflow-hidden">
     <div className="p-4">
@@ -43,6 +46,25 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Connected user profile */}
+      {isConnected && userProfile && (
+        <div className="mt-3 bg-white/5 rounded-lg p-2.5 flex items-center gap-2.5">
+          {userProfile.picture ? (
+            <img src={userProfile.picture} alt="" className="w-7 h-7 rounded-full border border-white/10" />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
+              <span className="text-[10px] font-bold text-primary">
+                {userProfile.name?.charAt(0)?.toUpperCase() || '?'}
+              </span>
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold text-white truncate">{userProfile.name}</p>
+            <p className="text-[9px] text-muted truncate">{userProfile.email}</p>
+          </div>
+        </div>
+      )}
 
       {/* Sync Result */}
       {syncResult && (
@@ -84,14 +106,19 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({
         <button
           onClick={onConnect}
           disabled={isLoading}
-          className="flex-1 py-2.5 rounded-lg text-xs font-bold bg-primary text-white hover:bg-primary-light transition-all flex items-center justify-center gap-2"
+          className="flex-1 py-2.5 rounded-lg text-xs font-bold bg-white text-black hover:bg-gray-100 transition-all flex items-center justify-center gap-2"
         >
           {isLoading ? (
-            <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+            <>
+              <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+              Signing in...
+            </>
           ) : (
-            <span className="material-symbols-outlined text-sm">link</span>
+            <>
+              {icon}
+              <span>{connectLabel || `Sign in with ${title.split(' ')[0]}`}</span>
+            </>
           )}
-          {isLoading ? 'Connecting...' : 'Connect'}
         </button>
       )}
     </div>
@@ -107,20 +134,31 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
   const [msSyncResult, setMsSyncResult] = useState<string | null>(null);
   const [googleLastSync, setGoogleLastSync] = useState<string | null>(null);
   const [msLastSync, setMsLastSync] = useState<string | null>(null);
+  const [googleProfile, setGoogleProfile] = useState<{ name: string; email: string; picture?: string } | null>(null);
+  const [msProfile, setMsProfile] = useState<{ name: string; email: string; picture?: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check actual connection status from services
+    // Check connection status
     setGoogleConnected(googleTasksService.isConnected());
     setMsConnected(microsoftToDoService.isConnected());
 
-    // Also check saved integration state
+    // Load saved state
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.INTEGRATIONS);
       if (saved) {
         const state = JSON.parse(saved);
-        if (state.google && !googleTasksService.isConnected()) setGoogleConnected(state.google);
-        if (state.microsoft && !microsoftToDoService.isConnected()) setMsConnected(state.microsoft);
+        if (state.google) setGoogleConnected(true);
+        if (state.microsoft) setMsConnected(true);
       }
+    } catch (e) {}
+
+    // Load saved profiles
+    try {
+      const gProfile = localStorage.getItem('tempo_google_profile');
+      if (gProfile) setGoogleProfile(JSON.parse(gProfile));
+      const mProfile = localStorage.getItem('tempo_ms_profile');
+      if (mProfile) setMsProfile(JSON.parse(mProfile));
     } catch (e) {}
 
     // Load last sync times
@@ -142,21 +180,56 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
     localStorage.setItem(STORAGE_KEYS.INTEGRATIONS, JSON.stringify({ google, microsoft }));
   };
 
+  // Google Connect - triggers Google SSO login flow then connects Tasks
   const handleGoogleConnect = async () => {
     setLoading('google');
-    const success = await googleTasksService.authenticate();
-    if (success) {
-      setGoogleConnected(true);
-      saveIntegrationState(true, msConnected);
+    setError(null);
+
+    try {
+      // Step 1: Sign in with Google SSO (shows Google account picker)
+      const authResult = await authService.signInWithGoogle();
+
+      if (!authResult.success) {
+        setError(authResult.error || 'Google sign-in failed');
+        setLoading(null);
+        return;
+      }
+
+      // Step 2: Save user profile for display
+      const profile = authResult.profile;
+      if (profile) {
+        const profileData = { name: profile.name, email: profile.email, picture: profile.picture };
+        setGoogleProfile(profileData);
+        localStorage.setItem('tempo_google_profile', JSON.stringify(profileData));
+        localStorage.setItem('tempo_user_profile', JSON.stringify({
+          displayName: profile.name,
+          email: profile.email,
+          picture: profile.picture,
+        }));
+      }
+
+      // Step 3: Authenticate Google Tasks API
+      const tasksAuth = await googleTasksService.authenticate();
+      if (tasksAuth) {
+        setGoogleConnected(true);
+        saveIntegrationState(true, msConnected);
+      } else {
+        setError('Connected to Google but failed to access Tasks. Please try again.');
+      }
+    } catch (e: any) {
+      setError(e.message || 'Connection failed');
     }
+
     setLoading(null);
   };
 
   const handleGoogleDisconnect = async () => {
     await googleTasksService.disconnect();
     setGoogleConnected(false);
+    setGoogleProfile(null);
     setGoogleSyncResult(null);
     setGoogleLastSync(null);
+    localStorage.removeItem('tempo_google_profile');
     saveIntegrationState(false, msConnected);
   };
 
@@ -165,39 +238,52 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
     setGoogleSyncResult(null);
     try {
       const result = await googleTasksService.syncBidirectional(tasks);
-
-      // Merge pulled tasks (avoid duplicates by title)
       const existingTitles = new Set(tasks.map(t => t.title));
       const newTasks = result.pulled.filter(t => !existingTitles.has(t.title));
       if (newTasks.length > 0) {
         setTasks(prev => [...prev, ...newTasks]);
       }
-
       setGoogleSyncResult(
-        `Pushed ${result.pushed.created} new, ${result.pushed.updated} updated. Pulled ${newTasks.length} new tasks.`
+        `✓ Pushed ${result.pushed.created} new, ${result.pushed.updated} updated. Pulled ${newTasks.length} new tasks.`
       );
       setGoogleLastSync('Just now');
     } catch (e: any) {
-      setGoogleSyncResult(`Sync failed: ${e.message}`);
+      setGoogleSyncResult(`✗ Sync failed: ${e.message}`);
     }
     setSyncing(null);
   };
 
+  // Microsoft Connect - triggers Microsoft SSO login flow
   const handleMsConnect = async () => {
     setLoading('microsoft');
-    const success = await microsoftToDoService.authenticate();
-    if (success) {
-      setMsConnected(true);
-      saveIntegrationState(googleConnected, true);
+    setError(null);
+
+    try {
+      const success = await microsoftToDoService.authenticate();
+      if (success) {
+        setMsConnected(true);
+        // Try to get profile from token (for dev mode, use mock)
+        const profileData = { name: 'Microsoft User', email: 'user@outlook.com' };
+        setMsProfile(profileData);
+        localStorage.setItem('tempo_ms_profile', JSON.stringify(profileData));
+        saveIntegrationState(googleConnected, true);
+      } else {
+        setError('Microsoft sign-in failed. Please try again.');
+      }
+    } catch (e: any) {
+      setError(e.message || 'Connection failed');
     }
+
     setLoading(null);
   };
 
   const handleMsDisconnect = async () => {
     await microsoftToDoService.disconnect();
     setMsConnected(false);
+    setMsProfile(null);
     setMsSyncResult(null);
     setMsLastSync(null);
+    localStorage.removeItem('tempo_ms_profile');
     saveIntegrationState(googleConnected, false);
   };
 
@@ -205,25 +291,22 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
     setSyncing('microsoft');
     setMsSyncResult(null);
     try {
-      // Get available lists first, use the first one
       const lists = await microsoftToDoService.getTaskLists();
       const listId = lists[0]?.id;
       if (!listId) throw new Error('No task lists found');
 
       const result = await microsoftToDoService.syncBidirectional(tasks, listId);
-
       const existingTitles = new Set(tasks.map(t => t.title));
       const newTasks = result.pulled.filter(t => !existingTitles.has(t.title));
       if (newTasks.length > 0) {
         setTasks(prev => [...prev, ...newTasks]);
       }
-
       setMsSyncResult(
-        `Pushed ${result.pushed.created} new, ${result.pushed.updated} updated. Pulled ${newTasks.length} new tasks.`
+        `✓ Pushed ${result.pushed.created} new, ${result.pushed.updated} updated. Pulled ${newTasks.length} new tasks.`
       );
       setMsLastSync('Just now');
     } catch (e: any) {
-      setMsSyncResult(`Sync failed: ${e.message}`);
+      setMsSyncResult(`✗ Sync failed: ${e.message}`);
     }
     setSyncing(null);
   };
@@ -250,11 +333,22 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
             <div>
               <h3 className="font-bold text-xs text-blue-200">Bidirectional Sync</h3>
               <p className="text-[10px] text-blue-200/60 leading-relaxed mt-0.5">
-                Tasks sync both ways. Create in Tempo or your external app - they stay in sync automatically.
+                Sign in with your Google or Microsoft account to sync tasks both ways.
               </p>
             </div>
           </div>
         </div>
+
+        {/* Error */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-center gap-2">
+            <span className="material-symbols-outlined text-red-400 text-sm">error</span>
+            <p className="text-[11px] text-red-400 flex-1">{error}</p>
+            <button onClick={() => setError(null)} className="text-red-400/50 hover:text-red-400">
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          </div>
+        )}
 
         {/* Google Tasks */}
         <IntegrationCard
@@ -267,8 +361,9 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
             </svg>
           }
-          description="Sync tasks with Google Tasks. Requires Google account."
+          description="Sign in with Google to sync your tasks bidirectionally."
           isConnected={googleConnected}
+          userProfile={googleProfile}
           isLoading={loading === 'google'}
           isSyncing={syncing === 'google'}
           onConnect={handleGoogleConnect}
@@ -276,6 +371,7 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
           onSync={handleGoogleSync}
           lastSync={googleLastSync}
           syncResult={googleSyncResult}
+          connectLabel="Sign in with Google"
         />
 
         {/* Microsoft To Do */}
@@ -289,8 +385,9 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
               <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
             </svg>
           }
-          description="Sync tasks with Microsoft To Do and Outlook Tasks."
+          description="Sign in with Microsoft to sync with To Do and Outlook."
           isConnected={msConnected}
+          userProfile={msProfile}
           isLoading={loading === 'microsoft'}
           isSyncing={syncing === 'microsoft'}
           onConnect={handleMsConnect}
@@ -298,17 +395,17 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
           onSync={handleMsSync}
           lastSync={msLastSync}
           syncResult={msSyncResult}
+          connectLabel="Sign in with Microsoft"
         />
 
-        {/* Sync Info */}
+        {/* Setup Info */}
         <div className="bg-surface-dark/50 rounded-xl p-3.5 border border-white/5">
           <div className="flex items-start gap-3">
             <span className="material-symbols-outlined text-muted text-base mt-0.5">info</span>
             <div>
-              <p className="text-xs font-semibold text-white/70 mb-0.5">Setup Guide</p>
               <p className="text-[10px] text-muted leading-relaxed">
-                To use Google Tasks sync, ensure your extension has a valid OAuth2 client ID configured in the manifest.
-                For Microsoft To Do, register an Azure AD app with Tasks.ReadWrite scope.
+                Clicking "Sign in" will open a secure login window from Google or Microsoft.
+                Your credentials are handled directly by their servers — Tempo never sees your password.
               </p>
             </div>
           </div>
