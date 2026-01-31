@@ -177,7 +177,10 @@ chrome.runtime.onInstalled.addListener((details) => {
         autoStartBreaks: false,
         notifications: true,
         darkMode: true
-      },
+      }
+    });
+
+    chrome.storage.local.set({
       stats: {
         totalSessions: 0,
         totalFocusMinutes: 0,

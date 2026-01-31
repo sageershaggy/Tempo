@@ -238,19 +238,19 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                         </button>
                         {/* Sync Interval Selector */}
                         <div className="relative group">
-                            <button className="w-10 h-10 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80 text-white transition-colors">
-                                <span className="text-[10px] font-bold">{syncInterval === 'Off' ? 'Off' : `${syncInterval}m`}</span>
-                            </button>
-                            <select
-                                value={syncInterval}
-                                onChange={(e) => setSyncInterval(e.target.value)}
-                                className="absolute inset-0 opacity-0 cursor-pointer"
+                            <button
+                                onClick={() => setSyncInterval(prev => {
+                                    const next = { 'Off': '10', '10': '20', '20': '30', '30': 'Off' };
+                                    return next[prev as keyof typeof next] || 'Off';
+                                })}
+                                className="w-10 h-10 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80 text-white transition-colors cursor-pointer"
+                                title={`Sync Interval: ${syncInterval === 'Off' ? 'Manual' : syncInterval + 'm'}`}
                             >
-                                <option value="Off">Manual</option>
-                                <option value="10">10m</option>
-                                <option value="20">20m</option>
-                                <option value="30">30m</option>
-                            </select>
+                                <div className="flex flex-col items-center leading-none">
+                                    <span className="text-[9px] font-bold uppercase text-muted mb-[1px]">Sync</span>
+                                    <span className="text-[10px] font-bold">{syncInterval === 'Off' ? 'Off' : `${syncInterval}m`}</span>
+                                </div>
+                            </button>
                         </div>
                         <button
                             onClick={() => setScreen(Screen.CALENDAR)}
@@ -367,7 +367,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
 
                                         <div className="flex-1 min-w-0" onClick={() => !isSelectionMode && setExpandedTask(expanded ? null : task.id)}>
                                             <div className="flex justify-between items-start mb-1">
-                                                <h3 className={`text-base font-medium truncate pr-2 ${task.completed ? 'line-through text-muted' : 'text-white'}`}>
+                                                <h3 className={`text-base font-medium break-words leading-tight pr-2 ${task.completed ? 'line-through text-muted' : 'text-white'}`}>
                                                     {task.title}
                                                 </h3>
                                                 <div className={`flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider ${getPriorityColor(task.priority)}`}>
@@ -395,7 +395,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                             type="datetime-local"
                                                             value={task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 16) : ''}
                                                             onChange={(e) => handleUpdateTask(task.id, { dueDate: new Date(e.target.value).toISOString() })}
-                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50"
                                                         />
                                                     </div>
                                                 </div>
@@ -572,34 +572,35 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                         </div>
                                     )}
                                 </div>
-                                );
-                        })
-                    )}
                             </div>
+                        );
+                    })
+                )}
+            </div>
 
-            {/* Floating Action Button */ }
-                        {
-                            !isSelectionMode && (
-                                <div className="absolute bottom-24 right-6 z-30">
-                                    <button onClick={() => setScreen(Screen.QUICK_ADD)} className="w-14 h-14 bg-secondary rounded-full shadow-[0_4px_20px_-5px_rgba(255,107,107,0.5)] flex items-center justify-center hover:scale-110 transition-transform active:scale-95 text-white">
-                                        <span className="material-symbols-outlined text-3xl">add</span>
-                                    </button>
-                                </div>
-                            )
-                        }
+            {/* Floating Action Button */}
+            {
+                !isSelectionMode && (
+                    <div className="absolute bottom-24 right-6 z-30">
+                        <button onClick={() => setScreen(Screen.QUICK_ADD)} className="w-14 h-14 bg-secondary rounded-full shadow-[0_4px_20px_-5px_rgba(255,107,107,0.5)] flex items-center justify-center hover:scale-110 transition-transform active:scale-95 text-white">
+                            <span className="material-symbols-outlined text-3xl">add</span>
+                        </button>
+                    </div>
+                )
+            }
 
-                        {/* Bulk Action Bar */ }
-                        {
-                            isSelectionMode && selectedTaskIds.size > 0 && (
-                                <div className="absolute bottom-24 left-4 right-4 bg-surface-light border border-white/10 p-3 rounded-2xl shadow-2xl flex items-center justify-between z-40 animate-slide-up">
-                                    <span className="text-sm font-bold px-2">{selectedTaskIds.size} selected</span>
-                                    <div className="flex gap-2">
-                                        <button onClick={handleBulkComplete} className="px-3 py-2 bg-green-500/20 text-green-400 rounded-lg text-xs font-bold border border-green-500/30 hover:bg-green-500/30 transition-colors">Complete</button>
-                                        <button onClick={handleBulkDelete} className="px-3 py-2 bg-red-500/20 text-red-400 rounded-lg text-xs font-bold border border-red-500/30 hover:bg-red-500/30 transition-colors">Delete</button>
-                                    </div>
-                                </div>
-                            )
-                        }
+            {/* Bulk Action Bar */}
+            {
+                isSelectionMode && selectedTaskIds.size > 0 && (
+                    <div className="absolute bottom-24 left-4 right-4 bg-surface-light border border-white/10 p-3 rounded-2xl shadow-2xl flex items-center justify-between z-40 animate-slide-up">
+                        <span className="text-sm font-bold px-2">{selectedTaskIds.size} selected</span>
+                        <div className="flex gap-2">
+                            <button onClick={handleBulkComplete} className="px-3 py-2 bg-green-500/20 text-green-400 rounded-lg text-xs font-bold border border-green-500/30 hover:bg-green-500/30 transition-colors">Complete</button>
+                            <button onClick={handleBulkDelete} className="px-3 py-2 bg-red-500/20 text-red-400 rounded-lg text-xs font-bold border border-red-500/30 hover:bg-red-500/30 transition-colors">Delete</button>
+                        </div>
+                    </div>
+                )
+            }
         </div>
-            );
+    );
 };

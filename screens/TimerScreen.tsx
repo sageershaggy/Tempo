@@ -313,15 +313,25 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
       {/* Mode Switcher */}
       <div className="flex p-0.5 bg-surface-dark rounded-lg mb-4 border border-white/5">
-        {timerModes.map((modeConfig) => (
-          <button
-            key={modeConfig.id}
-            onClick={() => setMode(modeConfig.id as TimerMode)}
-            className={`flex-1 py-2 rounded-md text-[11px] font-semibold transition-all ${mode === modeConfig.id ? 'bg-primary text-white shadow-md shadow-primary/25' : 'text-muted hover:text-white/70'}`}
-          >
-            {modeConfig.id === 'custom' ? `${userFocusDuration}/${userBreakDuration}` : modeConfig.label}
-          </button>
-        ))}
+        {timerModes.map((modeConfig) => {
+          let label = modeConfig.label;
+          if (modeConfig.id === 'custom') {
+            const matchingTemplate = config.timer.templates.find(
+              t => t.focusMinutes === userFocusDuration && t.breakMinutes === userBreakDuration
+            );
+            label = matchingTemplate ? matchingTemplate.label : `${userFocusDuration}/${userBreakDuration}`;
+          }
+
+          return (
+            <button
+              key={modeConfig.id}
+              onClick={() => setMode(modeConfig.id as TimerMode)}
+              className={`flex-1 py-2 rounded-md text-[11px] font-semibold transition-all ${mode === modeConfig.id ? 'bg-primary text-white shadow-md shadow-primary/25' : 'text-muted hover:text-white/70'}`}
+            >
+              {label}
+            </button>
+          )
+        })}
       </div>
 
       {/* Timer Circle */}
@@ -410,8 +420,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               key={cat}
               onClick={() => setSoundFilter(cat)}
               className={`px-3 py-1 rounded-full text-[10px] font-bold whitespace-nowrap transition-colors border ${soundFilter === cat
-                  ? 'bg-white text-black border-white'
-                  : 'bg-white/5 text-muted border-white/5 hover:bg-white/10'
+                ? 'bg-white text-black border-white'
+                : 'bg-white/5 text-muted border-white/5 hover:bg-white/10'
                 }`}
             >
               {cat}
@@ -428,8 +438,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 key={track.id}
                 onClick={() => handleToggleTrack(track)}
                 className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${isTrackActive
-                    ? 'bg-primary/10 border-primary/30'
-                    : 'bg-surface-dark border-white/5 hover:border-white/10'
+                  ? 'bg-primary/10 border-primary/30'
+                  : 'bg-surface-dark border-white/5 hover:border-white/10'
                   }`}
               >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isTrackActive ? 'bg-primary text-white' : 'bg-white/5 text-muted'
@@ -496,8 +506,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             onClick={handleYoutubePlay}
             disabled={!youtubeUrl.trim()}
             className={`px-3 rounded-lg flex items-center justify-center transition-colors ${youtubeUrl.trim()
-                ? 'bg-red-500/20 text-red-400 border border-red-500/20 hover:bg-red-500/30'
-                : 'bg-white/5 text-muted/30 border border-white/5'
+              ? 'bg-red-500/20 text-red-400 border border-red-500/20 hover:bg-red-500/30'
+              : 'bg-white/5 text-muted/30 border border-white/5'
               }`}
           >
             <span className="material-symbols-outlined text-base">play_circle</span>
