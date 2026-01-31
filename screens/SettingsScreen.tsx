@@ -460,76 +460,76 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
           </div>
         </section>
 
-        {/* Help & Support */}
+        {/* Help & Support — Quick Actions Grid */}
         <section>
           <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Help & Support</h3>
-          <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
-            <div
+          <div className="grid grid-cols-3 gap-2">
+            <button
               onClick={() => openFeedbackModal('help')}
-              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+              className="bg-surface-dark rounded-xl border border-white/5 p-3 flex flex-col items-center gap-2 hover:bg-white/[0.03] transition-colors"
             >
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-muted">help</span>
-                <p className="text-sm font-bold">Help Center</p>
+              <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[18px] text-blue-400">help</span>
               </div>
-              <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
-            </div>
-            <div
+              <span className="text-[10px] font-semibold text-white/70">Help</span>
+            </button>
+            <button
               onClick={() => openFeedbackModal('bug')}
-              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+              className="bg-surface-dark rounded-xl border border-white/5 p-3 flex flex-col items-center gap-2 hover:bg-white/[0.03] transition-colors"
             >
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-muted">bug_report</span>
-                <p className="text-sm font-bold">Report a Bug</p>
+              <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[18px] text-red-400">bug_report</span>
               </div>
-              <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
-            </div>
-            <div
-              onClick={openChromeWebStore}
-              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+              <span className="text-[10px] font-semibold text-white/70">Bug</span>
+            </button>
+            <button
+              onClick={() => openFeedbackModal('feedback')}
+              className="bg-surface-dark rounded-xl border border-white/5 p-3 flex flex-col items-center gap-2 hover:bg-white/[0.03] transition-colors"
             >
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-muted">star</span>
-                <p className="text-sm font-bold">Rate on Chrome Web Store</p>
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[18px] text-primary">chat_bubble</span>
               </div>
-              <span className="material-symbols-outlined text-muted text-sm">open_in_new</span>
-            </div>
+              <span className="text-[10px] font-semibold text-white/70">Feedback</span>
+            </button>
           </div>
-        </section>
-
-        {/* Legal */}
-        <section>
-          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Legal</h3>
-          <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
-            <div
-              onClick={() => setScreen(Screen.PRIVACY_POLICY)}
-              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
-            >
-              <p className="text-sm font-bold">Privacy Policy</p>
-              <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
+          {/* Rate Us Banner */}
+          <button
+            onClick={openChromeWebStore}
+            className="w-full mt-2 bg-gradient-to-r from-yellow-500/10 to-amber-500/5 rounded-xl border border-yellow-500/10 p-3 flex items-center gap-3 hover:from-yellow-500/15 transition-all"
+          >
+            <div className="w-8 h-8 rounded-lg bg-yellow-500/15 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[16px] text-yellow-400">star</span>
             </div>
-            <div
-              onClick={() => setScreen(Screen.TERMS)}
-              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
-            >
-              <p className="text-sm font-bold">Terms of Service</p>
-              <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
+            <div className="flex-1 text-left">
+              <p className="text-xs font-bold text-white/90">Enjoying Tempo?</p>
+              <p className="text-[10px] text-muted">Rate us on Chrome Web Store</p>
             </div>
-          </div>
-        </section>
-
-        {/* Account */}
-        <div className="text-center pt-4 space-y-4">
-          <button onClick={() => setScreen(Screen.PROFILE)} className="text-xs font-bold text-muted hover:text-white transition-colors">
-            Manage Account
+            <span className="material-symbols-outlined text-sm text-muted">open_in_new</span>
           </button>
-          <div className="flex items-center justify-center gap-4">
-            <button onClick={() => setScreen(Screen.LOGIN)} className="text-xs font-bold text-red-400 hover:text-red-300 transition-colors">
+        </section>
+
+        {/* Footer: Legal + Account */}
+        <section className="pt-2">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <button onClick={() => setScreen(Screen.PRIVACY_POLICY)} className="text-[10px] font-semibold text-muted hover:text-white/70 transition-colors">
+              Privacy Policy
+            </button>
+            <span className="text-[10px] text-white/10">·</span>
+            <button onClick={() => setScreen(Screen.TERMS)} className="text-[10px] font-semibold text-muted hover:text-white/70 transition-colors">
+              Terms of Service
+            </button>
+            <span className="text-[10px] text-white/10">·</span>
+            <button onClick={() => setScreen(Screen.PROFILE)} className="text-[10px] font-semibold text-muted hover:text-white/70 transition-colors">
+              Account
+            </button>
+          </div>
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <button onClick={() => setScreen(Screen.LOGIN)} className="text-[10px] font-semibold text-red-400/70 hover:text-red-400 transition-colors">
               Sign Out
             </button>
           </div>
-          <p className="text-[10px] text-muted/40 mt-2">{config.app.name} v{config.app.version} (Build {config.app.build})</p>
-        </div>
+          <p className="text-[9px] text-muted/30 text-center">{config.app.name} v{config.app.version} (Build {config.app.build})</p>
+        </section>
 
       </div>
 

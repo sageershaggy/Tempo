@@ -2,18 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { Screen, AudioState, GlobalProps } from '../types';
 import { configManager, AudioTrackConfig } from '../config';
 import { extractYouTubeId } from '../config/constants';
-import { playSound, stopSound, setVolume as setSoundVolume, isBuiltInTrack } from '../services/soundGenerator';
+import { playSound, stopSound, setVolume as setSoundVolume, isBuiltInTrack, isBinauralTrack, switchBinauralRange, getBinauralRange, getBinauralRangeInfo, BinauralRange } from '../services/soundGenerator';
+import { playOffscreen, stopOffscreen, setOffscreenVolume, switchOffscreenRange, isOffscreenAvailable } from '../services/audioBridge';
+
+const useOffscreen = isOffscreenAvailable();
 
 export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState }) => {
   const [filter, setFilter] = useState('All');
   const [youtubeInput, setYoutubeInput] = useState('');
+  // Track active binaural range per track for UI updates
+  const [rangeLabels, setRangeLabels] = useState<Record<string, string>>({});
 
   // Load configuration dynamically
   const config = configManager.getConfig();
   const TRACKS = config.audio.tracks;
   const CATEGORIES = config.audio.categories;
-  const BINAURAL_RANGES = config.audio.binauralRanges;
-  
+  const BINAURAL_RANGES: BinauralRange[] = ['Low', 'Mid', 'High'];
+
   // Helper to update specific track settings
   const updateTrackSetting = (trackId: string, updates: Partial<{ volume: number; hz: string }>) => {
     setAudioState(prev => ({
@@ -28,19 +33,20 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     }));
   };
 
-  const toggleTrack = (track: AudioTrackConfig) => {
+  const toggleTrack = async (track: AudioTrackConfig) => {
       const isCurrent = audioState.activeTrackId === track.id;
       if (isCurrent && audioState.isPlaying) {
-          // Pause
-          stopSound();
+          if (useOffscreen) { await stopOffscreen(); } else { stopSound(); }
           setAudioState(prev => ({ ...prev, isPlaying: false }));
       } else {
-          // Stop previous sound
-          stopSound();
-          // Play new
+          if (useOffscreen) { await stopOffscreen(); } else { stopSound(); }
           if (isBuiltInTrack(track.id)) {
               const trackVolume = (audioState.trackSettings[track.id]?.volume ?? 50) / 100 * (audioState.volume / 100);
-              playSound(track.id, trackVolume);
+              if (useOffscreen) {
+                await playOffscreen(track.id, trackVolume);
+              } else {
+                playSound(track.id, trackVolume);
+              }
           }
           setAudioState(prev => ({
               ...prev,
@@ -49,6 +55,17 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               youtubeId: null
           }));
       }
+  };
+
+  const handleRangeSwitch = async (trackId: string, range: BinauralRange) => {
+    if (useOffscreen) {
+      await switchOffscreenRange(trackId, range);
+    }
+    const label = await switchBinauralRange(trackId, range);
+    if (label) {
+      setRangeLabels(prev => ({ ...prev, [trackId]: label }));
+      updateTrackSetting(trackId, { hz: label });
+    }
   };
 
   const handleYoutubePlay = () => {
@@ -69,7 +86,7 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   // Stop built-in sound when audio is paused externally
   useEffect(() => {
     if (!audioState.isPlaying) {
-      stopSound();
+      if (useOffscreen) { stopOffscreen(); } else { stopSound(); }
     }
   }, [audioState.isPlaying]);
 
@@ -77,7 +94,8 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   useEffect(() => {
     if (audioState.isPlaying && audioState.activeTrackId && isBuiltInTrack(audioState.activeTrackId)) {
       const trackVol = (audioState.trackSettings[audioState.activeTrackId]?.volume ?? 50) / 100;
-      setSoundVolume(trackVol * (audioState.volume / 100));
+      const finalVol = trackVol * (audioState.volume / 100);
+      if (useOffscreen) { setOffscreenVolume(finalVol); } else { setSoundVolume(finalVol); }
     }
   }, [audioState.volume, audioState.trackSettings, audioState.activeTrackId]);
 
@@ -111,15 +129,27 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                             {audioState.youtubeId ? 'YouTube Stream' : (audioState.activeTrackId ? TRACKS.find(t=>t.id===audioState.activeTrackId)?.name : 'Not Playing')}
                          </span>
                     </div>
+                    {/* Show current binaural range info */}
+                    {audioState.activeTrackId && isBinauralTrack(audioState.activeTrackId) && (
+                      <div className="mt-1">
+                        <span className="text-[9px] text-secondary font-semibold">
+                          {rangeLabels[audioState.activeTrackId] || (() => {
+                            const range = getBinauralRange(audioState.activeTrackId!);
+                            const info = getBinauralRangeInfo(audioState.activeTrackId!, range);
+                            return info?.label || '';
+                          })()}
+                        </span>
+                      </div>
+                    )}
                  </div>
 
                  {audioState.isPlaying ? (
                      <div className="flex items-end gap-1 h-16 opacity-80">
                          {visualizerBars.map((bar, i) => (
-                             <div 
+                             <div
                                 key={i}
                                 className="w-1.5 bg-secondary rounded-t-sm animate-pulse-slow"
-                                style={{ 
+                                style={{
                                     height: `${bar.height}%`,
                                     animationDuration: '0.8s',
                                     animationDelay: `${bar.delay}s`,
@@ -156,14 +186,14 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             {/* YouTube Input */}
             <div className="bg-surface-dark/50 rounded-xl p-3 border border-white/5 mb-4">
                  <div className="flex gap-2">
-                    <input 
-                        type="text" 
-                        placeholder="Paste YouTube Link..." 
+                    <input
+                        type="text"
+                        placeholder="Paste YouTube Link..."
                         value={youtubeInput}
                         onChange={(e) => setYoutubeInput(e.target.value)}
                         className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 text-xs text-white focus:outline-none focus:border-primary/50"
                     />
-                    <button 
+                    <button
                         onClick={handleYoutubePlay}
                         className="px-3 py-2 bg-red-500/20 text-red-500 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition-colors"
                     >
@@ -175,13 +205,15 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             {filteredTracks.map(track => {
                 const isActive = audioState.activeTrackId === track.id;
                 const settings = audioState.trackSettings[track.id] || { volume: 50 };
+                const isBinaural = isBinauralTrack(track.id);
+                const currentRange = isBinaural ? getBinauralRange(track.id) : null;
 
                 return (
-                    <div 
-                        key={track.id} 
+                    <div
+                        key={track.id}
                         className={`rounded-xl border transition-all overflow-hidden ${isActive ? 'bg-surface-light border-primary shadow-lg' : 'bg-surface-dark border-white/5 hover:border-white/10'}`}
                     >
-                        <div 
+                        <div
                             className="flex items-center justify-between p-3 cursor-pointer"
                             onClick={() => toggleTrack(track)}
                         >
@@ -191,7 +223,17 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                                 </div>
                                 <div>
                                     <p className={`font-bold text-sm ${isActive ? 'text-white' : 'text-gray-300'}`}>{track.name}</p>
-                                    <p className="text-[10px] text-muted">{track.category}</p>
+                                    <p className="text-[10px] text-muted">
+                                      {track.category}
+                                      {isBinaural && currentRange && (
+                                        <span className="text-secondary ml-1">
+                                          · {rangeLabels[track.id] || (() => {
+                                            const info = getBinauralRangeInfo(track.id, currentRange);
+                                            return info?.label || '';
+                                          })()}
+                                        </span>
+                                      )}
+                                    </p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
@@ -205,9 +247,9 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                             <div className="px-4 pb-4 pt-2 border-t border-white/5 bg-black/20 animate-fade-in">
                                 <div className="flex items-center gap-4 mb-2">
                                     <span className="material-symbols-outlined text-xs text-muted">volume_down</span>
-                                    <input 
-                                        type="range" 
-                                        min="0" max="100" 
+                                    <input
+                                        type="range"
+                                        min="0" max="100"
                                         value={settings.volume}
                                         onClick={(e) => e.stopPropagation()}
                                         onChange={(e) => {
@@ -221,18 +263,34 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                                     />
                                     <span className="text-xs font-mono w-8 text-right">{settings.volume}%</span>
                                 </div>
-                                
-                                {track.category === 'Binaural' && (
+
+                                {/* Binaural Range Buttons - Now Functional */}
+                                {isBinaural && (
                                     <div className="flex gap-2 mt-3">
-                                        {BINAURAL_RANGES.map(r => (
-                                            <button
-                                                key={r}
-                                                onClick={(e) => { e.stopPropagation(); /* Mock Hz change */ }}
-                                                className="flex-1 py-1 text-[10px] font-bold border border-white/10 rounded hover:bg-white/10 transition-colors"
-                                            >
-                                                {r} Range
-                                            </button>
-                                        ))}
+                                        {BINAURAL_RANGES.map(r => {
+                                            const isActiveRange = currentRange === r;
+                                            const info = getBinauralRangeInfo(track.id, r);
+                                            return (
+                                              <button
+                                                  key={r}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleRangeSwitch(track.id, r);
+                                                  }}
+                                                  className={`flex-1 py-1.5 text-[10px] font-bold border rounded transition-all ${
+                                                    isActiveRange
+                                                      ? 'bg-primary/20 border-primary/40 text-primary'
+                                                      : 'border-white/10 text-muted hover:bg-white/10 hover:text-white'
+                                                  }`}
+                                                  title={info?.label || r}
+                                              >
+                                                  {r} Range
+                                                  {isActiveRange && (
+                                                    <span className="block text-[8px] text-secondary mt-0.5">{info?.label}</span>
+                                                  )}
+                                              </button>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
@@ -246,15 +304,15 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         <div className="absolute bottom-0 w-full bg-surface-dark/95 backdrop-blur-xl border-t border-white/10 p-6 rounded-t-3xl z-20 pb-8">
             <div className="flex items-center gap-4 mb-4">
                 <span className="text-[10px] font-bold uppercase text-muted">Master</span>
-                <input 
-                    type="range" 
-                    min="0" max="100" 
+                <input
+                    type="range"
+                    min="0" max="100"
                     value={audioState.volume}
                     onChange={(e) => setAudioState(prev => ({ ...prev, volume: Number(e.target.value) }))}
                     className="flex-1 h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white cursor-pointer"
                 />
             </div>
-             <button 
+             <button
                 className="w-full bg-white text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
                 onClick={() => setScreen(Screen.TIMER)}
             >

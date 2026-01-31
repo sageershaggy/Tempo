@@ -175,7 +175,7 @@ export const defaultAppConfig: AppConfig = {
       { id: '3', name: 'Alpha Flow', category: 'Binaural', hz: '10 Hz', icon: 'water_drop' },
       // Solfeggio
       { id: '4', name: 'Deep Restoration', category: 'Solfeggio', hz: '432 Hz', icon: 'spa' },
-      { id: '5', name: 'Miracle Tone', category: 'Solfeggio', hz: '528 Hz', icon: 'healing' },
+      { id: '5', name: 'Miracle Tone', category: 'Solfeggio', hz: '528 Hz', icon: 'music_note' },
       // Ambience
       { id: '6', name: 'Heavy Rain', category: 'Ambience', icon: 'rainy' },
       { id: '7', name: 'Coffee Shop', category: 'Ambience', icon: 'storefront' },
@@ -186,7 +186,7 @@ export const defaultAppConfig: AppConfig = {
       { id: '15', name: 'Wind Chimes', category: 'Ambience', icon: 'air' },
       // Noise
       { id: '8', name: 'Brown Noise', category: 'Noise', icon: 'graphic_eq' },
-      { id: '9', name: 'White Noise', category: 'Noise', icon: 'static' },
+      { id: '9', name: 'White Noise', category: 'Noise', icon: 'noise_aware' },
       { id: '10', name: 'Pink Noise', category: 'Noise', icon: 'blur_on' },
       // Music
       { id: '18', name: 'Lo-Fi Beats', category: 'Music', icon: 'headphones' },

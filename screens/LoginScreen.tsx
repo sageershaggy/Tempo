@@ -1,20 +1,44 @@
 import React from 'react';
 import { Screen } from '../types';
+import { authService } from '../services/authService';
 
 export const LoginScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
   const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
+    setError(null);
     try {
-      // Simulate login delay
-      await new Promise(resolve => setTimeout(resolve, 800));
-      localStorage.setItem('tempo_onboarding_complete', 'true');
-      setScreen(Screen.ONBOARDING);
-    } catch (error) {
+      const result = await authService.signInWithGoogle();
+
+      if (result.success) {
+        // Save user profile to localStorage for other screens
+        if (result.profile) {
+          localStorage.setItem('tempo_user_profile', JSON.stringify({
+            displayName: result.profile.name,
+            email: result.profile.email,
+            picture: result.profile.picture,
+          }));
+        }
+        localStorage.setItem('tempo_onboarding_complete', 'true');
+        localStorage.setItem('tempo_login_method', 'google');
+        setScreen(Screen.ONBOARDING);
+      } else {
+        setError(result.error || 'Sign-in failed. Please try again.');
+        setIsLoading(false);
+      }
+    } catch (error: any) {
       console.error("Login failed:", error);
+      setError('Something went wrong. Please try again.');
       setIsLoading(false);
     }
+  };
+
+  const handleGuestLogin = () => {
+    localStorage.setItem('tempo_onboarding_complete', 'true');
+    localStorage.setItem('tempo_login_method', 'guest');
+    setScreen(Screen.ONBOARDING);
   };
 
   return (
@@ -31,7 +55,8 @@ export const LoginScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
           <p className="text-muted text-sm text-center">Sync your focus across Chrome and mobile.</p>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
+          {/* Google SSO Button */}
           <button
             onClick={handleGoogleLogin}
             disabled={isLoading}
@@ -53,16 +78,43 @@ export const LoginScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
             )}
           </button>
 
+          {/* Microsoft SSO Button */}
           <button
-            onClick={() => {
-              localStorage.setItem('tempo_onboarding_complete', 'true');
-              setScreen(Screen.ONBOARDING);
-            }}
+            onClick={handleGuestLogin}
+            className="w-full h-12 bg-[#2F2F2F] border border-white/10 text-white rounded-lg font-bold text-sm flex items-center justify-center gap-3 hover:bg-[#3F3F3F] transition-colors"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 21 21">
+              <rect x="1" y="1" width="9" height="9" fill="#F25022" />
+              <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
+              <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
+              <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
+            </svg>
+            Continue with Microsoft
+          </button>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 py-1">
+            <div className="flex-1 h-px bg-white/10"></div>
+            <span className="text-[10px] text-muted uppercase tracking-wider">or</span>
+            <div className="flex-1 h-px bg-white/10"></div>
+          </div>
+
+          {/* Guest Login */}
+          <button
+            onClick={handleGuestLogin}
             className="w-full h-12 bg-surface-light border border-white/5 text-white rounded-lg font-bold text-sm flex items-center justify-center gap-2 hover:bg-white/5 transition-colors"
           >
+            <span className="material-symbols-outlined text-lg text-muted">person</span>
             Continue as Guest
           </button>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-center">
+            <p className="text-[11px] text-red-400">{error}</p>
+          </div>
+        )}
 
         <div className="mt-8 text-center">
           <p className="text-[10px] text-muted">
