@@ -35,6 +35,26 @@ async function ensureOffscreenDocument() {
   }
 }
 
+// Safe message forwarding to offscreen document with lastError handling
+function sendToOffscreen(message, sendResponse) {
+  ensureOffscreenDocument().then(() => {
+    try {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn('[Tempo] Offscreen message failed:', chrome.runtime.lastError.message);
+          sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          sendResponse(response || { success: false });
+        }
+      });
+    } catch (e) {
+      sendResponse({ success: false, error: e.message });
+    }
+  }).catch(e => {
+    sendResponse({ success: false, error: e.message });
+  });
+}
+
 // Timer alarm handling
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'focusTimer') {
@@ -55,35 +75,25 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  // Audio playback messages - relay to offscreen document
+  // Ignore messages targeted at offscreen (avoid re-processing in background)
   if (request.target === 'offscreen-audio') {
-    ensureOffscreenDocument().then(() => {
-      // Forward the message to offscreen
-      chrome.runtime.sendMessage(request, (response) => {
-        sendResponse(response);
-      });
-    }).catch(e => {
-      sendResponse({ success: false, error: e.message });
-    });
-    return true;
+    return false;
   }
 
   // Audio control commands from popup
   if (request.action === 'audio-play') {
-    ensureOffscreenDocument().then(() => {
-      chrome.runtime.sendMessage({
-        target: 'offscreen-audio',
-        action: 'play',
-        trackId: request.trackId,
-        volume: request.volume,
-        range: request.range
-      }, sendResponse);
-    });
+    sendToOffscreen({
+      target: 'offscreen-audio',
+      action: 'play',
+      trackId: request.trackId,
+      volume: request.volume,
+      range: request.range
+    }, sendResponse);
     return true;
   }
 
   if (request.action === 'audio-stop') {
-    chrome.runtime.sendMessage({
+    sendToOffscreen({
       target: 'offscreen-audio',
       action: 'stop'
     }, sendResponse);
@@ -91,7 +101,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'audio-volume') {
-    chrome.runtime.sendMessage({
+    sendToOffscreen({
       target: 'offscreen-audio',
       action: 'setVolume',
       volume: request.volume
@@ -100,7 +110,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'audio-range') {
-    chrome.runtime.sendMessage({
+    sendToOffscreen({
       target: 'offscreen-audio',
       action: 'switchRange',
       trackId: request.trackId,
@@ -110,7 +120,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'audio-status') {
-    chrome.runtime.sendMessage({
+    sendToOffscreen({
       target: 'offscreen-audio',
       action: 'getStatus'
     }, sendResponse);
