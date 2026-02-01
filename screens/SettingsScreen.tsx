@@ -418,24 +418,49 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
           </div>
         </section>
 
-        {/* Appearance (Pro Features) */}
+        {/* Appearance */}
         <section>
           <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">
             Appearance
           </h3>
           <div className="bg-surface-dark rounded-xl p-4 border border-white/5">
             <p className="text-sm font-bold mb-3">App Theme</p>
-            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-              {THEMES.map(theme => (
-                <div
-                  key={theme.id}
-                  onClick={() => handleThemeSelect(theme.id)}
-                  className="relative group cursor-pointer shrink-0"
-                >
-                  <div className={`w-12 h-12 rounded-full ${theme.color} border-2 ${activeTheme === theme.id ? 'border-white' : 'border-transparent'} shadow-lg transition-all`}></div>
-                  <span className="text-[10px] font-medium text-muted mt-1 block text-center w-full truncate">{theme.name}</span>
-                </div>
-              ))}
+            <div className="grid grid-cols-5 gap-2">
+              {THEMES.map(theme => {
+                const isActive = activeTheme === theme.id;
+                return (
+                  <button
+                    key={theme.id}
+                    onClick={() => handleThemeSelect(theme.id)}
+                    className={`relative flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all ${
+                      isActive
+                        ? 'border-white/30 bg-white/5 scale-105'
+                        : 'border-transparent hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="relative">
+                      <div
+                        className={`w-10 h-10 rounded-full ${theme.color} shadow-lg transition-all ${
+                          isActive ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-dark' : 'group-hover:scale-110'
+                        }`}
+                      ></div>
+                      {isActive && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-white text-sm drop-shadow-lg">check</span>
+                        </div>
+                      )}
+                      {theme.pro && (
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center shadow-md">
+                          <span className="material-symbols-outlined text-[8px] text-black">star</span>
+                        </div>
+                      )}
+                    </div>
+                    <span className={`text-[9px] font-semibold leading-tight text-center ${
+                      isActive ? 'text-white' : 'text-muted'
+                    }`}>{theme.name}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </section>

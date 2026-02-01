@@ -27,9 +27,13 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
       // Load profile from localStorage
       const savedProfile = localStorage.getItem('tempo_userProfile');
       if (savedProfile) {
-        const parsed = JSON.parse(savedProfile);
-        setProfile(parsed);
-        setEditForm(parsed);
+        try {
+          const parsed = JSON.parse(savedProfile);
+          setProfile(parsed);
+          setEditForm(parsed);
+        } catch (e) {
+          console.error('Failed to parse profile:', e);
+        }
       }
     };
     loadData();

@@ -362,10 +362,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         {timerModes.map((modeConfig) => {
           let label = modeConfig.label;
           if (modeConfig.id === 'custom') {
-            const matchingTemplate = config.timer.templates.find(
-              t => t.focusMinutes === userFocusDuration && t.breakMinutes === userBreakDuration
-            );
-            label = matchingTemplate ? matchingTemplate.label : `${userFocusDuration}/${userBreakDuration}`;
+            label = `${userFocusDuration}/${userBreakDuration}`;
           }
 
           return (

@@ -268,7 +268,7 @@ export const defaultAppConfig: AppConfig = {
   admin: {
     // In production, use proper auth with bcrypt or similar
     // This is a SHA-256 hash of 'admin123' for demo purposes
-    passwordHash: 'admin123', // TODO: Replace with secure authentication
+    passwordHash: 'admin@345', // TODO: Replace with secure authentication
   },
 
   pricing: {

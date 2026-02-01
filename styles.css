@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Local Material Symbols font - ensures icons load even if CDN is blocked by CSP */
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: swap;
+  src: url('/fonts/material-symbols-outlined.woff2') format('woff2');
+}
+
 @theme {
   --color-primary: #7F13EC;
   --color-primary-light: #9F45F6;

@@ -154,7 +154,6 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
     try {
       const gProfile = localStorage.getItem('tempo_google_profile');
       if (gProfile) setGoogleProfile(JSON.parse(gProfile));
-      if (gProfile) setGoogleProfile(JSON.parse(gProfile));
     } catch (e) { }
 
     // Load last sync times
