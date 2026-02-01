@@ -198,10 +198,17 @@ export const defaultAppConfig: AppConfig = {
 
   themes: [
     { id: 'default', name: 'Royal Purple', color: 'bg-gradient-to-br from-[#7F13EC] to-[#5a0db5]', cssVar: '#7F13EC', pro: false },
-    { id: 'nebula', name: 'Nebula', color: 'bg-gradient-to-br from-[#6366F1] to-[#D946EF]', cssVar: '#8B5CF6', pro: true },
+    { id: 'nebula', name: 'Nebula', color: 'bg-gradient-to-br from-[#6366F1] to-[#D946EF]', cssVar: '#8B5CF6', pro: false },
     { id: 'sunset', name: 'Sunset', color: 'bg-gradient-to-br from-[#F59E0B] to-[#EF4444]', cssVar: '#F97316', pro: true },
     { id: 'ocean', name: 'Ocean', color: 'bg-gradient-to-br from-[#06B6D4] to-[#3B82F6]', cssVar: '#0EA5E9', pro: true },
     { id: 'midnight', name: 'Midnight', color: 'bg-gradient-to-br from-[#1E293B] to-[#0F172A]', cssVar: '#64748B', pro: true },
+    { id: 'emerald', name: 'Emerald', color: 'bg-gradient-to-br from-[#059669] to-[#065F46]', cssVar: '#059669', pro: false },
+    { id: 'rose', name: 'Rose', color: 'bg-gradient-to-br from-[#E11D48] to-[#9F1239]', cssVar: '#E11D48', pro: true },
+    { id: 'amber', name: 'Amber', color: 'bg-gradient-to-br from-[#D97706] to-[#92400E]', cssVar: '#D97706', pro: true },
+    { id: 'arctic', name: 'Arctic', color: 'bg-gradient-to-br from-[#38BDF8] to-[#818CF8]', cssVar: '#38BDF8', pro: true },
+    { id: 'forest', name: 'Forest', color: 'bg-gradient-to-br from-[#22C55E] to-[#15803D]', cssVar: '#22C55E', pro: true },
+    { id: 'coral', name: 'Coral', color: 'bg-gradient-to-br from-[#FB7185] to-[#F43F5E]', cssVar: '#FB7185', pro: false },
+    { id: 'slate', name: 'Slate', color: 'bg-gradient-to-br from-[#475569] to-[#1E293B]', cssVar: '#475569', pro: false },
   ],
 
   navigation: [
@@ -314,6 +321,20 @@ export const defaultAppConfig: AppConfig = {
 class ConfigManager {
   private config: AppConfig = defaultAppConfig;
   private loaded = false;
+
+  constructor() {
+    // Load synchronously from localStorage on construction so getConfig() always has saved data
+    try {
+      const savedConfig = localStorage.getItem('tempo_app_config');
+      if (savedConfig) {
+        const parsed = JSON.parse(savedConfig);
+        this.config = this.mergeConfig(defaultAppConfig, parsed);
+        this.loaded = true;
+      }
+    } catch (error) {
+      console.error('Failed to load config from localStorage:', error);
+    }
+  }
 
   async loadConfig(): Promise<AppConfig> {
     if (this.loaded) return this.config;
