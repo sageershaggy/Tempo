@@ -55,11 +55,57 @@ function sendToOffscreen(message, sendResponse) {
   });
 }
 
-// Timer alarm handling
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'focusTimer') {
-    // Show notification when timer ends
-    chrome.notifications.create('timerComplete', {
+// ============================================================================
+// TIMER BADGE - Real-time countdown on extension icon
+// ============================================================================
+
+// Restore timer target from storage on service worker wake
+let timerTargetTime = null;
+
+// Load persisted timer target on startup
+async function loadTimerState() {
+  try {
+    const data = await chrome.storage.local.get(['timerTargetTime']);
+    if (data.timerTargetTime && data.timerTargetTime > Date.now()) {
+      timerTargetTime = data.timerTargetTime;
+      updateTimerBadge();
+    } else if (data.timerTargetTime) {
+      // Timer already expired while service worker was asleep
+      chrome.storage.local.remove('timerTargetTime');
+      chrome.action.setBadgeText({ text: '' });
+    }
+  } catch (e) {
+    console.error('[Tempo] Failed to load timer state:', e);
+  }
+}
+
+// Save timer target to persistent storage
+function saveTimerState() {
+  if (timerTargetTime) {
+    chrome.storage.local.set({ timerTargetTime });
+  } else {
+    chrome.storage.local.remove('timerTargetTime');
+  }
+}
+
+// Update badge text based on remaining time
+function updateTimerBadge() {
+  if (!timerTargetTime) {
+    chrome.action.setBadgeText({ text: '' });
+    return;
+  }
+
+  const remaining = Math.ceil((timerTargetTime - Date.now()) / 1000);
+  if (remaining <= 0) {
+    // Timer finished
+    timerTargetTime = null;
+    saveTimerState();
+    chrome.alarms.clear('badgeTick');
+    chrome.action.setBadgeText({ text: '✓' });
+    chrome.action.setBadgeBackgroundColor({ color: '#22C55E' });
+
+    // Show Chrome notification
+    chrome.notifications.create('timerComplete-' + Date.now(), {
       type: 'basic',
       iconUrl: 'icons/icon128_v3.png',
       title: 'Focus Session Complete!',
@@ -67,13 +113,30 @@ chrome.alarms.onAlarm.addListener((alarm) => {
       priority: 2
     });
 
-    // Update badge
-    chrome.action.setBadgeText({ text: '' });
-    chrome.action.setBadgeBackgroundColor({ color: '#7F13EC' });
+    // Clear badge after 5 seconds
+    setTimeout(() => {
+      chrome.action.setBadgeText({ text: '' });
+    }, 5000);
+    return;
+  }
+
+  const mins = Math.ceil(remaining / 60);
+  const text = mins >= 60 ? `${Math.floor(mins / 60)}h` : `${mins}m`;
+  chrome.action.setBadgeText({ text });
+  chrome.action.setBadgeBackgroundColor({ color: '#FF6B6B' });
+}
+
+// Badge tick alarm - fires every 30 seconds (Chrome MV3 minimum is ~30s)
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'badgeTick') {
+    updateTimerBadge();
   }
 });
 
-// Listen for messages from popup
+// ============================================================================
+// MESSAGE HANDLING
+// ============================================================================
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // Ignore messages targeted at offscreen (avoid re-processing in background)
   if (request.target === 'offscreen-audio') {
@@ -127,7 +190,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  // --- Timer commands ---
+
   if (request.action === 'timerComplete') {
+    timerTargetTime = null;
+    saveTimerState();
+    chrome.alarms.clear('badgeTick');
     chrome.notifications.create('timerComplete-' + Date.now(), {
       type: 'basic',
       iconUrl: 'icons/icon128_v3.png',
@@ -141,18 +209,33 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'startTimer') {
-    const minutes = request.minutes || 25;
-    chrome.alarms.create('focusTimer', { delayInMinutes: minutes });
-    chrome.action.setBadgeText({ text: `${minutes}m` });
-    chrome.action.setBadgeBackgroundColor({ color: '#FF6B6B' });
+    const seconds = request.seconds || (request.minutes || 25) * 60;
+    timerTargetTime = Date.now() + seconds * 1000;
+    saveTimerState();
+    // Alarm fires every 30 seconds to update badge (Chrome MV3 min ~30s)
+    chrome.alarms.create('badgeTick', { periodInMinutes: 0.5 });
+    updateTimerBadge();
+    sendResponse({ success: true });
+  }
+
+  if (request.action === 'updateBadge') {
+    if (request.targetTime) {
+      timerTargetTime = request.targetTime;
+      saveTimerState();
+    }
+    updateTimerBadge();
     sendResponse({ success: true });
   }
 
   if (request.action === 'stopTimer') {
-    chrome.alarms.clear('focusTimer');
+    timerTargetTime = null;
+    saveTimerState();
+    chrome.alarms.clear('badgeTick');
     chrome.action.setBadgeText({ text: '' });
     sendResponse({ success: true });
   }
+
+  // --- Pro status ---
 
   if (request.action === 'checkProStatus') {
     chrome.storage.sync.get(['isPro', 'proExpiry', 'licenseKey'], (data) => {
@@ -187,10 +270,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// Initialize on install
+// ============================================================================
+// LIFECYCLE
+// ============================================================================
+
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
-    // Set default values
     chrome.storage.sync.set({
       isPro: false,
       settings: {
@@ -213,11 +298,14 @@ chrome.runtime.onInstalled.addListener((details) => {
     });
   }
 
-  // Pre-create offscreen document for audio
   ensureOffscreenDocument();
 });
 
-// Also create offscreen on startup
 chrome.runtime.onStartup.addListener(() => {
   ensureOffscreenDocument();
+  // Restore timer state on browser startup
+  loadTimerState();
 });
+
+// Also load timer state when service worker wakes up
+loadTimerState();

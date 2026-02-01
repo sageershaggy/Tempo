@@ -158,42 +158,65 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
             </button>
           </div>
           <div className="bg-surface-dark rounded-xl p-4 border border-white/5">
+            {isEditingTemplates && (
+              <p className="text-[10px] text-muted mb-3 text-center">Tap a template to update it with current timer values ({pomodoroFocus}/{shortBreak})</p>
+            )}
             <div className="grid grid-cols-3 gap-3">
-              {templates.map(template => (
-                <div key={template.id} className="relative">
-                  <button
-                    onClick={() => {
-                      if (isEditingTemplates) return;
-                      setPomodoroFocus(template.focusMinutes);
-                      setShortBreak(template.breakMinutes);
-                      handleSettingChange('focusDuration', template.focusMinutes);
-                      handleSettingChange('shortBreak', template.breakMinutes);
-                    }}
-                    disabled={isEditingTemplates}
-                    className={`w-full p-3 rounded-xl border text-center transition-all ${!isEditingTemplates && pomodoroFocus === template.focusMinutes && shortBreak === template.breakMinutes
-                      ? 'bg-primary/20 border-primary text-white'
-                      : 'border-white/10 text-muted hover:border-white/30'
-                      } ${isEditingTemplates ? 'opacity-60 cursor-default' : ''}`}
-                  >
-                    <p className="font-bold text-lg">{template.label}</p>
-                    <p className="text-[10px] text-muted">{template.description}</p>
-                  </button>
-                  {isEditingTemplates && (
+              {templates.map(template => {
+                const isActive = !isEditingTemplates && pomodoroFocus === template.focusMinutes && shortBreak === template.breakMinutes;
+                return (
+                  <div key={template.id} className="relative">
                     <button
                       onClick={() => {
-                        const newTemplates = templates.filter(t => t.id !== template.id);
-                        setTemplates(newTemplates);
-                        configManager.saveConfig({
-                          timer: { ...configManager.getConfig().timer, templates: newTemplates }
-                        });
+                        if (isEditingTemplates) {
+                          // Update this template with current slider values
+                          const newTemplates = templates.map(t =>
+                            t.id === template.id
+                              ? { ...t, focusMinutes: pomodoroFocus, breakMinutes: shortBreak, label: `${pomodoroFocus}/${shortBreak}`, description: t.description }
+                              : t
+                          );
+                          setTemplates(newTemplates);
+                          configManager.saveConfig({
+                            timer: { ...configManager.getConfig().timer, templates: newTemplates }
+                          });
+                          return;
+                        }
+                        setPomodoroFocus(template.focusMinutes);
+                        setShortBreak(template.breakMinutes);
+                        handleSettingChange('focusDuration', template.focusMinutes);
+                        handleSettingChange('shortBreak', template.breakMinutes);
                       }}
-                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                      className={`w-full p-3 rounded-xl border text-center transition-all ${isActive
+                        ? 'bg-primary/20 border-primary text-white'
+                        : isEditingTemplates
+                          ? 'border-primary/30 text-white bg-primary/5 hover:bg-primary/15 cursor-pointer'
+                          : 'border-white/10 text-muted hover:border-white/30'
+                        }`}
                     >
-                      <span className="material-symbols-outlined text-[14px]">close</span>
+                      <p className="font-bold text-lg">{template.label}</p>
+                      <p className="text-[10px] text-muted">{template.description}</p>
+                      {isEditingTemplates && (
+                        <p className="text-[9px] text-primary mt-1 font-bold">Tap to update</p>
+                      )}
                     </button>
-                  )}
-                </div>
-              ))}
+                    {isEditingTemplates && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newTemplates = templates.filter(t => t.id !== template.id);
+                          setTemplates(newTemplates);
+                          configManager.saveConfig({
+                            timer: { ...configManager.getConfig().timer, templates: newTemplates }
+                          });
+                        }}
+                        className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">close</span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -375,46 +398,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
               </div>
             </div>
 
-            {/* Ticking Sound */}
-            <div className="p-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-bold">Ticking Sound</span>
-                <span className="text-xs text-muted font-bold">{tickingEnabled ? `${tickSpeed} bpm` : 'Off'}</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex rounded-lg border border-white/10 overflow-hidden shrink-0">
-                  <button
-                    onClick={() => {
-                      setTickingEnabled(false);
-                      handleSettingChange('tickingEnabled', false);
-                    }}
-                    className={`px-3 py-1.5 text-xs font-bold transition-colors ${!tickingEnabled ? 'bg-white text-black' : 'text-muted hover:text-white'}`}
-                  >
-                    Off
-                  </button>
-                  <button
-                    onClick={() => {
-                      setTickingEnabled(true);
-                      handleSettingChange('tickingEnabled', true);
-                    }}
-                    className={`px-3 py-1.5 text-xs font-bold transition-colors ${tickingEnabled ? 'bg-primary text-white' : 'text-muted hover:text-white'}`}
-                  >
-                    On
-                  </button>
-                </div>
-                <input
-                  type="range" min={TICKING_RANGE.min} max={TICKING_RANGE.max} step={TICKING_RANGE.step}
-                  value={tickSpeed}
-                  disabled={!tickingEnabled}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    setTickSpeed(val);
-                    handleSettingChange('tickingSpeed', val);
-                  }}
-                  className={`flex-1 h-1.5 rounded-full appearance-none cursor-pointer ${!tickingEnabled ? 'bg-white/5' : 'bg-surface-light [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full'}`}
-                />
-              </div>
-            </div>
+            {/* Ticking sound removed - now controlled via Focus Beat on Timer screen */}
           </div>
         </section>
 

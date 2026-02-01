@@ -6,15 +6,13 @@ import { getSettings } from '../services/storageService';
 import { playSound, stopSound, setVolume as setSoundVolume, isBuiltInTrack } from '../services/soundGenerator';
 import { playOffscreen, stopOffscreen, setOffscreenVolume, getOffscreenStatus, isOffscreenAvailable } from '../services/audioBridge';
 
-type TimerMode = 'pomodoro' | 'deep' | 'custom';
-
 // Use offscreen audio when available (Chrome extension), fallback to direct Web Audio
 const useOffscreen = isOffscreenAvailable();
 
 export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState, currentTask, tasks, setTasks, setCurrentTask }) => {
   // Load configuration dynamically
   const config = configManager.getConfig();
-  const timerModes = config.timer.modes;
+  const templates = config.timer.templates;
   const TRACKS = config.audio.tracks;
   const CATEGORIES = config.audio.categories;
 
@@ -36,6 +34,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [showCompletionNotification, setShowCompletionNotification] = useState(false);
 
+  // Beat counter state
+  const [beatEnabled, setBeatEnabled] = useState(false);
+  const [beatInterval, setBeatInterval] = useState(1); // 1, 2, or 3 seconds
+  const [beatCount, setBeatCount] = useState(0);
+  const beatIntervalRef = useRef<any>(null);
+  const beatAudioCtxRef = useRef<AudioContext | null>(null);
+
   const handleCreateTask = () => {
     if (!newTaskTitle.trim()) return;
     const newTask = {
@@ -54,21 +59,23 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     setShowTaskSelector(false);
   };
 
-  // Get initial values from config, using user settings for custom mode
-  const getTimeForMode = (modeId: string, customFocus?: number): number => {
-    if (modeId === 'custom') {
-      return (customFocus ?? userFocusDuration) * 60;
-    }
-    const modeConfig = timerModes.find(m => m.id === modeId);
-    return modeConfig ? modeConfig.focusMinutes * 60 : config.defaults.settings.focusDuration * 60;
+  // Get initial time from a template
+  const getTimeForTemplate = (templateId: string): number => {
+    const tmpl = templates.find(t => t.id === templateId);
+    return tmpl ? tmpl.focusMinutes * 60 : config.defaults.settings.focusDuration * 60;
   };
 
-  const [mode, setMode] = useState<TimerMode>('pomodoro');
-  const [timeLeft, setTimeLeft] = useState(getTimeForMode('pomodoro'));
-  const [isActive, setIsActive] = useState(false);
-  const [initialTime, setInitialTime] = useState(getTimeForMode('pomodoro'));
+  const getBreakForTemplate = (templateId: string): number => {
+    const tmpl = templates.find(t => t.id === templateId);
+    return tmpl ? tmpl.breakMinutes * 60 : config.defaults.settings.shortBreak * 60;
+  };
 
-  // Load user settings for custom mode and ticking
+  const [activeTemplateId, setActiveTemplateId] = useState(templates[0]?.id || 'classic');
+  const [timeLeft, setTimeLeft] = useState(getTimeForTemplate(templates[0]?.id || 'classic'));
+  const [isActive, setIsActive] = useState(false);
+  const [initialTime, setInitialTime] = useState(getTimeForTemplate(templates[0]?.id || 'classic'));
+
+  // Load user settings for ticking
   useEffect(() => {
     const loadUserSettings = async () => {
       const settings = await getSettings();
@@ -76,11 +83,6 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       setUserBreakDuration(settings.shortBreak);
       setTickingEnabled(settings.tickingEnabled);
       setTickSpeed(settings.tickingSpeed);
-      if (mode === 'custom' && !isActive) {
-        const newTime = settings.focusDuration * 60;
-        setInitialTime(newTime);
-        setTimeLeft(newTime);
-      }
     };
     loadUserSettings();
   }, []);
@@ -95,7 +97,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         const target = Date.now() + (timeLeft * 1000);
         localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(target));
         localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'true');
-        localStorage.setItem(STORAGE_KEYS.TIMER_MODE, mode);
+        localStorage.setItem(STORAGE_KEYS.TIMER_MODE, activeTemplateId);
       }, 100);
     }
   }, []);
@@ -141,21 +143,68 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     };
   }, [isActive, tickingEnabled, tickSpeed]);
 
-  // Update timer when mode changes
+  // Beat counter effect
+  useEffect(() => {
+    if (beatIntervalRef.current) {
+      clearInterval(beatIntervalRef.current);
+      beatIntervalRef.current = null;
+    }
+
+    if (isActive && beatEnabled) {
+      setBeatCount(0);
+      const playBeat = () => {
+        setBeatCount(prev => prev + 1);
+        try {
+          if (!beatAudioCtxRef.current || beatAudioCtxRef.current.state === 'closed') {
+            beatAudioCtxRef.current = new AudioContext();
+          }
+          const ctx = beatAudioCtxRef.current;
+          if (ctx.state === 'suspended') ctx.resume();
+          // Deep resonant beat sound
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = 220;
+          osc.type = 'sine';
+          gain.gain.setValueAtTime(0.4, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.15);
+        } catch (e) {}
+      };
+
+      playBeat();
+      beatIntervalRef.current = setInterval(playBeat, beatInterval * 1000);
+    } else {
+      setBeatCount(0);
+    }
+
+    return () => {
+      if (beatIntervalRef.current) {
+        clearInterval(beatIntervalRef.current);
+        beatIntervalRef.current = null;
+      }
+    };
+  }, [isActive, beatEnabled, beatInterval]);
+
+  // Update timer when template changes
   useEffect(() => {
     setIsActive(false);
-    const newTime = getTimeForMode(mode);
+    const newTime = getTimeForTemplate(activeTemplateId);
     setInitialTime(newTime);
     setTimeLeft(newTime);
-  }, [mode, userFocusDuration]);
+  }, [activeTemplateId]);
 
   // Load timer state on mount
   useEffect(() => {
     const savedTarget = localStorage.getItem(STORAGE_KEYS.TIMER_TARGET);
-    const savedMode = localStorage.getItem(STORAGE_KEYS.TIMER_MODE) as TimerMode;
+    const savedTemplateId = localStorage.getItem(STORAGE_KEYS.TIMER_MODE);
     const savedIsActive = localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true';
 
-    if (savedMode) setMode(savedMode);
+    if (savedTemplateId && templates.find(t => t.id === savedTemplateId)) {
+      setActiveTemplateId(savedTemplateId);
+    }
 
     if (savedIsActive && savedTarget) {
       const targetTime = parseInt(savedTarget, 10);
@@ -201,11 +250,12 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       // Show in-app completion notification
       setShowCompletionNotification(true);
 
-      // Send Chrome notification via background service worker
+      // Send Chrome notification via background service worker & clear badge
       try {
         const w = window as any;
         if (w.chrome?.runtime?.sendMessage) {
           w.chrome.runtime.sendMessage({ action: 'timerComplete' });
+          w.chrome.runtime.sendMessage({ action: 'stopTimer' });
         }
       } catch (e) {
         // Not in extension context
@@ -228,13 +278,29 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     const newActive = !isActive;
     setIsActive(newActive);
     localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, String(newActive));
-    localStorage.setItem(STORAGE_KEYS.TIMER_MODE, mode);
+    localStorage.setItem(STORAGE_KEYS.TIMER_MODE, activeTemplateId);
 
     if (newActive) {
       const target = Date.now() + (timeLeft * 1000);
       localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(target));
+
+      // Update extension badge with timer (send exact seconds for real-time badge)
+      try {
+        const w = window as any;
+        if (w.chrome?.runtime?.sendMessage) {
+          w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: timeLeft });
+        }
+      } catch (e) {}
     } else {
       localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
+
+      // Clear extension badge
+      try {
+        const w = window as any;
+        if (w.chrome?.runtime?.sendMessage) {
+          w.chrome.runtime.sendMessage({ action: 'stopTimer' });
+        }
+      } catch (e) {}
     }
   };
 
@@ -338,7 +404,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         <div>
           <h1 className="text-base font-bold tracking-tight">Tempo</h1>
           <p className="text-[9px] font-bold text-primary uppercase tracking-widest">
-            {timerModes.find(m => m.id === mode)?.name || 'Focus Session'}
+            {templates.find(t => t.id === activeTemplateId)?.description || 'Focus Session'}
           </p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -357,24 +423,17 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         </div>
       </div>
 
-      {/* Mode Switcher */}
+      {/* Template Switcher */}
       <div className="flex p-0.5 bg-surface-dark rounded-lg mb-4 border border-white/5">
-        {timerModes.map((modeConfig) => {
-          let label = modeConfig.label;
-          if (modeConfig.id === 'custom') {
-            label = `${userFocusDuration}/${userBreakDuration}`;
-          }
-
-          return (
-            <button
-              key={modeConfig.id}
-              onClick={() => setMode(modeConfig.id as TimerMode)}
-              className={`flex-1 py-2 rounded-md text-[11px] font-semibold transition-all ${mode === modeConfig.id ? 'bg-primary text-white shadow-md shadow-primary/25' : 'text-muted hover:text-white/70'}`}
-            >
-              {label}
-            </button>
-          )
-        })}
+        {templates.map((tmpl) => (
+          <button
+            key={tmpl.id}
+            onClick={() => setActiveTemplateId(tmpl.id)}
+            className={`flex-1 py-2 rounded-md text-[11px] font-semibold transition-all ${activeTemplateId === tmpl.id ? 'bg-primary text-white shadow-md shadow-primary/25' : 'text-muted hover:text-white/70'}`}
+          >
+            {tmpl.focusMinutes}/{tmpl.breakMinutes}
+          </button>
+        ))}
       </div>
 
       {/* Timer Circle */}
@@ -412,13 +471,61 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         </button>
       </div>
 
+      {/* Focus Beat */}
+      <div className="mt-3 w-full rounded-xl bg-surface-dark/80 border border-white/5 p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-sm text-primary">music_note</span>
+            <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Focus Beat</span>
+            {isActive && beatEnabled && (
+              <span className="text-[10px] font-bold text-primary tabular-nums">{beatCount}</span>
+            )}
+          </div>
+          <button
+            onClick={() => setBeatEnabled(!beatEnabled)}
+            className={`w-9 h-5 rounded-full transition-colors relative ${beatEnabled ? 'bg-primary' : 'bg-white/10'}`}
+          >
+            <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${beatEnabled ? 'left-[18px]' : 'left-0.5'}`} />
+          </button>
+        </div>
+        {beatEnabled && (
+          <div className="flex items-center gap-2 mt-2.5">
+            <span className="text-[10px] text-muted shrink-0">Every</span>
+            <div className="relative">
+              <select
+                value={beatInterval}
+                onChange={(e) => setBeatInterval(Number(e.target.value))}
+                className="appearance-none bg-white/5 border border-white/10 text-xs font-bold text-white rounded-lg pl-3 pr-7 py-1.5 focus:outline-none focus:border-primary/50 cursor-pointer hover:bg-white/10 transition-colors"
+              >
+                {Array.from({ length: 60 }, (_, i) => i + 1).map(s => (
+                  <option key={s} value={s} className="bg-surface-dark text-white">{s}s</option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined text-[10px] text-muted absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span>
+            </div>
+            <span className="text-[10px] text-muted">sec</span>
+          </div>
+        )}
+      </div>
+
       {/* Current Task Card */}
-      <div
-        className="mt-4 w-full rounded-xl bg-surface-dark/80 border border-white/5 cursor-pointer hover:border-white/10 transition-all active:scale-[0.99]"
-        onClick={() => setShowTaskSelector(true)}
-      >
-        <div className="flex items-center justify-between p-3">
-          <div className="flex-1 min-w-0 mr-3">
+      <div className="mt-3 w-full rounded-xl bg-surface-dark/80 border border-white/5 hover:border-white/10 transition-all">
+        <div className="flex items-center p-3">
+          {/* Complete task button */}
+          {currentTask && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setTasks(prev => prev.map(t => t.id === currentTask.id ? { ...t, completed: true, updatedAt: Date.now() } : t));
+                setCurrentTask(null);
+              }}
+              className="w-6 h-6 rounded-full border-2 border-muted hover:border-green-400 hover:bg-green-400/10 flex items-center justify-center shrink-0 mr-3 transition-colors group"
+              title="Complete task"
+            >
+              <span className="material-symbols-outlined text-[12px] text-transparent group-hover:text-green-400 transition-colors">check</span>
+            </button>
+          )}
+          <div className="flex-1 min-w-0 mr-3 cursor-pointer" onClick={() => setShowTaskSelector(true)}>
             <p className="text-[9px] font-semibold text-muted uppercase tracking-wider mb-0.5">Current Task</p>
             <h3 className="text-white text-xs font-bold truncate">{currentTask?.title || 'No task selected'}</h3>
             {currentTask?.dueDate && (
@@ -431,7 +538,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               </div>
             )}
           </div>
-          <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+          <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 cursor-pointer" onClick={() => setShowTaskSelector(true)}>
             <span className="material-symbols-outlined text-xs text-muted">expand_more</span>
           </div>
         </div>
@@ -670,7 +777,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               <button
                 onClick={() => {
                   setShowCompletionNotification(false);
-                  const breakTime = (timerModes.find(m => m.id === mode)?.breakMinutes || userBreakDuration) * 60;
+                  const breakTime = getBreakForTemplate(activeTemplateId);
                   setInitialTime(breakTime);
                   setTimeLeft(breakTime);
                 }}

@@ -22,7 +22,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
     // Bulk Select State
     const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
     const [isSelectionMode, setIsSelectionMode] = useState(false);
-    const [syncInterval, setSyncInterval] = useState<string>('Off');
+    const [syncInterval, setSyncInterval] = useState<string>('10');
 
     // Auto-sync effect
     React.useEffect(() => {
@@ -308,13 +308,31 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 space-y-3 pb-8">
+                {/* Completed tab header */}
+                {filter === 'Completed' && (
+                    <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-green-400 text-lg">check_circle</span>
+                            <span className="text-sm font-bold text-white">{filteredTasks.length} Completed</span>
+                        </div>
+                        {filteredTasks.length > 0 && (
+                            <button
+                                onClick={() => setTasks(prev => prev.filter(t => !t.completed))}
+                                className="text-[10px] font-bold text-red-400/70 hover:text-red-400 px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
+                            >
+                                Clear All
+                            </button>
+                        )}
+                    </div>
+                )}
+
                 {filteredTasks.length === 0 ? (
                     <div className="text-center py-12 flex flex-col items-center">
                         <div className="w-20 h-20 bg-surface-light rounded-full flex items-center justify-center mb-4">
-                            <span className="material-symbols-outlined text-4xl text-muted">filter_list_off</span>
+                            <span className="material-symbols-outlined text-4xl text-muted">{filter === 'Completed' ? 'task_alt' : 'filter_list_off'}</span>
                         </div>
-                        <p className="text-white font-bold text-lg">No tasks found</p>
-                        <button onClick={() => setFilter('All')} className="text-primary text-sm font-bold mt-2 hover:underline">Clear Filters</button>
+                        <p className="text-white font-bold text-lg">{filter === 'Completed' ? 'No completed tasks yet' : 'No tasks found'}</p>
+                        <button onClick={() => setFilter('All')} className="text-primary text-sm font-bold mt-2 hover:underline">{filter === 'Completed' ? 'Back to All' : 'Clear Filters'}</button>
                     </div>
                 ) : (
                     filteredTasks.map(task => {
@@ -367,7 +385,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
 
                                         <div className="flex-1 min-w-0" onClick={() => !isSelectionMode && setExpandedTask(expanded ? null : task.id)}>
                                             <div className="flex justify-between items-start mb-1">
-                                                <h3 className={`text-base font-medium break-words leading-tight pr-2 ${task.completed ? 'line-through text-muted' : 'text-white'}`}>
+                                                <h3 className={`text-sm font-medium break-words leading-tight pr-2 ${task.completed ? 'line-through text-muted' : 'text-white'}`}>
                                                     {task.title}
                                                 </h3>
                                                 <div className={`flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider ${getPriorityColor(task.priority)}`}>
@@ -379,16 +397,16 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                             <div className="flex items-center gap-2">
                                                 {/* Date Picker */}
                                                 <div
-                                                    className="relative z-20 group"
+                                                    className="relative z-20"
                                                     onClick={(e) => e.stopPropagation()}
                                                     onMouseDown={(e) => e.stopPropagation()}
                                                 >
-                                                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${overdue && !task.completed
+                                                    <label className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${overdue && !task.completed
                                                         ? 'border-secondary/50 text-secondary bg-secondary/10'
                                                         : 'border-white/10 text-muted hover:text-white bg-white/5 hover:bg-white/10'
                                                         }`}>
                                                         <span className="material-symbols-outlined text-[16px]">calendar_month</span>
-                                                        <span className={`text-xs font-bold whitespace-nowrap ${!task.dueDate && 'text-muted/70 group-hover:text-white'}`}>
+                                                        <span className={`text-xs font-bold whitespace-nowrap ${!task.dueDate && 'text-muted/70'}`}>
                                                             {formatDateDisplay(task.dueDate)}
                                                         </span>
                                                         <input
@@ -401,9 +419,10 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                                     handleUpdateTask(task.id, { dueDate: d.toISOString() });
                                                                 }
                                                             }}
-                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50 text-[0px]"
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                            tabIndex={-1}
                                                         />
-                                                    </div>
+                                                    </label>
                                                 </div>
 
                                                 {/* Category Selector */}
@@ -583,6 +602,20 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                     })
                 )}
             </div>
+
+            {/* Completed count hint when on All tab */}
+            {filter === 'All' && tasks.filter(t => t.completed).length > 0 && (
+                <div className="px-4 pb-4">
+                    <button
+                        onClick={() => setFilter('Completed')}
+                        className="w-full py-2.5 rounded-xl bg-surface-dark/50 border border-white/5 flex items-center justify-center gap-2 text-muted hover:text-white hover:border-white/10 transition-all"
+                    >
+                        <span className="material-symbols-outlined text-sm text-green-400">check_circle</span>
+                        <span className="text-xs font-bold">{tasks.filter(t => t.completed).length} completed tasks</span>
+                        <span className="material-symbols-outlined text-xs">chevron_right</span>
+                    </button>
+                </div>
+            )}
 
             {/* Floating Action Button */}
             {
