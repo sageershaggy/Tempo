@@ -18,7 +18,8 @@
       "Bash(npx tsc:*)",
       "Bash(npx vite build:*)",
       "Bash(python -c:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(npx sharp:*)"
     ]
   }
 }
