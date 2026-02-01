@@ -41,7 +41,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     // Show notification when timer ends
     chrome.notifications.create('timerComplete', {
       type: 'basic',
-      iconUrl: 'icons/icon128.png',
+      iconUrl: 'icons/icon128_v3.png',
       title: 'Focus Session Complete!',
       message: 'Great work! Time for a break.',
       priority: 2
@@ -115,6 +115,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       action: 'getStatus'
     }, sendResponse);
     return true;
+  }
+
+  if (request.action === 'timerComplete') {
+    chrome.notifications.create('timerComplete-' + Date.now(), {
+      type: 'basic',
+      iconUrl: 'icons/icon128_v3.png',
+      title: 'Focus Session Complete!',
+      message: 'Great work! Time for a break.',
+      priority: 2
+    });
+    chrome.action.setBadgeText({ text: '' });
+    sendResponse({ success: true });
+    return;
   }
 
   if (request.action === 'startTimer') {

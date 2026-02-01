@@ -11,7 +11,7 @@ type TimerMode = 'pomodoro' | 'deep' | 'custom';
 // Use offscreen audio when available (Chrome extension), fallback to direct Web Audio
 const useOffscreen = isOffscreenAvailable();
 
-export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState, currentTask }) => {
+export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState, currentTask, tasks, setTasks, setCurrentTask }) => {
   // Load configuration dynamically
   const config = configManager.getConfig();
   const timerModes = config.timer.modes;
@@ -30,6 +30,29 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const [soundFilter, setSoundFilter] = useState('All');
   const [showAllSounds, setShowAllSounds] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState('');
+
+  // Task Selector State
+  const [showTaskSelector, setShowTaskSelector] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [showCompletionNotification, setShowCompletionNotification] = useState(false);
+
+  const handleCreateTask = () => {
+    if (!newTaskTitle.trim()) return;
+    const newTask = {
+      id: Date.now().toString(),
+      title: newTaskTitle.trim(),
+      category: 'Work',
+      priority: 'Medium' as const,
+      completed: false,
+      subtasks: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    setTasks(prev => [newTask, ...prev]);
+    setCurrentTask(newTask);
+    setNewTaskTitle('');
+    setShowTaskSelector(false);
+  };
 
   // Get initial values from config, using user settings for custom mode
   const getTimeForMode = (modeId: string, customFocus?: number): number => {
@@ -173,6 +196,28 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
       if (audioState.isPlaying && audioState.autoPlay) {
         setAudioState(prev => ({ ...prev, isPlaying: false }));
+      }
+
+      // Show in-app completion notification
+      setShowCompletionNotification(true);
+
+      // Send Chrome notification via background service worker
+      try {
+        if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+          chrome.runtime.sendMessage({ action: 'timerComplete' });
+        }
+      } catch (e) {
+        // Not in extension context
+      }
+
+      // Also use Notification API as fallback for non-extension context
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Focus Session Complete!', {
+          body: 'Great work! Time for a break.',
+          icon: '/icons/icon128_v3.png',
+        });
+      } else if ('Notification' in window && Notification.permission !== 'denied') {
+        Notification.requestPermission();
       }
     }
     return () => clearInterval(interval);
@@ -371,19 +416,101 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
       {/* Current Task Card */}
       <div
-        className="mt-4 w-full rounded-xl bg-surface-dark/80 border border-white/5 cursor-pointer hover:border-white/10 transition-all"
-        onClick={() => setScreen(Screen.QUICK_ADD)}
+        className="mt-4 w-full rounded-xl bg-surface-dark/80 border border-white/5 cursor-pointer hover:border-white/10 transition-all active:scale-[0.99]"
+        onClick={() => setShowTaskSelector(true)}
       >
         <div className="flex items-center justify-between p-3">
           <div className="flex-1 min-w-0 mr-3">
             <p className="text-[9px] font-semibold text-muted uppercase tracking-wider mb-0.5">Current Task</p>
             <h3 className="text-white text-xs font-bold truncate">{currentTask?.title || 'No task selected'}</h3>
+            {currentTask?.dueDate && (
+              <div className="flex items-center gap-1 mt-1 text-secondary">
+                <span className="material-symbols-outlined text-[10px]">event</span>
+                <span className="text-[10px] font-medium">
+                  {new Date(currentTask.dueDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(currentTask.dueDate) < new Date() ? ' (Overdue)' : ''}
+                </span>
+              </div>
+            )}
           </div>
           <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-            <span className="material-symbols-outlined text-xs text-muted">{currentTask ? 'edit' : 'add'}</span>
+            <span className="material-symbols-outlined text-xs text-muted">expand_more</span>
           </div>
         </div>
       </div>
+
+      {/* Task Selector Modal */}
+      {showTaskSelector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => setShowTaskSelector(false)}>
+          <div className="w-full max-w-sm bg-surface-dark border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+            onClick={e => e.stopPropagation()}>
+            <div className="p-3 border-b border-white/5 flex items-center justify-between bg-surface-light/30">
+              <h3 className="text-sm font-bold ml-1">Select Task</h3>
+              <button onClick={() => setShowTaskSelector(false)} className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/10">
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+
+            <div className="p-3 border-b border-white/5">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Create new task..."
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCreateTask()}
+                  className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-xs focus:border-primary/50 outline-none"
+                  autoFocus
+                />
+                <button
+                  onClick={handleCreateTask}
+                  disabled={!newTaskTitle.trim()}
+                  className="px-3 bg-primary rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-light transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm text-white">add</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto p-2 space-y-1">
+              <button
+                onClick={() => { setCurrentTask(null); setShowTaskSelector(false); }}
+                className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-white/5 ${!currentTask ? 'bg-primary/10 text-primary' : 'text-muted'}`}
+              >
+                <span className="material-symbols-outlined text-sm">block</span>
+                <span className="text-xs font-medium">No Task</span>
+              </button>
+
+              {tasks.filter(t => !t.completed).map(task => (
+                <button
+                  key={task.id}
+                  onClick={() => { setCurrentTask(task); setShowTaskSelector(false); }}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg border border-transparent transition-all hover:bg-white/5 group ${currentTask?.id === task.id ? 'bg-primary/10 border-primary/20' : ''}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-medium truncate ${currentTask?.id === task.id ? 'text-primary' : 'text-white'}`}>
+                      {task.title}
+                    </span>
+                    {task.dueDate && (
+                      <span className={`text-[10px] ${new Date(task.dueDate) < new Date() ? 'text-red-400' : 'text-muted'}`}>
+                        {new Date(task.dueDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+
+              {tasks.filter(t => !t.completed).length === 0 && (
+                <div className="text-center py-8 text-muted">
+                  <span className="material-symbols-outlined text-2xl mb-1 opacity-50">inbox</span>
+                  <p className="text-[10px]">No active tasks found</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========== FOCUS SOUNDS SECTION ========== */}
       <div className="mt-4 w-full">
@@ -531,6 +658,38 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           </div>
         )}
       </div>
+
+      {/* Session Complete Notification Modal */}
+      {showCompletionNotification && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-xs bg-surface-dark rounded-2xl border border-white/10 p-6 shadow-2xl text-center animate-slide-up">
+            <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
+              <span className="material-symbols-outlined text-4xl text-green-400">celebration</span>
+            </div>
+            <h3 className="text-lg font-bold text-white mb-1">Session Complete!</h3>
+            <p className="text-sm text-muted mb-5">Great work! Time for a break.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setShowCompletionNotification(false);
+                  const breakTime = (timerModes.find(m => m.id === mode)?.breakMinutes || userBreakDuration) * 60;
+                  setInitialTime(breakTime);
+                  setTimeLeft(breakTime);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-white/10 text-white text-xs font-bold hover:bg-white/15 transition-colors"
+              >
+                Start Break
+              </button>
+              <button
+                onClick={() => setShowCompletionNotification(false)}
+                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-light transition-colors"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
