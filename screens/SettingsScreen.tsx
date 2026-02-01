@@ -29,6 +29,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   const [activeTheme, setActiveTheme] = useState('default');
   const [templates, setTemplates] = useState(configManager.getConfig().timer.templates);
   const [isEditingTemplates, setIsEditingTemplates] = useState(false);
+  const [, forceUpdate] = useState(0);
 
   // Load settings on mount
   useEffect(() => {
@@ -460,7 +461,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                         // Create a force update or better yet, genericize state management
                         // For now, reloading would be needed or lifting state, but 
                         // we will just re-render by updating local dummy state
-                        setScreen(prev => prev);
+                        forceUpdate(n => n + 1);
                       }}
                       className="text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
@@ -477,7 +478,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                     configManager.saveConfig({
                       categories: { ...config.categories, task: newCats }
                     });
-                    setScreen(prev => prev);
+                    forceUpdate(n => n + 1);
                   }
                 }}
                 className="px-3 py-1.5 rounded-lg border border-dashed border-white/20 text-xs font-bold text-muted hover:text-white hover:border-white/40 transition-all flex items-center gap-1"

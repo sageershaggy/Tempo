@@ -16,7 +16,9 @@
       "Bash(ls:*)",
       "Bash(find:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx vite build:*)"
+      "Bash(npx vite build:*)",
+      "Bash(python -c:*)",
+      "Bash(node:*)"
     ]
   }
 }

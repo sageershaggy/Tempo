@@ -203,8 +203,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
       // Send Chrome notification via background service worker
       try {
-        if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-          chrome.runtime.sendMessage({ action: 'timerComplete' });
+        const w = window as any;
+        if (w.chrome?.runtime?.sendMessage) {
+          w.chrome.runtime.sendMessage({ action: 'timerComplete' });
         }
       } catch (e) {
         // Not in extension context

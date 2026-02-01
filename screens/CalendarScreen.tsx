@@ -204,7 +204,7 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
                       ${day === selectedDay
                         ? 'bg-primary text-white shadow-lg shadow-primary/30 scale-110'
                         : isToday(day)
-                          ? 'bg-primary/30 text-primary-light ring-1.5 ring-primary/50'
+                          ? 'bg-primary/30 text-primary-light ring-2 ring-primary/50'
                           : 'text-white/80 group-hover:bg-white/10'
                       }`}>
                       {day}
