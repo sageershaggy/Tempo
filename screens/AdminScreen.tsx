@@ -115,7 +115,7 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
   };
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+    try { navigator.clipboard.writeText(text); } catch (e) { /* clipboard not available */ }
   };
 
   const filteredUsers = users.filter(u => {

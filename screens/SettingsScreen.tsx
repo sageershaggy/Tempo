@@ -120,7 +120,6 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
     const existingReports = JSON.parse(localStorage.getItem(STORAGE_KEYS.FEEDBACK_REPORTS) || '[]');
     localStorage.setItem(STORAGE_KEYS.FEEDBACK_REPORTS, JSON.stringify([newReport, ...existingReports]));
 
-    console.log('Feedback submitted:', newReport);
     setFeedbackSent(true);
     setTimeout(() => {
       setShowFeedbackModal(false);

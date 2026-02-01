@@ -31,7 +31,6 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
         if (isNaN(minutes)) return;
 
         const interval = setInterval(() => {
-            console.log('Auto-syncing...');
             // In a real implementation, this would trigger the sync service
         }, minutes * 60000);
         return () => clearInterval(interval);
