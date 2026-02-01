@@ -38,6 +38,7 @@ export interface TimerModeConfig {
 }
 
 export interface TimerTemplateConfig {
+  id: string;
   focusMinutes: number;
   breakMinutes: number;
   label: string;
@@ -157,9 +158,9 @@ export const defaultAppConfig: AppConfig = {
       { id: 'custom', name: 'Custom', label: 'Custom', focusMinutes: 45, breakMinutes: 10 },
     ],
     templates: [
-      { focusMinutes: 25, breakMinutes: 5, label: '25/5', description: 'Classic' },
-      { focusMinutes: 50, breakMinutes: 10, label: '50/10', description: 'Deep Work' },
-      { focusMinutes: 90, breakMinutes: 20, label: '90/20', description: 'Ultra Focus' },
+      { id: 'classic', focusMinutes: 25, breakMinutes: 5, label: '25/5', description: 'Classic' },
+      { id: 'deep-work', focusMinutes: 50, breakMinutes: 10, label: '50/10', description: 'Deep Work' },
+      { id: 'ultra-focus', focusMinutes: 90, breakMinutes: 20, label: '90/20', description: 'Ultra Focus' },
     ],
     sounds: ['Desk Clock', 'Digital Beep', 'Gentle Chime', 'Bell Ring', 'None'],
     tickingSpeedRange: { min: 1, max: 120, step: 1 },
