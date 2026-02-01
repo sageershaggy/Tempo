@@ -41,6 +41,7 @@ type AdminTab = 'overview' | 'users' | 'feedback' | 'licenses' | 'payments' | 'a
 export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [config, setConfig] = useState<AdminConfig>({
     stripeMonthlyLink: '',
@@ -142,13 +143,22 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
         <h2 className="text-xl font-bold mb-2">Site Administration</h2>
         <p className="text-sm text-muted mb-6">Enter admin credentials to continue</p>
         <form onSubmit={handleLogin} className="w-full max-w-xs space-y-4">
-          <input
-            type="password"
-            placeholder="Enter Admin Key"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-surface-light border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary outline-none"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Enter Admin Key"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-surface-light border border-white/10 rounded-xl px-4 py-3 pr-12 text-white focus:border-primary outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-white transition-colors"
+            >
+              <span className="material-symbols-outlined text-xl">{showPassword ? 'visibility_off' : 'visibility'}</span>
+            </button>
+          </div>
           <button type="submit" className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-100 transition-colors">
             Login
           </button>
@@ -289,7 +299,8 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                 </button>
               </div>
               {(() => {
-                const reports = JSON.parse(localStorage.getItem('tempo_feedback_reports') || '[]');
+                let reports: any[] = [];
+                try { reports = JSON.parse(localStorage.getItem('tempo_feedback_reports') || '[]'); } catch (e) { reports = []; }
                 if (reports.length === 0) {
                   return (
                     <div className="p-8 text-center">
