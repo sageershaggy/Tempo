@@ -26,7 +26,10 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd dist folder and release zip to git tracking\n\nRemove dist and *.zip from .gitignore so the built extension\nfiles are tracked in the repository.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git check-ignore:*)",
       "Bash(powershell -Command:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix auto-sync timer to actually trigger Google Tasks sync\n\nThe sync interval timer \\(10m/20m/30m\\) had an empty callback stub.\nNow it properly calls googleTasksService.syncBidirectional\\(\\) to\npush/pull tasks on the configured interval. Added visual status\nindicators \\(syncing/success/error\\) on the sync button.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix auto-sync timer to actually trigger Google Tasks sync\n\nThe sync interval timer \\(10m/20m/30m\\) had an empty callback stub.\nNow it properly calls googleTasksService.syncBidirectional\\(\\) to\npush/pull tasks on the configured interval. Added visual status\nindicators \\(syncing/success/error\\) on the sync button.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nRemove Calendar Sync, add 20 themes, inline template editing\n\n- Remove redundant Calendar Sync toggle \\(tasks with dates already\n  sync to Google Calendar via Google Tasks integration\\)\n- Expand themes from 12 to 20: 8 free + 12 pro with new Aurora,\n  Sakura, Volcano, Cyber, Mocha, Nord, Crimson, Indigo themes\n- Separate Free/Pro theme sections in settings UI\n- Replace all prompt\\(\\) dialogs with inline forms for template\n  editing, new preset creation, and category management\n- Templates now support inline name, focus, and break editing\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(python3 -c:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
