@@ -197,18 +197,28 @@ export const defaultAppConfig: AppConfig = {
   },
 
   themes: [
+    // Free Themes (8)
     { id: 'default', name: 'Royal Purple', color: 'bg-gradient-to-br from-[#7F13EC] to-[#5a0db5]', cssVar: '#7F13EC', pro: false },
     { id: 'nebula', name: 'Nebula', color: 'bg-gradient-to-br from-[#6366F1] to-[#D946EF]', cssVar: '#8B5CF6', pro: false },
-    { id: 'sunset', name: 'Sunset', color: 'bg-gradient-to-br from-[#F59E0B] to-[#EF4444]', cssVar: '#F97316', pro: true },
-    { id: 'ocean', name: 'Ocean', color: 'bg-gradient-to-br from-[#06B6D4] to-[#3B82F6]', cssVar: '#0EA5E9', pro: true },
-    { id: 'midnight', name: 'Midnight', color: 'bg-gradient-to-br from-[#1E293B] to-[#0F172A]', cssVar: '#64748B', pro: true },
     { id: 'emerald', name: 'Emerald', color: 'bg-gradient-to-br from-[#059669] to-[#065F46]', cssVar: '#059669', pro: false },
+    { id: 'coral', name: 'Coral', color: 'bg-gradient-to-br from-[#FB7185] to-[#F43F5E]', cssVar: '#FB7185', pro: false },
+    { id: 'slate', name: 'Slate', color: 'bg-gradient-to-br from-[#475569] to-[#1E293B]', cssVar: '#475569', pro: false },
+    { id: 'ocean', name: 'Ocean', color: 'bg-gradient-to-br from-[#06B6D4] to-[#3B82F6]', cssVar: '#0EA5E9', pro: false },
+    { id: 'crimson', name: 'Crimson', color: 'bg-gradient-to-br from-[#DC2626] to-[#7F1D1D]', cssVar: '#DC2626', pro: false },
+    { id: 'indigo', name: 'Indigo', color: 'bg-gradient-to-br from-[#4F46E5] to-[#312E81]', cssVar: '#4F46E5', pro: false },
+    // Pro Themes (12)
+    { id: 'sunset', name: 'Sunset', color: 'bg-gradient-to-br from-[#F59E0B] to-[#EF4444]', cssVar: '#F97316', pro: true },
+    { id: 'midnight', name: 'Midnight', color: 'bg-gradient-to-br from-[#1E293B] to-[#0F172A]', cssVar: '#64748B', pro: true },
     { id: 'rose', name: 'Rose', color: 'bg-gradient-to-br from-[#E11D48] to-[#9F1239]', cssVar: '#E11D48', pro: true },
     { id: 'amber', name: 'Amber', color: 'bg-gradient-to-br from-[#D97706] to-[#92400E]', cssVar: '#D97706', pro: true },
     { id: 'arctic', name: 'Arctic', color: 'bg-gradient-to-br from-[#38BDF8] to-[#818CF8]', cssVar: '#38BDF8', pro: true },
     { id: 'forest', name: 'Forest', color: 'bg-gradient-to-br from-[#22C55E] to-[#15803D]', cssVar: '#22C55E', pro: true },
-    { id: 'coral', name: 'Coral', color: 'bg-gradient-to-br from-[#FB7185] to-[#F43F5E]', cssVar: '#FB7185', pro: false },
-    { id: 'slate', name: 'Slate', color: 'bg-gradient-to-br from-[#475569] to-[#1E293B]', cssVar: '#475569', pro: false },
+    { id: 'aurora', name: 'Aurora', color: 'bg-gradient-to-br from-[#34D399] to-[#6366F1]', cssVar: '#34D399', pro: true },
+    { id: 'sakura', name: 'Sakura', color: 'bg-gradient-to-br from-[#F9A8D4] to-[#C084FC]', cssVar: '#F472B6', pro: true },
+    { id: 'volcano', name: 'Volcano', color: 'bg-gradient-to-br from-[#FF6B35] to-[#C81D25]', cssVar: '#FF6B35', pro: true },
+    { id: 'cyber', name: 'Cyber', color: 'bg-gradient-to-br from-[#00F5D4] to-[#7B2FF7]', cssVar: '#00F5D4', pro: true },
+    { id: 'mocha', name: 'Mocha', color: 'bg-gradient-to-br from-[#A0845C] to-[#5C4033]', cssVar: '#A0845C', pro: true },
+    { id: 'nord', name: 'Nord', color: 'bg-gradient-to-br from-[#88C0D0] to-[#5E81AC]', cssVar: '#88C0D0', pro: true },
   ],
 
   navigation: [

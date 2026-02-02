@@ -24,11 +24,18 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   const [tickSpeed, setTickSpeed] = useState(60);
   const [timerSound, setTimerSound] = useState('Desk Clock');
   const [notifications, setNotifications] = useState(true);
-  const [calendarSync, setCalendarSync] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [activeTheme, setActiveTheme] = useState('default');
   const [templates, setTemplates] = useState(configManager.getConfig().timer.templates);
   const [isEditingTemplates, setIsEditingTemplates] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editFocus, setEditFocus] = useState(25);
+  const [editBreak, setEditBreak] = useState(5);
+  const [showAddTemplate, setShowAddTemplate] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
   const [, forceUpdate] = useState(0);
 
   // Load settings on mount
@@ -78,9 +85,6 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
     }
   };
 
-  const toggleCalendarSync = () => {
-    setCalendarSync(!calendarSync);
-  };
 
   const handleExportData = async () => {
     try {
@@ -158,47 +162,102 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
           </div>
           <div className="bg-surface-dark rounded-xl p-4 border border-white/5">
             {isEditingTemplates && (
-              <p className="text-[10px] text-muted mb-3 text-center">Tap a template to update it with current timer values ({pomodoroFocus}/{shortBreak})</p>
+              <p className="text-[10px] text-muted mb-3 text-center">Tap a template to edit its name & values</p>
             )}
             <div className="grid grid-cols-3 gap-3">
               {templates.map(template => {
                 const isActive = !isEditingTemplates && pomodoroFocus === template.focusMinutes && shortBreak === template.breakMinutes;
+                const isBeingEdited = editingTemplateId === template.id;
                 return (
                   <div key={template.id} className="relative">
-                    <button
-                      onClick={() => {
-                        if (isEditingTemplates) {
-                          // Update this template with current slider values
-                          const newTemplates = templates.map(t =>
-                            t.id === template.id
-                              ? { ...t, focusMinutes: pomodoroFocus, breakMinutes: shortBreak, label: `${pomodoroFocus}/${shortBreak}`, description: t.description }
-                              : t
-                          );
-                          setTemplates(newTemplates);
-                          configManager.saveConfig({
-                            timer: { ...configManager.getConfig().timer, templates: newTemplates }
-                          });
-                          return;
-                        }
-                        setPomodoroFocus(template.focusMinutes);
-                        setShortBreak(template.breakMinutes);
-                        handleSettingChange('focusDuration', template.focusMinutes);
-                        handleSettingChange('shortBreak', template.breakMinutes);
-                      }}
-                      className={`w-full p-3 rounded-xl border text-center transition-all ${isActive
-                        ? 'bg-primary/20 border-primary text-white'
-                        : isEditingTemplates
-                          ? 'border-primary/30 text-white bg-primary/5 hover:bg-primary/15 cursor-pointer'
-                          : 'border-white/10 text-muted hover:border-white/30'
-                        }`}
-                    >
-                      <p className="font-bold text-lg">{template.label}</p>
-                      <p className="text-[10px] text-muted">{template.description}</p>
-                      {isEditingTemplates && (
-                        <p className="text-[9px] text-primary mt-1 font-bold">Tap to update</p>
-                      )}
-                    </button>
-                    {isEditingTemplates && (
+                    {isBeingEdited ? (
+                      /* Inline Edit Form */
+                      <div className="col-span-1 p-2 rounded-xl border border-primary bg-primary/10 text-center space-y-2">
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          placeholder="Name"
+                          className="w-full bg-white/10 text-white text-[11px] font-bold text-center rounded-lg px-2 py-1.5 border border-white/10 focus:border-primary outline-none"
+                          autoFocus
+                        />
+                        <div className="flex gap-1">
+                          <div className="flex-1">
+                            <p className="text-[8px] text-muted mb-0.5">Focus</p>
+                            <input
+                              type="number"
+                              value={editFocus}
+                              onChange={(e) => setEditFocus(Math.max(1, Math.min(120, Number(e.target.value))))}
+                              className="w-full bg-white/10 text-white text-[11px] font-bold text-center rounded-lg px-1 py-1 border border-white/10 focus:border-primary outline-none"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-[8px] text-muted mb-0.5">Break</p>
+                            <input
+                              type="number"
+                              value={editBreak}
+                              onChange={(e) => setEditBreak(Math.max(1, Math.min(30, Number(e.target.value))))}
+                              className="w-full bg-white/10 text-white text-[11px] font-bold text-center rounded-lg px-1 py-1 border border-white/10 focus:border-primary outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => {
+                              const newTemplates = templates.map(t =>
+                                t.id === template.id
+                                  ? { ...t, label: `${editFocus}/${editBreak}`, description: editName || t.description, focusMinutes: editFocus, breakMinutes: editBreak }
+                                  : t
+                              );
+                              setTemplates(newTemplates);
+                              configManager.saveConfig({
+                                timer: { ...configManager.getConfig().timer, templates: newTemplates }
+                              });
+                              setEditingTemplateId(null);
+                            }}
+                            className="flex-1 py-1 rounded-lg bg-primary text-white text-[10px] font-bold hover:bg-primary-light transition-colors"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingTemplateId(null)}
+                            className="flex-1 py-1 rounded-lg bg-white/10 text-muted text-[10px] font-bold hover:bg-white/20 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Normal Template Display */
+                      <button
+                        onClick={() => {
+                          if (isEditingTemplates) {
+                            setEditingTemplateId(template.id);
+                            setEditName(template.description);
+                            setEditFocus(template.focusMinutes);
+                            setEditBreak(template.breakMinutes);
+                            return;
+                          }
+                          setPomodoroFocus(template.focusMinutes);
+                          setShortBreak(template.breakMinutes);
+                          handleSettingChange('focusDuration', template.focusMinutes);
+                          handleSettingChange('shortBreak', template.breakMinutes);
+                        }}
+                        className={`w-full p-3 rounded-xl border text-center transition-all ${isActive
+                          ? 'bg-primary/20 border-primary text-white'
+                          : isEditingTemplates
+                            ? 'border-primary/30 text-white bg-primary/5 hover:bg-primary/15 cursor-pointer'
+                            : 'border-white/10 text-muted hover:border-white/30'
+                          }`}
+                      >
+                        <p className="font-bold text-lg">{template.label}</p>
+                        <p className="text-[10px] text-muted">{template.description}</p>
+                        {isEditingTemplates && (
+                          <p className="text-[9px] text-primary mt-1 font-bold">Tap to edit</p>
+                        )}
+                      </button>
+                    )}
+                    {isEditingTemplates && !isBeingEdited && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -258,30 +317,75 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
               />
 
               {/* Save as Preset */}
-              <button
-                onClick={() => {
-                  const label = prompt('Enter name for this preset (e.g., "Power Hour"):');
-                  if (!label) return;
-
-                  const newTemplate = {
-                    id: label.toLowerCase().replace(/\s+/g, '-'),
-                    label,
-                    description: `${pomodoroFocus}/${shortBreak}`,
-                    focusMinutes: pomodoroFocus,
-                    breakMinutes: shortBreak
-                  };
-
-                  const newTemplates = [...templates, newTemplate];
-                  setTemplates(newTemplates);
-                  configManager.saveConfig({
-                    timer: { ...configManager.getConfig().timer, templates: newTemplates }
-                  });
-                }}
-                className="w-full mt-2 py-2.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-center text-muted hover:text-white transition-colors flex items-center justify-center gap-2"
-              >
-                <span className="material-symbols-outlined text-[14px]">save</span>
-                Save as new preset
-              </button>
+              {showAddTemplate ? (
+                <div className="mt-2 p-3 rounded-lg border border-primary/30 bg-primary/5 space-y-2">
+                  <input
+                    type="text"
+                    value={newTemplateName}
+                    onChange={(e) => setNewTemplateName(e.target.value)}
+                    placeholder='Preset name (e.g., "Power Hour")'
+                    className="w-full bg-white/10 text-white text-xs font-semibold rounded-lg px-3 py-2 border border-white/10 focus:border-primary outline-none placeholder:text-muted"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newTemplateName.trim()) {
+                        const newTemplate = {
+                          id: newTemplateName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
+                          label: `${pomodoroFocus}/${shortBreak}`,
+                          description: newTemplateName.trim(),
+                          focusMinutes: pomodoroFocus,
+                          breakMinutes: shortBreak
+                        };
+                        const newTemplates = [...templates, newTemplate];
+                        setTemplates(newTemplates);
+                        configManager.saveConfig({
+                          timer: { ...configManager.getConfig().timer, templates: newTemplates }
+                        });
+                        setNewTemplateName('');
+                        setShowAddTemplate(false);
+                      }
+                    }}
+                  />
+                  <p className="text-[10px] text-muted text-center">Saves current values: {pomodoroFocus}m focus / {shortBreak}m break</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        if (!newTemplateName.trim()) return;
+                        const newTemplate = {
+                          id: newTemplateName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
+                          label: `${pomodoroFocus}/${shortBreak}`,
+                          description: newTemplateName.trim(),
+                          focusMinutes: pomodoroFocus,
+                          breakMinutes: shortBreak
+                        };
+                        const newTemplates = [...templates, newTemplate];
+                        setTemplates(newTemplates);
+                        configManager.saveConfig({
+                          timer: { ...configManager.getConfig().timer, templates: newTemplates }
+                        });
+                        setNewTemplateName('');
+                        setShowAddTemplate(false);
+                      }}
+                      className="flex-1 py-2 rounded-lg bg-primary text-white text-xs font-bold hover:bg-primary-light transition-colors"
+                    >
+                      Save Preset
+                    </button>
+                    <button
+                      onClick={() => { setShowAddTemplate(false); setNewTemplateName(''); }}
+                      className="flex-1 py-2 rounded-lg bg-white/10 text-muted text-xs font-bold hover:bg-white/20 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAddTemplate(true)}
+                  className="w-full mt-2 py-2.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-center text-muted hover:text-white transition-colors flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-[14px]">save</span>
+                  Save as new preset
+                </button>
+              )}
             </div>
 
             {/* Long Break Config */}
@@ -407,9 +511,13 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
             Appearance
           </h3>
           <div className="bg-surface-dark rounded-xl p-4 border border-white/5">
-            <p className="text-sm font-bold mb-3">App Theme</p>
-            <div className="grid grid-cols-5 gap-2">
-              {THEMES.map(theme => {
+            <p className="text-sm font-bold mb-1">App Theme</p>
+            <p className="text-[10px] text-muted mb-3">Choose your vibe</p>
+
+            {/* Free Themes */}
+            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider mb-2">Free</p>
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {THEMES.filter(t => !t.pro).map(theme => {
                 const isActive = activeTheme === theme.id;
                 return (
                   <button
@@ -423,8 +531,8 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                   >
                     <div className="relative">
                       <div
-                        className={`w-10 h-10 rounded-full ${theme.color} shadow-lg transition-all ${
-                          isActive ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-dark' : 'group-hover:scale-110'
+                        className={`w-9 h-9 rounded-full ${theme.color} shadow-lg transition-all ${
+                          isActive ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-dark' : ''
                         }`}
                       ></div>
                       {isActive && (
@@ -432,11 +540,48 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                           <span className="material-symbols-outlined text-white text-sm drop-shadow-lg">check</span>
                         </div>
                       )}
-                      {theme.pro && (
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center shadow-md">
-                          <span className="material-symbols-outlined text-[8px] text-black">star</span>
+                    </div>
+                    <span className={`text-[9px] font-semibold leading-tight text-center ${
+                      isActive ? 'text-white' : 'text-muted'
+                    }`}>{theme.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Pro Themes */}
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-[10px] font-bold text-yellow-400 uppercase tracking-wider">Pro</p>
+              <div className="flex-1 h-px bg-white/5"></div>
+              <span className="material-symbols-outlined text-yellow-500 text-[12px]">star</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {THEMES.filter(t => t.pro).map(theme => {
+                const isActive = activeTheme === theme.id;
+                return (
+                  <button
+                    key={theme.id}
+                    onClick={() => handleThemeSelect(theme.id)}
+                    className={`relative flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all ${
+                      isActive
+                        ? 'border-white/30 bg-white/5 scale-105'
+                        : 'border-transparent hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="relative">
+                      <div
+                        className={`w-9 h-9 rounded-full ${theme.color} shadow-lg transition-all ${
+                          isActive ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-dark' : ''
+                        }`}
+                      ></div>
+                      {isActive && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-white text-sm drop-shadow-lg">check</span>
                         </div>
                       )}
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center shadow-md">
+                        <span className="material-symbols-outlined text-[8px] text-black">star</span>
+                      </div>
                     </div>
                     <span className={`text-[9px] font-semibold leading-tight text-center ${
                       isActive ? 'text-white' : 'text-muted'
@@ -478,22 +623,60 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                   )}
                 </div>
               ))}
-              <button
-                onClick={() => {
-                  const name = prompt('Enter new category name:');
-                  if (name && !config.categories.task.includes(name)) {
-                    const newCats = [...config.categories.task, name];
-                    configManager.saveConfig({
-                      categories: { ...config.categories, task: newCats }
-                    });
-                    forceUpdate(n => n + 1);
-                  }
-                }}
-                className="px-3 py-1.5 rounded-lg border border-dashed border-white/20 text-xs font-bold text-muted hover:text-white hover:border-white/40 transition-all flex items-center gap-1"
-              >
-                <span className="material-symbols-outlined text-[14px]">add</span>
-                Add
-              </button>
+              {showAddCategory ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="Category name"
+                    className="bg-white/10 text-white text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-primary/30 focus:border-primary outline-none w-28 placeholder:text-muted"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newCategoryName.trim()) {
+                        if (!config.categories.task.includes(newCategoryName.trim())) {
+                          const newCats = [...config.categories.task, newCategoryName.trim()];
+                          configManager.saveConfig({ categories: { ...config.categories, task: newCats } });
+                          forceUpdate(n => n + 1);
+                        }
+                        setNewCategoryName('');
+                        setShowAddCategory(false);
+                      } else if (e.key === 'Escape') {
+                        setNewCategoryName('');
+                        setShowAddCategory(false);
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      if (newCategoryName.trim() && !config.categories.task.includes(newCategoryName.trim())) {
+                        const newCats = [...config.categories.task, newCategoryName.trim()];
+                        configManager.saveConfig({ categories: { ...config.categories, task: newCats } });
+                        forceUpdate(n => n + 1);
+                      }
+                      setNewCategoryName('');
+                      setShowAddCategory(false);
+                    }}
+                    className="px-2 py-1.5 rounded-lg bg-primary text-white text-[10px] font-bold"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">check</span>
+                  </button>
+                  <button
+                    onClick={() => { setNewCategoryName(''); setShowAddCategory(false); }}
+                    className="px-2 py-1.5 rounded-lg bg-white/10 text-muted text-[10px] font-bold"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">close</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAddCategory(true)}
+                  className="px-3 py-1.5 rounded-lg border border-dashed border-white/20 text-xs font-bold text-muted hover:text-white hover:border-white/40 transition-all flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[14px]">add</span>
+                  Add
+                </button>
+              )}
             </div>
           </div>
         </section>
@@ -528,24 +711,6 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 <p className="text-[10px] text-muted">Google Tasks, Microsoft To Do</p>
               </div>
               <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
-            </div>
-
-            <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors" onClick={toggleCalendarSync}>
-              <div className="flex items-center gap-3">
-                <div>
-                  <p className="text-sm font-bold">Calendar Sync</p>
-                  <p className="text-[10px] text-muted">
-                    {calendarSync
-                      ? (JSON.parse(localStorage.getItem('tempo_user_profile') || '{}').email
-                        ? `Connected: ${JSON.parse(localStorage.getItem('tempo_user_profile') || '{}').email}`
-                        : 'Connected')
-                      : 'Sync Google Calendar'}
-                  </p>
-                </div>
-              </div>
-              <div className={`w-10 h-6 rounded-full relative transition-colors ${calendarSync ? 'bg-primary' : 'bg-surface-light'}`}>
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${calendarSync ? 'left-5' : 'left-1'}`}></div>
-              </div>
             </div>
 
             {/* Dark Mode */}
