@@ -25,7 +25,7 @@ export const BottomNav: React.FC<NavProps> = ({ currentScreen, setScreen }) => {
               key={item.id}
               onClick={() => setScreen(item.id)}
               className={`flex flex-col items-center gap-1 p-2 transition-all duration-300 ${
-                isActive ? 'text-secondary transform -translate-y-1' : 'text-slate-500 hover:text-slate-300'
+                isActive ? 'text-primary transform -translate-y-1' : 'text-slate-500 hover:text-slate-300'
               }`}
             >
               <span className={`material-symbols-outlined text-2xl ${isActive ? 'fill-current' : ''}`}>
@@ -35,7 +35,7 @@ export const BottomNav: React.FC<NavProps> = ({ currentScreen, setScreen }) => {
                 {item.label}
               </span>
               {isActive && (
-                <span className="absolute -bottom-2 w-1 h-1 bg-secondary rounded-full shadow-[0_0_8px_currentColor]"></span>
+                <span className="absolute -bottom-2 w-1 h-1 bg-primary rounded-full shadow-[0_0_8px_currentColor]"></span>
               )}
             </button>
           );

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Screen, GlobalProps } from '../types';
 import { configManager, AudioTrackConfig } from '../config';
 import { STORAGE_KEYS, formatTimer, UI_DIMENSIONS, extractYouTubeId } from '../config/constants';
-import { getSettings } from '../services/storageService';
+import { getSettings, updateStats } from '../services/storageService';
 import { playSound, stopSound, setVolume as setSoundVolume, isBuiltInTrack } from '../services/soundGenerator';
 import { playOffscreen, stopOffscreen, setOffscreenVolume, getOffscreenStatus, isOffscreenAvailable } from '../services/audioBridge';
 
@@ -243,6 +243,10 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
       localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
 
+      // Record completed session in stats
+      const sessionMinutes = Math.round(initialTime / 60);
+      updateStats(sessionMinutes).catch(err => console.error('Failed to update stats:', err));
+
       if (audioState.isPlaying && audioState.autoPlay) {
         setAudioState(prev => ({ ...prev, isPlaying: false }));
       }
@@ -458,17 +462,41 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           </div>
         </div>
 
-        {/* Action Button */}
-        <button
-          onClick={toggleTimer}
-          className={`px-10 py-2.5 rounded-full font-bold text-sm tracking-wide flex items-center gap-2 transition-all active:scale-95 ${isActive
-            ? 'bg-white/10 text-white border border-white/10 hover:bg-white/15'
-            : 'bg-primary text-white shadow-lg shadow-primary/30 hover:shadow-primary/40'
-            }`}
-        >
-          <span className="material-symbols-outlined text-lg">{isActive ? 'pause' : 'play_arrow'}</span>
-          {isActive ? 'PAUSE' : 'START FOCUS'}
-        </button>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={toggleTimer}
+            className={`px-10 py-2.5 rounded-full font-bold text-sm tracking-wide flex items-center gap-2 transition-all active:scale-95 ${isActive
+              ? 'bg-white/10 text-white border border-white/10 hover:bg-white/15'
+              : 'bg-primary text-white shadow-lg shadow-primary/30 hover:shadow-primary/40'
+              }`}
+          >
+            <span className="material-symbols-outlined text-lg">{isActive ? 'pause' : 'play_arrow'}</span>
+            {isActive ? 'PAUSE' : 'START FOCUS'}
+          </button>
+          {(isActive || timeLeft < initialTime) && (
+            <button
+              onClick={() => {
+                setIsActive(false);
+                const newTime = getTimeForTemplate(activeTemplateId);
+                setInitialTime(newTime);
+                setTimeLeft(newTime);
+                localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
+                localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+                try {
+                  const w = window as any;
+                  if (w.chrome?.runtime?.sendMessage) {
+                    w.chrome.runtime.sendMessage({ action: 'stopTimer' });
+                  }
+                } catch (e) {}
+              }}
+              className="w-10 h-10 rounded-full bg-white/10 text-white border border-white/10 hover:bg-white/15 flex items-center justify-center transition-all active:scale-95"
+              title="Reset Timer"
+            >
+              <span className="material-symbols-outlined text-lg">restart_alt</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Focus Beat */}

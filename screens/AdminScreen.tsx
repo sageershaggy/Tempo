@@ -21,6 +21,28 @@ interface MockUser {
   licenseKey?: string;
 }
 
+interface FeedbackReport {
+  id: string;
+  type: 'bug' | 'feedback' | 'help';
+  text: string;
+  date: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  user: string;
+  adminNotes?: string;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+  resolvedAt?: string;
+}
+
+const loadReports = (): FeedbackReport[] => {
+  try {
+    return JSON.parse(localStorage.getItem('tempo_feedback_reports') || '[]');
+  } catch { return []; }
+};
+
+const saveReports = (reports: FeedbackReport[]) => {
+  localStorage.setItem('tempo_feedback_reports', JSON.stringify(reports));
+};
+
 // Load users from localStorage or return empty array (users should come from backend in production)
 const loadMockUsers = (): MockUser[] => {
   try {
@@ -59,6 +81,13 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
   const [generatedLicenses, setGeneratedLicenses] = useState<GeneratedLicense[]>([]);
   const [licenseEmail, setLicenseEmail] = useState('');
   const [licensePlan, setLicensePlan] = useState<'monthly' | 'yearly'>('yearly');
+
+  // Feedback management state
+  const [reports, setReports] = useState<FeedbackReport[]>(loadReports());
+  const [feedbackFilter, setFeedbackFilter] = useState<'all' | 'open' | 'in_progress' | 'resolved' | 'closed'>('all');
+  const [feedbackTypeFilter, setFeedbackTypeFilter] = useState<'all' | 'bug' | 'feedback' | 'help'>('all');
+  const [selectedReport, setSelectedReport] = useState<FeedbackReport | null>(null);
+  const [adminNote, setAdminNote] = useState('');
 
   // Load admin password from config
   const appConfig = configManager.getConfig();
@@ -188,7 +217,7 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
         {[
           { id: 'overview', label: 'Home', icon: 'dashboard' },
           { id: 'users', label: 'Users', icon: 'group' },
-          { id: 'feedback', label: 'Reports', icon: 'bug_report' },
+          { id: 'feedback', label: `Reports${reports.filter(r => r.status === 'open').length > 0 ? ` (${reports.filter(r => r.status === 'open').length})` : ''}`, icon: 'bug_report' },
           { id: 'licenses', label: 'Keys', icon: 'key' },
           { id: 'payments', label: 'Pay', icon: 'payments' },
           { id: 'access', label: 'Access', icon: 'lock_open' },
@@ -248,7 +277,7 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
 
             <div className="bg-surface-dark rounded-xl p-3 border border-white/5">
               <h3 className="font-bold mb-2 text-xs">Quick Actions</h3>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => setActiveTab('licenses')}
                   className="p-2.5 bg-primary/10 border border-primary/30 rounded-lg text-primary text-[10px] font-bold hover:bg-primary/20 transition-colors"
@@ -260,6 +289,17 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
                   className="p-2.5 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-[10px] font-bold hover:bg-green-500/20 transition-colors"
                 >
                   Global Access
+                </button>
+                <button
+                  onClick={() => setActiveTab('feedback')}
+                  className="p-2.5 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-400 text-[10px] font-bold hover:bg-yellow-500/20 transition-colors relative"
+                >
+                  Feedback
+                  {reports.filter(r => r.status === 'open').length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[8px] text-white font-bold flex items-center justify-center">
+                      {reports.filter(r => r.status === 'open').length}
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
@@ -280,56 +320,345 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
         )}
 
         {/* Feedback/Reports Tab */}
-        {activeTab === 'feedback' && (
+        {activeTab === 'feedback' && !selectedReport && (
           <>
+            {/* Feedback Stats Cards */}
+            <div className="grid grid-cols-4 gap-1.5">
+              {[
+                { label: 'Total', count: reports.length, color: 'text-white', bg: 'bg-white/5' },
+                { label: 'Open', count: reports.filter(r => r.status === 'open').length, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
+                { label: 'Active', count: reports.filter(r => r.status === 'in_progress').length, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+                { label: 'Done', count: reports.filter(r => r.status === 'resolved' || r.status === 'closed').length, color: 'text-green-400', bg: 'bg-green-500/10' },
+              ].map(stat => (
+                <div key={stat.label} className={`${stat.bg} rounded-xl p-2 text-center border border-white/5`}>
+                  <p className={`text-lg font-bold ${stat.color}`}>{stat.count}</p>
+                  <p className="text-[8px] text-muted uppercase font-bold">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Filters */}
+            <div className="space-y-2">
+              {/* Status Filter */}
+              <div className="flex gap-1 overflow-x-auto no-scrollbar">
+                {(['all', 'open', 'in_progress', 'resolved', 'closed'] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setFeedbackFilter(f)}
+                    className={`px-2.5 py-1 rounded-full text-[9px] font-bold whitespace-nowrap transition-colors border ${feedbackFilter === f
+                      ? 'bg-white text-black border-white'
+                      : 'bg-transparent text-muted border-white/10 hover:border-white/30'
+                    }`}
+                  >
+                    {f === 'all' ? 'All' : f === 'in_progress' ? 'In Progress' : f.charAt(0).toUpperCase() + f.slice(1)}
+                  </button>
+                ))}
+              </div>
+              {/* Type Filter */}
+              <div className="flex gap-1">
+                {(['all', 'bug', 'feedback', 'help'] as const).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setFeedbackTypeFilter(t)}
+                    className={`px-2.5 py-1 rounded-full text-[9px] font-bold whitespace-nowrap transition-colors border flex items-center gap-1 ${feedbackTypeFilter === t
+                      ? 'bg-primary/20 text-primary border-primary/30'
+                      : 'bg-transparent text-muted border-white/10 hover:border-white/30'
+                    }`}
+                  >
+                    {t !== 'all' && (
+                      <span className="material-symbols-outlined text-[10px]">
+                        {t === 'bug' ? 'bug_report' : t === 'feedback' ? 'chat_bubble' : 'help'}
+                      </span>
+                    )}
+                    {t === 'all' ? 'All Types' : t.charAt(0).toUpperCase() + t.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Reports List */}
             <div className="bg-surface-dark rounded-xl border border-white/5 overflow-hidden">
-              <div className="p-3 border-b border-white/5 bg-black/20 flex justify-between items-center">
-                <p className="text-[10px] text-muted uppercase font-bold">User Reports</p>
+              <div className="p-2.5 border-b border-white/5 bg-black/20 flex justify-between items-center">
+                <p className="text-[10px] text-muted uppercase font-bold">
+                  {reports.filter(r => {
+                    if (feedbackFilter !== 'all' && r.status !== feedbackFilter) return false;
+                    if (feedbackTypeFilter !== 'all' && r.type !== feedbackTypeFilter) return false;
+                    return true;
+                  }).length} Reports
+                </p>
                 <button
                   onClick={() => {
-                    if (confirm('Clear all reports?')) {
-                      localStorage.removeItem('tempo_feedback_reports');
-                      setActiveTab('overview'); // Refresh workaround
-                      setTimeout(() => setActiveTab('feedback'), 50);
+                    if (confirm('Clear all resolved & closed reports?')) {
+                      const kept = reports.filter(r => r.status === 'open' || r.status === 'in_progress');
+                      setReports(kept);
+                      saveReports(kept);
                     }
                   }}
-                  className="text-[9px] text-red-400 hover:text-red-300"
+                  className="text-[9px] text-red-400 hover:text-red-300 font-bold"
                 >
-                  Clear All
+                  Clear Resolved
                 </button>
               </div>
+
               {(() => {
-                let reports: any[] = [];
-                try { reports = JSON.parse(localStorage.getItem('tempo_feedback_reports') || '[]'); } catch (e) { reports = []; }
-                if (reports.length === 0) {
+                const filtered = reports.filter(r => {
+                  if (feedbackFilter !== 'all' && r.status !== feedbackFilter) return false;
+                  if (feedbackTypeFilter !== 'all' && r.type !== feedbackTypeFilter) return false;
+                  return true;
+                });
+
+                if (filtered.length === 0) {
                   return (
                     <div className="p-8 text-center">
-                      <span className="material-symbols-outlined text-4xl text-white/10 mb-2">inbox</span>
-                      <p className="text-xs text-muted">No reports found.</p>
+                      <span className="material-symbols-outlined text-4xl text-white/10 block mb-2">inbox</span>
+                      <p className="text-xs text-muted">No reports match filters.</p>
                     </div>
                   );
                 }
-                return reports.map((report: any, i: number) => (
-                  <div key={i} className="p-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
-                    <div className="flex justify-between items-start mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`material-symbols-outlined text-sm ${report.type === 'bug' ? 'text-red-400' : 'text-blue-400'}`}>
-                          {report.type === 'bug' ? 'bug_report' : 'chat_bubble'}
+
+                return filtered.map((report) => {
+                  const statusColors: Record<string, string> = {
+                    open: 'bg-yellow-500/20 text-yellow-400',
+                    in_progress: 'bg-blue-500/20 text-blue-400',
+                    resolved: 'bg-green-500/20 text-green-400',
+                    closed: 'bg-white/10 text-muted',
+                  };
+                  const typeIcons: Record<string, { icon: string; color: string }> = {
+                    bug: { icon: 'bug_report', color: 'text-red-400 bg-red-500/10' },
+                    feedback: { icon: 'chat_bubble', color: 'text-primary bg-primary/10' },
+                    help: { icon: 'help', color: 'text-blue-400 bg-blue-500/10' },
+                  };
+                  const priorityColors: Record<string, string> = {
+                    critical: 'bg-red-500 text-white',
+                    high: 'bg-orange-500/20 text-orange-400',
+                    medium: 'bg-yellow-500/20 text-yellow-400',
+                    low: 'bg-white/10 text-muted',
+                  };
+
+                  return (
+                    <div
+                      key={report.id}
+                      onClick={() => { setSelectedReport(report); setAdminNote(report.adminNotes || ''); }}
+                      className="p-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${typeIcons[report.type]?.color || 'bg-white/10 text-muted'}`}>
+                          <span className="material-symbols-outlined text-[14px]">{typeIcons[report.type]?.icon || 'description'}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="text-[10px] font-bold capitalize text-white">{report.type}</span>
+                            {report.priority && (
+                              <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase ${priorityColors[report.priority] || ''}`}>
+                                {report.priority}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-white/70 line-clamp-2 leading-relaxed">{report.text}</p>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <span className="text-[9px] text-muted">{report.user}</span>
+                            <span className="text-[9px] text-white/10">•</span>
+                            <span className="text-[9px] text-muted">{new Date(report.date).toLocaleDateString()}</span>
+                            {report.adminNotes && (
+                              <>
+                                <span className="text-[9px] text-white/10">•</span>
+                                <span className="material-symbols-outlined text-[10px] text-primary">comment</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase whitespace-nowrap shrink-0 ${statusColors[report.status] || ''}`}>
+                          {report.status === 'in_progress' ? 'Active' : report.status}
                         </span>
-                        <span className="text-xs font-bold capitalize">{report.type}</span>
                       </div>
-                      <span className="text-[9px] text-muted">{new Date(report.date).toLocaleDateString()}</span>
                     </div>
-                    <p className="text-xs text-white/80 mb-2 whitespace-pre-wrap">{report.text}</p>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[9px] text-muted">{report.user}</span>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase font-bold ${report.status === 'open' ? 'bg-yellow-500/20 text-yellow-500' : 'bg-green-500/20 text-green-500'}`}>
-                        {report.status}
-                      </span>
-                    </div>
-                  </div>
-                ));
+                  );
+                });
               })()}
+            </div>
+          </>
+        )}
+
+        {/* Feedback Detail View */}
+        {activeTab === 'feedback' && selectedReport && (
+          <>
+            {/* Back button */}
+            <button
+              onClick={() => setSelectedReport(null)}
+              className="flex items-center gap-1 text-xs text-muted hover:text-white transition-colors mb-1"
+            >
+              <span className="material-symbols-outlined text-sm">arrow_back</span>
+              Back to Reports
+            </button>
+
+            {/* Report Detail Card */}
+            <div className="bg-surface-dark rounded-xl border border-white/5 overflow-hidden">
+              {/* Header */}
+              <div className="p-3 border-b border-white/5 bg-black/20">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`material-symbols-outlined text-base ${
+                      selectedReport.type === 'bug' ? 'text-red-400' : selectedReport.type === 'help' ? 'text-blue-400' : 'text-primary'
+                    }`}>
+                      {selectedReport.type === 'bug' ? 'bug_report' : selectedReport.type === 'help' ? 'help' : 'chat_bubble'}
+                    </span>
+                    <span className="text-sm font-bold capitalize">{selectedReport.type} Report</span>
+                  </div>
+                  <span className="text-[9px] text-muted">#{selectedReport.id.slice(-6)}</span>
+                </div>
+                <div className="flex items-center gap-2 text-[10px] text-muted">
+                  <span className="material-symbols-outlined text-[12px]">person</span>
+                  <span>{selectedReport.user}</span>
+                  <span className="text-white/10">•</span>
+                  <span className="material-symbols-outlined text-[12px]">schedule</span>
+                  <span>{new Date(selectedReport.date).toLocaleString()}</span>
+                </div>
+              </div>
+
+              {/* Report Content */}
+              <div className="p-3">
+                <p className="text-xs text-white leading-relaxed whitespace-pre-wrap bg-black/20 rounded-lg p-3 border border-white/5">{selectedReport.text}</p>
+              </div>
+
+              {/* Status & Priority Controls */}
+              <div className="p-3 border-t border-white/5 space-y-3">
+                {/* Status */}
+                <div>
+                  <label className="text-[9px] text-muted uppercase font-bold mb-1.5 block">Status</label>
+                  <div className="flex gap-1.5">
+                    {(['open', 'in_progress', 'resolved', 'closed'] as const).map(s => {
+                      const colors: Record<string, string> = {
+                        open: 'border-yellow-500/30 text-yellow-400 bg-yellow-500/10',
+                        in_progress: 'border-blue-500/30 text-blue-400 bg-blue-500/10',
+                        resolved: 'border-green-500/30 text-green-400 bg-green-500/10',
+                        closed: 'border-white/20 text-muted bg-white/5',
+                      };
+                      const activeColors: Record<string, string> = {
+                        open: 'bg-yellow-500 text-black border-yellow-500',
+                        in_progress: 'bg-blue-500 text-white border-blue-500',
+                        resolved: 'bg-green-500 text-black border-green-500',
+                        closed: 'bg-white/30 text-white border-white/30',
+                      };
+                      const isActive = selectedReport.status === s;
+                      return (
+                        <button
+                          key={s}
+                          onClick={() => {
+                            const updated = { ...selectedReport, status: s, ...(s === 'resolved' ? { resolvedAt: new Date().toISOString() } : {}) };
+                            setSelectedReport(updated);
+                            const newReports = reports.map(r => r.id === updated.id ? updated : r);
+                            setReports(newReports);
+                            saveReports(newReports);
+                          }}
+                          className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold border transition-colors capitalize ${isActive ? activeColors[s] : colors[s]}`}
+                        >
+                          {s === 'in_progress' ? 'In Progress' : s}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Priority */}
+                <div>
+                  <label className="text-[9px] text-muted uppercase font-bold mb-1.5 block">Priority</label>
+                  <div className="flex gap-1.5">
+                    {(['low', 'medium', 'high', 'critical'] as const).map(p => {
+                      const colors: Record<string, string> = {
+                        low: 'border-white/10 text-muted',
+                        medium: 'border-yellow-500/30 text-yellow-400',
+                        high: 'border-orange-500/30 text-orange-400',
+                        critical: 'border-red-500/30 text-red-400',
+                      };
+                      const activeColors: Record<string, string> = {
+                        low: 'bg-white/20 text-white border-white/30',
+                        medium: 'bg-yellow-500 text-black border-yellow-500',
+                        high: 'bg-orange-500 text-white border-orange-500',
+                        critical: 'bg-red-500 text-white border-red-500',
+                      };
+                      const isActive = selectedReport.priority === p;
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => {
+                            const updated = { ...selectedReport, priority: p };
+                            setSelectedReport(updated);
+                            const newReports = reports.map(r => r.id === updated.id ? updated : r);
+                            setReports(newReports);
+                            saveReports(newReports);
+                          }}
+                          className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold border transition-colors capitalize ${isActive ? activeColors[p] : colors[p]}`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Admin Notes */}
+                <div>
+                  <label className="text-[9px] text-muted uppercase font-bold mb-1.5 block">Admin Notes</label>
+                  <textarea
+                    value={adminNote}
+                    onChange={(e) => setAdminNote(e.target.value)}
+                    placeholder="Add internal notes about this report..."
+                    className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:border-primary outline-none resize-none h-20"
+                  />
+                  <button
+                    onClick={() => {
+                      const updated = { ...selectedReport, adminNotes: adminNote };
+                      setSelectedReport(updated);
+                      const newReports = reports.map(r => r.id === updated.id ? updated : r);
+                      setReports(newReports);
+                      saveReports(newReports);
+                    }}
+                    className="mt-1.5 px-3 py-1.5 bg-primary/20 text-primary rounded-lg text-[10px] font-bold hover:bg-primary/30 transition-colors"
+                  >
+                    Save Notes
+                  </button>
+                </div>
+
+                {/* Resolved timestamp */}
+                {selectedReport.resolvedAt && (
+                  <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-lg p-2">
+                    <span className="material-symbols-outlined text-green-400 text-sm">check_circle</span>
+                    <span className="text-[10px] text-green-400 font-medium">
+                      Resolved on {new Date(selectedReport.resolvedAt).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const updated = { ...selectedReport, status: 'resolved' as const, resolvedAt: new Date().toISOString() };
+                  setSelectedReport(updated);
+                  const newReports = reports.map(r => r.id === updated.id ? updated : r);
+                  setReports(newReports);
+                  saveReports(newReports);
+                }}
+                className="flex-1 py-2 bg-green-500/10 border border-green-500/30 text-green-400 rounded-xl text-[10px] font-bold hover:bg-green-500/20 transition-colors flex items-center justify-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[14px]">check</span>
+                Mark Resolved
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm('Delete this report permanently?')) {
+                    const newReports = reports.filter(r => r.id !== selectedReport.id);
+                    setReports(newReports);
+                    saveReports(newReports);
+                    setSelectedReport(null);
+                  }
+                }}
+                className="py-2 px-4 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl text-[10px] font-bold hover:bg-red-500/20 transition-colors flex items-center justify-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[14px]">delete</span>
+              </button>
             </div>
           </>
         )}

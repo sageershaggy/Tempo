@@ -467,7 +467,11 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                                     handleUpdateTask(task.id, { dueDate: d.toISOString() });
                                                                 }
                                                             }}
-                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                (e.target as HTMLInputElement).showPicker?.();
+                                                            }}
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer [color-scheme:dark]"
                                                             tabIndex={-1}
                                                         />
                                                     </label>

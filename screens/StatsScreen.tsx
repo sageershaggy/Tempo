@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
-import { getStats, UserStats } from '../services/storageService';
+import { getStats, UserStats, exportUserData } from '../services/storageService';
 import { configManager } from '../config';
 
 export const StatsScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [showMenu, setShowMenu] = useState(false);
 
   useEffect(() => {
     const loadStats = async () => {
@@ -104,9 +105,59 @@ export const StatsScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
               <span className="material-symbols-outlined">arrow_back_ios_new</span>
             </button>
             <h2 className="text-lg font-bold">Weekly Report</h2>
-            <button className="p-2 -mr-2 rounded-full hover:bg-white/5">
-              <span className="material-symbols-outlined">more_horiz</span>
-            </button>
+            <div className="relative">
+              <button onClick={() => setShowMenu(!showMenu)} className="p-2 -mr-2 rounded-full hover:bg-white/5">
+                <span className="material-symbols-outlined">more_horiz</span>
+              </button>
+              {showMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-surface-dark border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
+                    <button
+                      onClick={async () => {
+                        setShowMenu(false);
+                        try {
+                          const data = await exportUserData();
+                          const blob = new Blob([data], { type: 'application/json' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `tempo-report-${new Date().toISOString().split('T')[0]}.json`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } catch (e) {
+                          console.error('Export failed:', e);
+                        }
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/5 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-base text-muted">download</span>
+                      Export Report
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowMenu(false);
+                        setWeekOffset(0);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/5 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-base text-muted">today</span>
+                      Go to This Week
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowMenu(false);
+                        setScreen(Screen.SETTINGS);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/5 transition-colors border-t border-white/5"
+                    >
+                      <span className="material-symbols-outlined text-base text-muted">settings</span>
+                      Settings
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
        </div>
 
        <div className="flex justify-center py-4 gap-2">

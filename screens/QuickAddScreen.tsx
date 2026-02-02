@@ -12,6 +12,8 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
   const [input, setInput] = useState('');
   const [notes, setNotes] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(defaultCategory);
+  const [selectedPriority, setSelectedPriority] = useState<'High' | 'Medium' | 'Low'>('Medium');
+  const [dueDate, setDueDate] = useState('');
   const [startTimerAfter, setStartTimerAfter] = useState(true);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [enhanceError, setEnhanceError] = useState('');
@@ -41,7 +43,8 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
       id: generateId('task'),
       title: input.trim(),
       category: selectedCategory,
-      priority: 'Medium',
+      priority: selectedPriority,
+      dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
       completed: false,
       subtasks: [],
       createdAt: Date.now(),
@@ -114,6 +117,49 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
             )}
           </div>
         )}
+
+        {/* Due Date & Priority Row */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Due Date Picker */}
+          <div>
+            <label className="text-[10px] font-bold uppercase text-muted tracking-wider mb-1.5 block">Due Date</label>
+            <div className="relative">
+              <input
+                type="datetime-local"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full bg-surface-dark border border-white/10 rounded-lg px-3.5 py-3 text-sm font-semibold text-white focus:border-primary focus:outline-none cursor-pointer [color-scheme:dark]"
+              />
+              {dueDate && (
+                <button
+                  onClick={() => setDueDate('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20"
+                >
+                  <span className="material-symbols-outlined text-[12px] text-muted">close</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Priority Dropdown */}
+          <div>
+            <label className="text-[10px] font-bold uppercase text-muted tracking-wider mb-1.5 block">Priority</label>
+            <div className="relative">
+              <select
+                value={selectedPriority}
+                onChange={(e) => setSelectedPriority(e.target.value as 'High' | 'Medium' | 'Low')}
+                className="w-full appearance-none bg-surface-dark border border-white/10 rounded-lg px-3.5 py-3 text-sm font-semibold text-white focus:border-primary focus:outline-none cursor-pointer"
+              >
+                <option value="High" className="bg-background-dark text-white">High</option>
+                <option value="Medium" className="bg-background-dark text-white">Medium</option>
+                <option value="Low" className="bg-background-dark text-white">Low</option>
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <span className="material-symbols-outlined text-muted text-sm">expand_more</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Project Category Dropdown */}
         <div>
