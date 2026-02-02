@@ -2,6 +2,7 @@
 import { Task } from '../types';
 
 const API_BASE = 'https://tasks.googleapis.com/tasks/v1';
+const FALLBACK_CLIENT_ID = '747255011734-08rlb67q18s1ia4r3gemjn5p4v0su5p4.apps.googleusercontent.com';
 
 export interface GoogleTask {
   id: string;
@@ -45,6 +46,7 @@ export class GoogleTasksService {
       return true;
     }
 
+    // Try primary method first (getAuthToken uses manifest client_id)
     try {
       const token = await new Promise<string>((resolve, reject) => {
         chrome.identity.getAuthToken({
@@ -64,8 +66,45 @@ export class GoogleTasksService {
       this.token = token;
       localStorage.setItem('google_tasks_token', token);
       return true;
-    } catch (e) {
-      console.error('[Google Tasks] Auth failed:', e);
+    } catch (primaryError: any) {
+      console.warn('[Google Tasks] getAuthToken failed, trying webAuthFlow:', primaryError.message);
+    }
+
+    // Fallback: launchWebAuthFlow with alternate client ID
+    try {
+      const token = await new Promise<string>((resolve, reject) => {
+        const redirectUrl = chrome.identity.getRedirectURL();
+        const scopes = encodeURIComponent('https://www.googleapis.com/auth/tasks');
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${FALLBACK_CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=${scopes}`;
+
+        chrome.identity.launchWebAuthFlow(
+          { url: authUrl, interactive: true },
+          (responseUrl) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            if (!responseUrl) {
+              reject(new Error('No response from auth flow'));
+              return;
+            }
+            const url = new URL(responseUrl);
+            const params = new URLSearchParams(url.hash.substring(1));
+            const accessToken = params.get('access_token');
+            if (accessToken) {
+              resolve(accessToken);
+            } else {
+              reject(new Error('No access token in response'));
+            }
+          }
+        );
+      });
+
+      this.token = token;
+      localStorage.setItem('google_tasks_token', token);
+      return true;
+    } catch (fallbackError) {
+      console.error('[Google Tasks] Both auth methods failed:', fallbackError);
       return false;
     }
   }
