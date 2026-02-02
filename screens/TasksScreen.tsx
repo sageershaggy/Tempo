@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Screen, Task, Subtask, GlobalProps } from '../types';
 import { suggestSubtasks, analyzeTaskPriority } from '../services/geminiService';
 import { configManager } from '../config';
+import { googleTasksService } from '../services/googleTasks';
 
 const MOCK_MILESTONES = [
     { id: 'm1', title: 'Launch MVP Beta', progress: 75, color: 'bg-primary' },
@@ -23,18 +24,59 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
     const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [syncInterval, setSyncInterval] = useState<string>('10');
+    const [lastAutoSync, setLastAutoSync] = useState<number | null>(googleTasksService.getLastSyncTime());
+    const [autoSyncStatus, setAutoSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
 
-    // Auto-sync effect
+    // Auto-sync callback
+    const performAutoSync = useCallback(async () => {
+        if (!googleTasksService.isConnected()) return;
+        if (autoSyncStatus === 'syncing') return; // prevent overlapping syncs
+
+        try {
+            setAutoSyncStatus('syncing');
+            console.log('[Tempo] Auto-sync triggered at', new Date().toLocaleTimeString());
+            const result = await googleTasksService.syncBidirectional(tasks);
+
+            // Merge pulled tasks that don't already exist
+            const existingTitles = new Set(tasks.map(t => t.title));
+            const newTasks = result.pulled.filter(t => !existingTitles.has(t.title));
+            if (newTasks.length > 0) {
+                setTasks(prev => [...prev, ...newTasks]);
+            }
+
+            setLastAutoSync(Date.now());
+            setAutoSyncStatus('success');
+            console.log('[Tempo] Auto-sync complete:', result.pushed, `| ${newTasks.length} new tasks pulled`);
+
+            // Reset status indicator after 3 seconds
+            setTimeout(() => setAutoSyncStatus('idle'), 3000);
+        } catch (err) {
+            console.error('[Tempo] Auto-sync failed:', err);
+            setAutoSyncStatus('error');
+            setTimeout(() => setAutoSyncStatus('idle'), 5000);
+        }
+    }, [tasks, setTasks, autoSyncStatus]);
+
+    // Auto-sync interval effect
     React.useEffect(() => {
         if (syncInterval === 'Off') return;
         const minutes = parseInt(syncInterval);
         if (isNaN(minutes)) return;
 
+        // Trigger an initial sync when interval is first set/changed
+        const initialTimeout = setTimeout(() => {
+            performAutoSync();
+        }, 2000); // small delay to avoid sync on every re-render
+
         const interval = setInterval(() => {
-            // In a real implementation, this would trigger the sync service
+            performAutoSync();
         }, minutes * 60000);
-        return () => clearInterval(interval);
-    }, [syncInterval]);
+
+        return () => {
+            clearTimeout(initialTimeout);
+            clearInterval(interval);
+        };
+    }, [syncInterval, performAutoSync]);
 
     // --- Derived State: Categories ---
     const categories = useMemo(() => {
@@ -242,11 +284,18 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                     const next = { 'Off': '10', '10': '20', '20': '30', '30': 'Off' };
                                     return next[prev as keyof typeof next] || 'Off';
                                 })}
-                                className="w-10 h-10 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80 text-white transition-colors cursor-pointer"
-                                title={`Sync Interval: ${syncInterval === 'Off' ? 'Manual' : syncInterval + 'm'}`}
+                                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                                    autoSyncStatus === 'syncing' ? 'bg-blue-500/30 text-blue-400 animate-pulse' :
+                                    autoSyncStatus === 'success' ? 'bg-green-500/30 text-green-400' :
+                                    autoSyncStatus === 'error' ? 'bg-red-500/30 text-red-400' :
+                                    'bg-surface-light hover:bg-surface-light/80 text-white'
+                                }`}
+                                title={`Sync Interval: ${syncInterval === 'Off' ? 'Manual' : syncInterval + 'm'}${lastAutoSync ? ` | Last: ${new Date(lastAutoSync).toLocaleTimeString()}` : ''}`}
                             >
                                 <div className="flex flex-col items-center leading-none">
-                                    <span className="text-[9px] font-bold uppercase text-muted mb-[1px]">Sync</span>
+                                    <span className="text-[9px] font-bold uppercase text-muted mb-[1px]">
+                                        {autoSyncStatus === 'syncing' ? '⟳' : 'Sync'}
+                                    </span>
                                     <span className="text-[10px] font-bold">{syncInterval === 'Off' ? 'Off' : `${syncInterval}m`}</span>
                                 </div>
                             </button>
