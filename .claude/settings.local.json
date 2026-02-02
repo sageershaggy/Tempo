@@ -21,7 +21,12 @@
       "Bash(node:*)",
       "Bash(npx sharp:*)",
       "Bash(identify:*)",
-      "Bash(powershell -Command \"Compress-Archive -Path * -DestinationPath ''../Tempo-Focus-v1.0.0.zip'' -Force\")"
+      "Bash(powershell -Command \"Compress-Archive -Path * -DestinationPath ''../Tempo-Focus-v1.0.0.zip'' -Force\")",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd dist folder and release zip to git tracking\n\nRemove dist and *.zip from .gitignore so the built extension\nfiles are tracked in the repository.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git check-ignore:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix auto-sync timer to actually trigger Google Tasks sync\n\nThe sync interval timer \\(10m/20m/30m\\) had an empty callback stub.\nNow it properly calls googleTasksService.syncBidirectional\\(\\) to\npush/pull tasks on the configured interval. Added visual status\nindicators \\(syncing/success/error\\) on the sync button.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
