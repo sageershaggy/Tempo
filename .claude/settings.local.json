@@ -20,7 +20,8 @@
       "Bash(python -c:*)",
       "Bash(node:*)",
       "Bash(npx sharp:*)",
-      "Bash(identify:*)"
+      "Bash(identify:*)",
+      "Bash(powershell -Command \"Compress-Archive -Path * -DestinationPath ''../Tempo-Focus-v1.0.0.zip'' -Force\")"
     ]
   }
 }
