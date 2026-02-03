@@ -7,6 +7,7 @@ import { STORAGE_KEYS, LIMITS } from '../config/constants';
 export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState }) => {
   // Modals
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [showThemeModal, setShowThemeModal] = useState(false);
   const [feedbackType, setFeedbackType] = useState<'bug' | 'feedback' | 'help'>('feedback');
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackSent, setFeedbackSent] = useState(false);
@@ -510,85 +511,33 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
           <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">
             Appearance
           </h3>
-          <div className="bg-surface-dark rounded-xl p-4 border border-white/5">
-            <p className="text-sm font-bold mb-1">App Theme</p>
-            <p className="text-[10px] text-muted mb-3">Choose your vibe</p>
-
-            {/* Free Themes */}
-            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider mb-2">Free</p>
-            <div className="grid grid-cols-4 gap-2 mb-4">
-              {THEMES.filter(t => !t.pro).map(theme => {
-                const isActive = activeTheme === theme.id;
-                return (
-                  <button
-                    key={theme.id}
-                    onClick={() => handleThemeSelect(theme.id)}
-                    className={`relative flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all ${
-                      isActive
-                        ? 'border-white/30 bg-white/5 scale-105'
-                        : 'border-transparent hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="relative">
-                      <div
-                        className={`w-9 h-9 rounded-full ${theme.color} shadow-lg transition-all ${
-                          isActive ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-dark' : ''
-                        }`}
-                      ></div>
-                      {isActive && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="material-symbols-outlined text-white text-sm drop-shadow-lg">check</span>
-                        </div>
-                      )}
-                    </div>
-                    <span className={`text-[9px] font-semibold leading-tight text-center ${
-                      isActive ? 'text-white' : 'text-muted'
-                    }`}>{theme.name}</span>
-                  </button>
-                );
-              })}
+          <div
+            className="bg-surface-dark rounded-xl p-4 border border-white/5 cursor-pointer hover:bg-white/[0.02] transition-colors"
+            onClick={() => setShowThemeModal(true)}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold mb-1">App Theme</p>
+                <p className="text-[10px] text-muted">Choose from {THEMES.length} beautiful themes</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-8 h-8 rounded-full ${THEMES.find(t => t.id === activeTheme)?.color || 'bg-primary'} shadow-lg`}
+                ></div>
+                <span className="material-symbols-outlined text-muted">chevron_right</span>
+              </div>
             </div>
-
-            {/* Pro Themes */}
-            <div className="flex items-center gap-2 mb-2">
-              <p className="text-[10px] font-bold text-yellow-400 uppercase tracking-wider">Pro</p>
-              <div className="flex-1 h-px bg-white/5"></div>
-              <span className="material-symbols-outlined text-yellow-500 text-[12px]">star</span>
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              {THEMES.filter(t => t.pro).map(theme => {
-                const isActive = activeTheme === theme.id;
-                return (
-                  <button
-                    key={theme.id}
-                    onClick={() => handleThemeSelect(theme.id)}
-                    className={`relative flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all ${
-                      isActive
-                        ? 'border-white/30 bg-white/5 scale-105'
-                        : 'border-transparent hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="relative">
-                      <div
-                        className={`w-9 h-9 rounded-full ${theme.color} shadow-lg transition-all ${
-                          isActive ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-dark' : ''
-                        }`}
-                      ></div>
-                      {isActive && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="material-symbols-outlined text-white text-sm drop-shadow-lg">check</span>
-                        </div>
-                      )}
-                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center shadow-md">
-                        <span className="material-symbols-outlined text-[8px] text-black">star</span>
-                      </div>
-                    </div>
-                    <span className={`text-[9px] font-semibold leading-tight text-center ${
-                      isActive ? 'text-white' : 'text-muted'
-                    }`}>{theme.name}</span>
-                  </button>
-                );
-              })}
+            {/* Preview of themes */}
+            <div className="flex gap-1.5 mt-3 overflow-hidden">
+              {THEMES.slice(0, 8).map(theme => (
+                <div
+                  key={theme.id}
+                  className={`w-6 h-6 rounded-full ${theme.color} shadow-sm flex-shrink-0 ${activeTheme === theme.id ? 'ring-2 ring-white ring-offset-1 ring-offset-surface-dark' : ''}`}
+                ></div>
+              ))}
+              <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                <span className="text-[9px] font-bold text-muted">+{THEMES.length - 8}</span>
+              </div>
             </div>
           </div>
         </section>
@@ -903,6 +852,130 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Theme Selection Modal */}
+      {showThemeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-surface-dark rounded-2xl border border-white/10 shadow-2xl max-h-[85vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-white/5 shrink-0">
+              <div>
+                <h3 className="text-lg font-bold">App Theme</h3>
+                <p className="text-[10px] text-muted">{THEMES.length} themes available</p>
+              </div>
+              <button
+                onClick={() => setShowThemeModal(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
+              >
+                <span className="material-symbols-outlined text-muted">close</span>
+              </button>
+            </div>
+
+            {/* Scrollable Theme Grid */}
+            <div className="flex-1 overflow-y-auto p-4 no-scrollbar">
+              {/* Free Themes Section */}
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Free</span>
+                  <div className="flex-1 h-px bg-white/5"></div>
+                  <span className="text-[10px] text-muted">{THEMES.filter(t => !t.pro).length} themes</span>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {THEMES.filter(t => !t.pro).map(theme => {
+                    const isActive = activeTheme === theme.id;
+                    return (
+                      <button
+                        key={theme.id}
+                        onClick={() => {
+                          handleThemeSelect(theme.id);
+                        }}
+                        className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
+                          isActive
+                            ? 'border-white/40 bg-white/10 scale-105'
+                            : 'border-white/5 hover:border-white/20 hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="relative">
+                          <div
+                            className={`w-12 h-12 rounded-full ${theme.color} shadow-lg transition-all ${
+                              isActive ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-dark' : ''
+                            }`}
+                          ></div>
+                          {isActive && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="material-symbols-outlined text-white text-lg drop-shadow-lg">check</span>
+                            </div>
+                          )}
+                        </div>
+                        <span className={`text-[10px] font-semibold leading-tight text-center ${
+                          isActive ? 'text-white' : 'text-muted'
+                        }`}>{theme.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Pro Themes Section */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-[10px] font-bold text-yellow-400 uppercase tracking-wider">Pro</span>
+                  <div className="flex-1 h-px bg-yellow-500/20"></div>
+                  <span className="material-symbols-outlined text-yellow-500 text-[14px]">star</span>
+                  <span className="text-[10px] text-muted">{THEMES.filter(t => t.pro).length} themes</span>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {THEMES.filter(t => t.pro).map(theme => {
+                    const isActive = activeTheme === theme.id;
+                    return (
+                      <button
+                        key={theme.id}
+                        onClick={() => {
+                          handleThemeSelect(theme.id);
+                        }}
+                        className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
+                          isActive
+                            ? 'border-white/40 bg-white/10 scale-105'
+                            : 'border-white/5 hover:border-white/20 hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="relative">
+                          <div
+                            className={`w-12 h-12 rounded-full ${theme.color} shadow-lg transition-all ${
+                              isActive ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-dark' : ''
+                            }`}
+                          ></div>
+                          {isActive && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="material-symbols-outlined text-white text-lg drop-shadow-lg">check</span>
+                            </div>
+                          )}
+                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center shadow-md">
+                            <span className="material-symbols-outlined text-[8px] text-black">star</span>
+                          </div>
+                        </div>
+                        <span className={`text-[10px] font-semibold leading-tight text-center ${
+                          isActive ? 'text-white' : 'text-muted'
+                        }`}>{theme.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-white/5 shrink-0">
+              <button
+                onClick={() => setShowThemeModal(false)}
+                className="w-full py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-light transition-colors"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

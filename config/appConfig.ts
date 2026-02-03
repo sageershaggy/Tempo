@@ -197,16 +197,16 @@ export const defaultAppConfig: AppConfig = {
   },
 
   themes: [
-    // Free Themes (8)
+    // Free Themes (7)
     { id: 'default', name: 'Royal Purple', color: 'bg-gradient-to-br from-[#7F13EC] to-[#5a0db5]', cssVar: '#7F13EC', pro: false },
-    { id: 'nebula', name: 'Nebula', color: 'bg-gradient-to-br from-[#6366F1] to-[#D946EF]', cssVar: '#8B5CF6', pro: false },
+    { id: 'ocean', name: 'Ocean', color: 'bg-gradient-to-br from-[#06B6D4] to-[#3B82F6]', cssVar: '#0EA5E9', pro: false },
     { id: 'emerald', name: 'Emerald', color: 'bg-gradient-to-br from-[#059669] to-[#065F46]', cssVar: '#059669', pro: false },
     { id: 'coral', name: 'Coral', color: 'bg-gradient-to-br from-[#FB7185] to-[#F43F5E]', cssVar: '#FB7185', pro: false },
     { id: 'slate', name: 'Slate', color: 'bg-gradient-to-br from-[#475569] to-[#1E293B]', cssVar: '#475569', pro: false },
-    { id: 'ocean', name: 'Ocean', color: 'bg-gradient-to-br from-[#06B6D4] to-[#3B82F6]', cssVar: '#0EA5E9', pro: false },
     { id: 'crimson', name: 'Crimson', color: 'bg-gradient-to-br from-[#DC2626] to-[#7F1D1D]', cssVar: '#DC2626', pro: false },
     { id: 'indigo', name: 'Indigo', color: 'bg-gradient-to-br from-[#4F46E5] to-[#312E81]', cssVar: '#4F46E5', pro: false },
-    // Pro Themes (12)
+    // Pro Themes (14)
+    { id: 'nebula', name: 'Nebula', color: 'bg-gradient-to-br from-[#6366F1] to-[#D946EF]', cssVar: '#8B5CF6', pro: true },
     { id: 'sunset', name: 'Sunset', color: 'bg-gradient-to-br from-[#F59E0B] to-[#EF4444]', cssVar: '#F97316', pro: true },
     { id: 'midnight', name: 'Midnight', color: 'bg-gradient-to-br from-[#1E293B] to-[#0F172A]', cssVar: '#64748B', pro: true },
     { id: 'rose', name: 'Rose', color: 'bg-gradient-to-br from-[#E11D48] to-[#9F1239]', cssVar: '#E11D48', pro: true },
@@ -219,6 +219,13 @@ export const defaultAppConfig: AppConfig = {
     { id: 'cyber', name: 'Cyber', color: 'bg-gradient-to-br from-[#00F5D4] to-[#7B2FF7]', cssVar: '#00F5D4', pro: true },
     { id: 'mocha', name: 'Mocha', color: 'bg-gradient-to-br from-[#A0845C] to-[#5C4033]', cssVar: '#A0845C', pro: true },
     { id: 'nord', name: 'Nord', color: 'bg-gradient-to-br from-[#88C0D0] to-[#5E81AC]', cssVar: '#88C0D0', pro: true },
+    { id: 'lavender', name: 'Lavender', color: 'bg-gradient-to-br from-[#A78BFA] to-[#7C3AED]', cssVar: '#A78BFA', pro: true },
+    { id: 'mint', name: 'Mint', color: 'bg-gradient-to-br from-[#6EE7B7] to-[#34D399]', cssVar: '#6EE7B7', pro: true },
+    { id: 'candy', name: 'Candy', color: 'bg-gradient-to-br from-[#F472B6] to-[#EC4899]', cssVar: '#F472B6', pro: true },
+    { id: 'steel', name: 'Steel', color: 'bg-gradient-to-br from-[#94A3B8] to-[#64748B]', cssVar: '#94A3B8', pro: true },
+    { id: 'gold', name: 'Gold', color: 'bg-gradient-to-br from-[#FCD34D] to-[#F59E0B]', cssVar: '#FCD34D', pro: true },
+    { id: 'neon', name: 'Neon', color: 'bg-gradient-to-br from-[#84CC16] to-[#22C55E]', cssVar: '#84CC16', pro: true },
+    { id: 'grape', name: 'Grape', color: 'bg-gradient-to-br from-[#A855F7] to-[#7E22CE]', cssVar: '#A855F7', pro: true },
   ],
 
   navigation: [
