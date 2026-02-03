@@ -50,9 +50,9 @@
     .pulse-dot {
       width: 10px;
       height: 10px;
-      background: #7F13EC;
+      background: var(--theme-color, #7F13EC);
       border-radius: 50%;
-      box-shadow: 0 0 8px #7F13EC;
+      box-shadow: 0 0 8px var(--theme-color, #7F13EC);
       animation: pulse 1.5s ease-in-out infinite;
     }
 
@@ -62,9 +62,53 @@
       animation: none;
     }
 
+    .pulse-dot.break-mode {
+      background: #22C55E;
+      box-shadow: 0 0 8px #22C55E;
+    }
+
     @keyframes pulse {
-      0%, 100% { opacity: 1; box-shadow: 0 0 8px #7F13EC; }
-      50% { opacity: 0.6; box-shadow: 0 0 16px #7F13EC; }
+      0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--theme-color, #7F13EC); }
+      50% { opacity: 0.6; box-shadow: 0 0 16px var(--theme-color, #7F13EC); }
+    }
+
+    @keyframes pulse-break {
+      0%, 100% { opacity: 1; box-shadow: 0 0 8px #22C55E; }
+      50% { opacity: 0.6; box-shadow: 0 0 16px #22C55E; }
+    }
+
+    .pulse-dot.break-mode {
+      animation: pulse-break 1.5s ease-in-out infinite;
+    }
+
+    .pin-btn {
+      width: 26px;
+      height: 26px;
+      border: none;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 50%;
+      color: rgba(255, 255, 255, 0.4);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+      -webkit-app-region: no-drag;
+    }
+
+    .pin-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .pin-btn.pinned {
+      background: rgba(127, 19, 236, 0.3);
+      color: #7F13EC;
+    }
+
+    .pin-btn .material-symbols-outlined {
+      font-size: 14px;
     }
 
     .timer-display {
@@ -124,6 +168,9 @@
       <div class="pulse-dot" id="pulseDot"></div>
       <div class="timer-display active" id="timer">--:--</div>
     </div>
+    <button class="pin-btn" id="pinBtn" title="Always on top">
+      <span class="material-symbols-outlined">push_pin</span>
+    </button>
     <button class="close-btn" id="closeBtn" title="Close">
       <span class="material-symbols-outlined">close</span>
     </button>
