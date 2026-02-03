@@ -405,7 +405,8 @@ class ConfigManager {
         stats: { ...base.defaults.stats, ...updates.defaults?.stats },
         admin: { ...base.defaults.admin, ...updates.defaults?.admin },
       },
-      themes: updates.themes || base.themes,
+      // Always use base themes (from code) - don't cache themes in localStorage
+      themes: base.themes,
       navigation: updates.navigation || base.navigation,
       onboarding: updates.onboarding || base.onboarding,
     };

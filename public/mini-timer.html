@@ -131,11 +131,6 @@
   </div>
 
   <script>
-    const STORAGE_KEYS = {
-      TIMER_TARGET: 'tempo_timer_target',
-      TIMER_ACTIVE: 'tempo_timer_active'
-    };
-
     const container = document.getElementById('container');
     const timerEl = document.getElementById('timer');
     const pulseDot = document.getElementById('pulseDot');
@@ -149,8 +144,39 @@
     }
 
     function updateTimer() {
-      const savedTarget = localStorage.getItem(STORAGE_KEYS.TIMER_TARGET);
-      const savedActive = localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true';
+      // Try chrome.storage.local first (for extension context)
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(['timerTargetTime'], (data) => {
+          if (data.timerTargetTime) {
+            const now = Date.now();
+            const diff = Math.ceil((data.timerTargetTime - now) / 1000);
+
+            if (diff > 0) {
+              timerEl.textContent = formatTime(diff);
+              timerEl.classList.add('active');
+              timerEl.classList.remove('paused');
+              pulseDot.classList.remove('paused');
+              container.classList.remove('no-timer');
+            } else {
+              timerEl.textContent = '00:00';
+              timerEl.classList.remove('active');
+              timerEl.classList.add('paused');
+              pulseDot.classList.add('paused');
+            }
+          } else {
+            // No timer running - try localStorage fallback
+            checkLocalStorage();
+          }
+        });
+      } else {
+        // Fallback to localStorage
+        checkLocalStorage();
+      }
+    }
+
+    function checkLocalStorage() {
+      const savedTarget = localStorage.getItem('tempo_timer_target');
+      const savedActive = localStorage.getItem('tempo_timer_active') === 'true';
 
       if (savedActive && savedTarget) {
         const targetTime = parseInt(savedTarget, 10);
@@ -209,13 +235,22 @@
       }
     });
 
-    // Update every second
+    // Update every 500ms
     updateTimer();
     setInterval(updateTimer, 500);
 
-    // Listen for storage changes from main app
+    // Listen for chrome.storage changes
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener((changes, namespace) => {
+        if (namespace === 'local' && changes.timerTargetTime) {
+          updateTimer();
+        }
+      });
+    }
+
+    // Also listen for localStorage changes (fallback)
     window.addEventListener('storage', (e) => {
-      if (e.key === STORAGE_KEYS.TIMER_TARGET || e.key === STORAGE_KEYS.TIMER_ACTIVE) {
+      if (e.key === 'tempo_timer_target' || e.key === 'tempo_timer_active') {
         updateTimer();
       }
     });
