@@ -64,6 +64,12 @@ let timerTargetTime = null;
 
 // Load persisted timer target on startup
 async function loadTimerState() {
+  // Check if chrome.storage is available
+  if (!chrome.storage || !chrome.storage.local) {
+    console.log('[Tempo] Storage not available yet, will retry on next wake');
+    return;
+  }
+
   try {
     const data = await chrome.storage.local.get(['timerTargetTime']);
     if (data.timerTargetTime && data.timerTargetTime > Date.now()) {
@@ -75,7 +81,8 @@ async function loadTimerState() {
       chrome.action.setBadgeText({ text: '' });
     }
   } catch (e) {
-    console.error('[Tempo] Failed to load timer state:', e);
+    // This can happen during service worker initialization - it's normal
+    console.log('[Tempo] Timer state will load on next event');
   }
 }
 
