@@ -1,9 +1,16 @@
 // Mini Timer Script - Syncs with main Tempo timer
+// Reads from localStorage (tempo_timer_target, tempo_timer_active) which is the source of truth
 
 const container = document.getElementById('container');
 const timerEl = document.getElementById('timer');
 const pulseDot = document.getElementById('pulseDot');
 const closeBtn = document.getElementById('closeBtn');
+
+// Storage keys matching main app constants
+const STORAGE_KEYS = {
+  TIMER_TARGET: 'tempo_timer_target',
+  TIMER_ACTIVE: 'tempo_timer_active'
+};
 
 function formatTime(seconds) {
   if (seconds <= 0) return '00:00';
@@ -13,44 +20,9 @@ function formatTime(seconds) {
 }
 
 function updateTimer() {
-  // Try chrome.storage.local first (for extension context)
-  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['timerTargetTime'], (data) => {
-      if (chrome.runtime.lastError) {
-        checkLocalStorage();
-        return;
-      }
-
-      if (data.timerTargetTime) {
-        const now = Date.now();
-        const diff = Math.ceil((data.timerTargetTime - now) / 1000);
-
-        if (diff > 0) {
-          timerEl.textContent = formatTime(diff);
-          timerEl.classList.add('active');
-          timerEl.classList.remove('paused');
-          pulseDot.classList.remove('paused');
-          container.classList.remove('no-timer');
-        } else {
-          timerEl.textContent = '00:00';
-          timerEl.classList.remove('active');
-          timerEl.classList.add('paused');
-          pulseDot.classList.add('paused');
-        }
-      } else {
-        // No timer running - try localStorage fallback
-        checkLocalStorage();
-      }
-    });
-  } else {
-    // Fallback to localStorage
-    checkLocalStorage();
-  }
-}
-
-function checkLocalStorage() {
-  const savedTarget = localStorage.getItem('tempo_timer_target');
-  const savedActive = localStorage.getItem('tempo_timer_active') === 'true';
+  // Primary: read from localStorage (same as main app)
+  const savedTarget = localStorage.getItem(STORAGE_KEYS.TIMER_TARGET);
+  const savedActive = localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true';
 
   if (savedActive && savedTarget) {
     const targetTime = parseInt(savedTarget, 10);
@@ -64,31 +36,35 @@ function checkLocalStorage() {
       pulseDot.classList.remove('paused');
       container.classList.remove('no-timer');
     } else {
+      // Timer expired
       timerEl.textContent = '00:00';
       timerEl.classList.remove('active');
       timerEl.classList.add('paused');
       pulseDot.classList.add('paused');
     }
-  } else {
-    // Paused or no timer
+  } else if (savedTarget) {
+    // Timer paused but has remaining time
+    const targetTime = parseInt(savedTarget, 10);
+    const now = Date.now();
+    const diff = Math.ceil((targetTime - now) / 1000);
+
     pulseDot.classList.add('paused');
     timerEl.classList.remove('active');
     timerEl.classList.add('paused');
 
-    if (savedTarget) {
-      const targetTime = parseInt(savedTarget, 10);
-      const now = Date.now();
-      const diff = Math.ceil((targetTime - now) / 1000);
-      if (diff > 0) {
-        timerEl.textContent = formatTime(diff);
-      } else {
-        timerEl.textContent = 'Ready';
-        container.classList.add('no-timer');
-      }
+    if (diff > 0) {
+      timerEl.textContent = formatTime(diff);
     } else {
       timerEl.textContent = 'Ready';
       container.classList.add('no-timer');
     }
+  } else {
+    // No timer set
+    pulseDot.classList.add('paused');
+    timerEl.classList.remove('active');
+    timerEl.classList.add('paused');
+    timerEl.textContent = 'Ready';
+    container.classList.add('no-timer');
   }
 }
 
@@ -109,22 +85,13 @@ container.addEventListener('dblclick', () => {
   }
 });
 
-// Update every 500ms
+// Update every 500ms for smooth countdown
 updateTimer();
 setInterval(updateTimer, 500);
 
-// Listen for chrome.storage changes
-if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
-  chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === 'local' && changes.timerTargetTime) {
-      updateTimer();
-    }
-  });
-}
-
-// Also listen for localStorage changes (fallback)
+// Listen for localStorage changes from other windows/tabs
 window.addEventListener('storage', (e) => {
-  if (e.key === 'tempo_timer_target' || e.key === 'tempo_timer_active') {
+  if (e.key === STORAGE_KEYS.TIMER_TARGET || e.key === STORAGE_KEYS.TIMER_ACTIVE) {
     updateTimer();
   }
 });

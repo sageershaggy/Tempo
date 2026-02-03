@@ -34,12 +34,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [showCompletionNotification, setShowCompletionNotification] = useState(false);
 
-  // Beat counter state
+  // Beat counter state - persisted to keep running when popup closes
   const [beatEnabled, setBeatEnabled] = useState(false);
   const [beatInterval, setBeatInterval] = useState(1); // 1, 2, or 3 seconds
   const [beatCount, setBeatCount] = useState(0);
   const beatIntervalRef = useRef<any>(null);
   const beatAudioCtxRef = useRef<AudioContext | null>(null);
+  const stateInitializedRef = useRef(false); // Track if we've done initial load of both timer and beat state
 
   const handleCreateTask = () => {
     if (!newTaskTitle.trim()) return;
@@ -74,8 +75,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const [timeLeft, setTimeLeft] = useState(getTimeForTemplate(templates[0]?.id || 'classic'));
   const [isActive, setIsActive] = useState(false);
   const [initialTime, setInitialTime] = useState(getTimeForTemplate(templates[0]?.id || 'classic'));
+  const [timerMode, setTimerMode] = useState<'focus' | 'break'>('focus'); // Track if we're in focus or break mode
 
-  // Load user settings for ticking
+  // Load user settings for ticking and restore focus beat state
   useEffect(() => {
     const loadUserSettings = async () => {
       const settings = await getSettings();
@@ -83,6 +85,24 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       setUserBreakDuration(settings.shortBreak);
       setTickingEnabled(settings.tickingEnabled);
       setTickSpeed(settings.tickingSpeed);
+
+      // Restore focus beat state from localStorage
+      const savedBeatEnabled = localStorage.getItem('tempo_beatEnabled') === 'true';
+      const savedBeatInterval = parseInt(localStorage.getItem('tempo_beatInterval') || '1', 10);
+      setBeatEnabled(savedBeatEnabled);
+      setBeatInterval(savedBeatInterval);
+
+      // If beat was enabled, check with offscreen for current count
+      if (savedBeatEnabled) {
+        const w = window as any;
+        if (w.chrome?.runtime?.sendMessage) {
+          w.chrome.runtime.sendMessage({ action: 'focusBeat-status' }, (response: any) => {
+            if (response?.count !== undefined) {
+              setBeatCount(response.count);
+            }
+          });
+        }
+      }
     };
     loadUserSettings();
   }, []);
@@ -143,54 +163,146 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     };
   }, [isActive, tickingEnabled, tickSpeed]);
 
-  // Beat counter effect
+  // Persist beat settings when they change (only after initial load)
   useEffect(() => {
-    if (beatIntervalRef.current) {
-      clearInterval(beatIntervalRef.current);
-      beatIntervalRef.current = null;
-    }
+    if (!stateInitializedRef.current) return;
+    localStorage.setItem('tempo_beatEnabled', String(beatEnabled));
+    localStorage.setItem('tempo_beatInterval', String(beatInterval));
+  }, [beatEnabled, beatInterval]);
 
-    if (isActive && beatEnabled) {
-      setBeatCount(0);
-      const playBeat = () => {
-        setBeatCount(prev => prev + 1);
-        try {
-          if (!beatAudioCtxRef.current || beatAudioCtxRef.current.state === 'closed') {
-            beatAudioCtxRef.current = new AudioContext();
-          }
-          const ctx = beatAudioCtxRef.current;
-          if (ctx.state === 'suspended') ctx.resume();
-          // Deep resonant beat sound
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.frequency.value = 220;
-          osc.type = 'sine';
-          gain.gain.setValueAtTime(0.4, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-          osc.start(ctx.currentTime);
-          osc.stop(ctx.currentTime + 0.15);
-        } catch (e) {}
-      };
+  // On mount: sync with offscreen beat state and start polling for count
+  useEffect(() => {
+    const w = window as any;
+    if (!useOffscreen || !w.chrome?.runtime?.sendMessage) return;
 
-      playBeat();
-      beatIntervalRef.current = setInterval(playBeat, beatInterval * 1000);
-    } else {
-      setBeatCount(0);
-    }
-
-    return () => {
-      if (beatIntervalRef.current) {
-        clearInterval(beatIntervalRef.current);
-        beatIntervalRef.current = null;
+    // Check current offscreen beat status
+    w.chrome.runtime.sendMessage({ action: 'focusBeat-status' }, (response: any) => {
+      if (response?.enabled) {
+        // Beat is running in offscreen, sync UI
+        setBeatEnabled(true);
+        setBeatCount(response.count || 0);
+        localStorage.setItem('tempo_beatEnabled', 'true');
       }
-    };
-  }, [isActive, beatEnabled, beatInterval]);
+    });
+
+    // Poll for beat count updates while popup is open
+    const pollInterval = setInterval(() => {
+      w.chrome.runtime.sendMessage({ action: 'focusBeat-status' }, (response: any) => {
+        if (response?.enabled && response?.count !== undefined) {
+          setBeatCount(response.count);
+        }
+      });
+    }, 500);
+
+    return () => clearInterval(pollInterval);
+  }, []);
+
+  // Handle user toggling beat on/off
+  const handleBeatToggle = () => {
+    const w = window as any;
+    const newEnabled = !beatEnabled;
+    setBeatEnabled(newEnabled);
+
+    if (useOffscreen && w.chrome?.runtime?.sendMessage) {
+      if (newEnabled && isActive) {
+        // Start beat (timer is running and user enabled beat)
+        setBeatCount(0);
+        w.chrome.runtime.sendMessage({
+          action: 'focusBeat-start',
+          intervalSeconds: beatInterval
+        });
+      } else if (!newEnabled) {
+        // Stop beat (user disabled beat)
+        w.chrome.runtime.sendMessage({ action: 'focusBeat-stop' });
+        setBeatCount(0);
+      }
+      // If newEnabled && !isActive, do nothing - beat will start when timer starts
+    }
+  };
+
+  // Handle beat interval change
+  const handleBeatIntervalChange = (newInterval: number) => {
+    setBeatInterval(newInterval);
+    const w = window as any;
+    if (beatEnabled && isActive && useOffscreen && w.chrome?.runtime?.sendMessage) {
+      // Restart with new interval
+      w.chrome.runtime.sendMessage({
+        action: 'focusBeat-start',
+        intervalSeconds: newInterval
+      });
+    }
+  };
+
+  // Start/stop beat when timer starts/stops (only if beat is enabled)
+  useEffect(() => {
+    if (!stateInitializedRef.current) return;
+
+    const w = window as any;
+    if (!useOffscreen || !w.chrome?.runtime?.sendMessage) {
+      // Fallback local audio for non-extension context
+      if (isActive && beatEnabled) {
+        const playBeat = () => {
+          setBeatCount(prev => prev + 1);
+          try {
+            if (!beatAudioCtxRef.current || beatAudioCtxRef.current.state === 'closed') {
+              beatAudioCtxRef.current = new AudioContext();
+            }
+            const ctx = beatAudioCtxRef.current;
+            if (ctx.state === 'suspended') ctx.resume();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 220;
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.4, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.15);
+          } catch (e) {}
+        };
+        playBeat();
+        beatIntervalRef.current = setInterval(playBeat, beatInterval * 1000);
+      } else {
+        if (beatIntervalRef.current) {
+          clearInterval(beatIntervalRef.current);
+          beatIntervalRef.current = null;
+        }
+        setBeatCount(0);
+      }
+      return () => {
+        if (beatIntervalRef.current) {
+          clearInterval(beatIntervalRef.current);
+          beatIntervalRef.current = null;
+        }
+      };
+    }
+
+    // In extension context: manage offscreen beat based on timer state
+    if (beatEnabled) {
+      if (isActive) {
+        // Timer just started, start beat if not already running
+        w.chrome.runtime.sendMessage({ action: 'focusBeat-status' }, (response: any) => {
+          if (!response?.enabled) {
+            setBeatCount(0);
+            w.chrome.runtime.sendMessage({
+              action: 'focusBeat-start',
+              intervalSeconds: beatInterval
+            });
+          }
+        });
+      } else {
+        // Timer stopped, stop beat
+        w.chrome.runtime.sendMessage({ action: 'focusBeat-stop' });
+        setBeatCount(0);
+      }
+    }
+  }, [isActive]);
 
   // Update timer when template changes
   useEffect(() => {
     setIsActive(false);
+    setTimerMode('focus'); // Reset to focus mode when template changes
     const newTime = getTimeForTemplate(activeTemplateId);
     setInitialTime(newTime);
     setTimeLeft(newTime);
@@ -221,6 +333,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
       }
     }
+
+    // Mark state as fully initialized after timer state is loaded
+    stateInitializedRef.current = true;
   }, []);
 
   // Timer Tick & Persistence
@@ -243,36 +358,69 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
       localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
 
-      // Record completed session in stats
-      const sessionMinutes = Math.round(initialTime / 60);
-      updateStats(sessionMinutes).catch(err => console.error('Failed to update stats:', err));
+      if (timerMode === 'focus') {
+        // Focus session completed - record stats and transition to break
+        const sessionMinutes = Math.round(initialTime / 60);
+        updateStats(sessionMinutes).catch(err => console.error('Failed to update stats:', err));
 
-      if (audioState.isPlaying && audioState.autoPlay) {
-        setAudioState(prev => ({ ...prev, isPlaying: false }));
-      }
-
-      // Show in-app completion notification
-      setShowCompletionNotification(true);
-
-      // Send Chrome notification via background service worker & clear badge
-      try {
-        const w = window as any;
-        if (w.chrome?.runtime?.sendMessage) {
-          w.chrome.runtime.sendMessage({ action: 'timerComplete' });
-          w.chrome.runtime.sendMessage({ action: 'stopTimer' });
+        if (audioState.isPlaying && audioState.autoPlay) {
+          setAudioState(prev => ({ ...prev, isPlaying: false }));
         }
-      } catch (e) {
-        // Not in extension context
-      }
 
-      // Also use Notification API as fallback for non-extension context
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('Focus Session Complete!', {
-          body: 'Great work! Time for a break.',
-          icon: '/icons/icon128_v3.png',
-        });
-      } else if ('Notification' in window && Notification.permission !== 'denied') {
-        Notification.requestPermission();
+        // Show in-app completion notification
+        setShowCompletionNotification(true);
+
+        // Send Chrome notification via background service worker & clear badge
+        try {
+          const w = window as any;
+          if (w.chrome?.runtime?.sendMessage) {
+            w.chrome.runtime.sendMessage({ action: 'timerComplete' });
+            w.chrome.runtime.sendMessage({ action: 'stopTimer' });
+          }
+        } catch (e) {
+          // Not in extension context
+        }
+
+        // Also use Notification API as fallback for non-extension context
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Focus Session Complete!', {
+            body: 'Great work! Time for a break.',
+            icon: '/icons/icon128_v3.png',
+          });
+        } else if ('Notification' in window && Notification.permission !== 'denied') {
+          Notification.requestPermission();
+        }
+
+        // Automatically set up break timer
+        const breakTime = getBreakForTemplate(activeTemplateId);
+        setTimerMode('break');
+        setInitialTime(breakTime);
+        setTimeLeft(breakTime);
+      } else {
+        // Break completed - transition back to focus mode
+        setShowCompletionNotification(true);
+
+        // Notify user break is done
+        try {
+          const w = window as any;
+          if (w.chrome?.runtime?.sendMessage) {
+            w.chrome.runtime.sendMessage({ action: 'timerComplete' });
+            w.chrome.runtime.sendMessage({ action: 'stopTimer' });
+          }
+        } catch (e) {}
+
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Break Complete!', {
+            body: 'Ready for another focus session?',
+            icon: '/icons/icon128_v3.png',
+          });
+        }
+
+        // Set up next focus session
+        const focusTime = getTimeForTemplate(activeTemplateId);
+        setTimerMode('focus');
+        setInitialTime(focusTime);
+        setTimeLeft(focusTime);
       }
     }
     return () => clearInterval(interval);
@@ -418,15 +566,15 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               try {
                 const w = window as any;
                 // Position in top-right corner of screen
-                const top = 50;
-                const left = screen.availWidth - 170;
+                const top = 30;
+                const left = screen.availWidth - 220;
 
                 if (w.chrome?.windows?.create) {
                   w.chrome.windows.create({
                     url: w.chrome.runtime.getURL('mini-timer.html'),
                     type: 'popup',
-                    width: 160,
-                    height: 72,
+                    width: 200,
+                    height: 70,
                     top: top,
                     left: left,
                     focused: false
@@ -435,7 +583,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                   window.open(
                     (w.chrome?.runtime?.getURL?.('mini-timer.html')) || 'mini-timer.html',
                     'TempoMini',
-                    `width=160,height=72,top=${top},left=${left},toolbar=no,menubar=no,location=no,status=no,resizable=no`
+                    `width=200,height=70,top=${top},left=${left},toolbar=no,menubar=no,location=no,status=no,resizable=no`
                   );
                 }
               } catch (e) {
@@ -481,19 +629,23 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
             <circle className="stroke-surface-light" cx="50" cy="50" fill="transparent" r="44" strokeWidth="4" />
             <circle
-              className="stroke-primary transition-all duration-1000 ease-linear"
+              className={`transition-all duration-1000 ease-linear ${timerMode === 'focus' ? 'stroke-primary' : 'stroke-green-500'}`}
               cx="50" cy="50"
               fill="transparent" r="44"
               strokeWidth="4"
               strokeDasharray="276.5"
               strokeDashoffset={276.5 - ((initialTime - timeLeft) / initialTime) * 276.5}
               strokeLinecap="round"
-              style={{ filter: isActive ? 'drop-shadow(0 0 12px var(--color-primary))' : 'none' }}
+              style={{ filter: isActive ? `drop-shadow(0 0 12px ${timerMode === 'focus' ? 'var(--color-primary)' : '#22C55E'})` : 'none' }}
             />
           </svg>
           <div className="absolute flex flex-col items-center">
             <span className="text-6xl font-black tracking-tight tabular-nums leading-none">{formatTimer(timeLeft)}</span>
-            <span className="text-xs font-bold text-muted mt-2 uppercase tracking-[0.2em]">{isActive ? 'Focusing' : 'Ready'}</span>
+            <span className="text-xs font-bold text-muted mt-2 uppercase tracking-[0.2em]">
+              {isActive
+                ? (timerMode === 'focus' ? 'Focusing' : 'On Break')
+                : (timerMode === 'focus' ? 'Ready' : 'Break Ready')}
+            </span>
           </div>
         </div>
 
@@ -507,12 +659,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               }`}
           >
             <span className="material-symbols-outlined text-lg">{isActive ? 'pause' : 'play_arrow'}</span>
-            {isActive ? 'PAUSE' : 'START FOCUS'}
+            {isActive ? 'PAUSE' : (timerMode === 'focus' ? 'START FOCUS' : 'START BREAK')}
           </button>
-          {(isActive || timeLeft < initialTime) && (
+          {(isActive || timeLeft < initialTime || timerMode === 'break') && (
             <button
               onClick={() => {
                 setIsActive(false);
+                setTimerMode('focus'); // Reset to focus mode
                 const newTime = getTimeForTemplate(activeTemplateId);
                 setInitialTime(newTime);
                 setTimeLeft(newTime);
@@ -545,7 +698,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             )}
           </div>
           <button
-            onClick={() => setBeatEnabled(!beatEnabled)}
+            onClick={handleBeatToggle}
             className={`w-9 h-5 rounded-full transition-colors relative ${beatEnabled ? 'bg-primary' : 'bg-white/10'}`}
           >
             <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${beatEnabled ? 'left-[18px]' : 'left-0.5'}`} />
@@ -557,7 +710,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             <div className="relative">
               <select
                 value={beatInterval}
-                onChange={(e) => setBeatInterval(Number(e.target.value))}
+                onChange={(e) => handleBeatIntervalChange(Number(e.target.value))}
                 className="appearance-none bg-white/5 border border-white/10 text-xs font-bold text-white rounded-lg pl-3 pr-7 py-1.5 focus:outline-none focus:border-primary/50 cursor-pointer hover:bg-white/10 transition-colors"
               >
                 {Array.from({ length: 60 }, (_, i) => i + 1).map(s => (
@@ -831,28 +984,50 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       {showCompletionNotification && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-xs bg-surface-dark rounded-2xl border border-white/10 p-6 shadow-2xl text-center animate-slide-up">
-            <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
-              <span className="material-symbols-outlined text-4xl text-green-400">celebration</span>
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${timerMode === 'break' ? 'bg-green-500/20' : 'bg-blue-500/20'}`}>
+              <span className={`material-symbols-outlined text-4xl ${timerMode === 'break' ? 'text-green-400' : 'text-blue-400'}`}>
+                {timerMode === 'break' ? 'celebration' : 'coffee'}
+              </span>
             </div>
-            <h3 className="text-lg font-bold text-white mb-1">Session Complete!</h3>
-            <p className="text-sm text-muted mb-5">Great work! Time for a break.</p>
+            <h3 className="text-lg font-bold text-white mb-1">
+              {timerMode === 'break' ? 'Focus Session Complete!' : 'Break Complete!'}
+            </h3>
+            <p className="text-sm text-muted mb-5">
+              {timerMode === 'break' ? 'Great work! Time for a break.' : 'Ready for another focus session?'}
+            </p>
             <div className="flex gap-2">
               <button
                 onClick={() => {
                   setShowCompletionNotification(false);
-                  const breakTime = getBreakForTemplate(activeTemplateId);
-                  setInitialTime(breakTime);
-                  setTimeLeft(breakTime);
+                  // Start the timer (break or next focus session is already set up)
+                  setIsActive(true);
+                  const target = Date.now() + (timeLeft * 1000);
+                  localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(target));
+                  localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'true');
+                  try {
+                    const w = window as any;
+                    if (w.chrome?.runtime?.sendMessage) {
+                      w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: timeLeft });
+                    }
+                  } catch (e) {}
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-light transition-colors"
+              >
+                {timerMode === 'break' ? 'Start Break' : 'Start Focus'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowCompletionNotification(false);
+                  // Skip - reset to focus mode if currently on break
+                  if (timerMode === 'break') {
+                    // User wants to skip break, stay on break timer but don't start
+                  } else {
+                    // User finished break but doesn't want to start focus yet
+                  }
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-white/10 text-white text-xs font-bold hover:bg-white/15 transition-colors"
               >
-                Start Break
-              </button>
-              <button
-                onClick={() => setShowCompletionNotification(false)}
-                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-light transition-colors"
-              >
-                Dismiss
+                Skip
               </button>
             </div>
           </div>

@@ -147,6 +147,7 @@ export const getStats = async (): Promise<UserStats> => {
 };
 
 export const updateStats = async (sessionMinutes: number): Promise<void> => {
+  console.log('[Tempo] updateStats called with', sessionMinutes, 'minutes');
   const stats = await getStats();
   const today = new Date().toISOString().split('T')[0];
 
@@ -168,8 +169,14 @@ export const updateStats = async (sessionMinutes: number): Promise<void> => {
   stats.totalSessions += 1;
   stats.totalFocusMinutes += sessionMinutes;
   stats.lastSessionDate = today;
+
+  // Ensure weeklyData exists
+  if (!stats.weeklyData) {
+    stats.weeklyData = {};
+  }
   stats.weeklyData[today] = (stats.weeklyData[today] || 0) + sessionMinutes;
 
+  console.log('[Tempo] Saving stats:', stats);
   await storage.local.set({ stats });
 };
 

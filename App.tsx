@@ -31,6 +31,8 @@ const applyTheme = (themeId: string) => {
     document.documentElement.style.setProperty('--color-primary', theme.cssVar);
     // Generate a lighter variant for primary-light
     document.documentElement.style.setProperty('--color-primary-light', theme.cssVar + 'CC');
+    // Make secondary color match primary for consistent theming
+    document.documentElement.style.setProperty('--color-secondary', theme.cssVar);
   }
 };
 
