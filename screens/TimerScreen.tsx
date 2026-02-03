@@ -417,21 +417,25 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             onClick={() => {
               try {
                 const w = window as any;
+                // Position in top-right corner of screen
+                const top = 50;
+                const left = screen.availWidth - 170;
+
                 if (w.chrome?.windows?.create) {
                   w.chrome.windows.create({
                     url: w.chrome.runtime.getURL('mini-timer.html'),
                     type: 'popup',
-                    width: 180,
-                    height: 80,
-                    top: 100,
-                    left: screen.width - 200,
-                    focused: true
+                    width: 160,
+                    height: 72,
+                    top: top,
+                    left: left,
+                    focused: false
                   });
                 } else {
                   window.open(
                     (w.chrome?.runtime?.getURL?.('mini-timer.html')) || 'mini-timer.html',
-                    'MiniTimer',
-                    'width=180,height=80,top=100,left=' + (screen.width - 200) + ',toolbar=no,menubar=no'
+                    'TempoMini',
+                    `width=160,height=72,top=${top},left=${left},toolbar=no,menubar=no,location=no,status=no,resizable=no`
                   );
                 }
               } catch (e) {
