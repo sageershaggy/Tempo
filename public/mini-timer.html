@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tempo Timer</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: rgba(15, 10, 25, 0.92);
+      color: white;
+      width: 180px;
+      height: 80px;
+      overflow: hidden;
+      border-radius: 16px;
+      user-select: none;
+      cursor: move;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      padding: 8px 12px;
+      background: linear-gradient(135deg, rgba(127, 19, 236, 0.15) 0%, rgba(15, 10, 25, 0.95) 100%);
+      border: 1px solid rgba(127, 19, 236, 0.3);
+      border-radius: 16px;
+    }
+
+    .timer-display {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 0 20px rgba(127, 19, 236, 0.5);
+    }
+
+    .timer-display.paused {
+      opacity: 0.5;
+    }
+
+    .status {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-top: 2px;
+    }
+
+    .status.active {
+      color: #7F13EC;
+    }
+
+    .controls {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      display: flex;
+      gap: 2px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    body:hover .controls {
+      opacity: 1;
+    }
+
+    .btn {
+      width: 20px;
+      height: 20px;
+      border: none;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: rgba(255, 255, 255, 0.6);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+    }
+
+    .btn .material-symbols-outlined {
+      font-size: 14px;
+    }
+
+    .play-pause {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: rgba(127, 19, 236, 0.3);
+      border-radius: 50%;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: all 0.2s;
+    }
+
+    body:hover .play-pause {
+      opacity: 1;
+    }
+
+    .play-pause:hover {
+      background: rgba(127, 19, 236, 0.5);
+      transform: translateX(-50%) scale(1.1);
+    }
+
+    .play-pause .material-symbols-outlined {
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="controls">
+      <button class="btn" id="openMain" title="Open Tempo">
+        <span class="material-symbols-outlined">open_in_new</span>
+      </button>
+      <button class="btn" id="closeBtn" title="Close">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <div class="timer-display" id="timer">--:--</div>
+    <div class="status" id="status">Ready</div>
+
+    <button class="play-pause" id="playPause" title="Play/Pause">
+      <span class="material-symbols-outlined" id="playPauseIcon">play_arrow</span>
+    </button>
+  </div>
+
+  <script>
+    const STORAGE_KEYS = {
+      TIMER_TARGET: 'tempo_timer_target',
+      TIMER_ACTIVE: 'tempo_timer_active'
+    };
+
+    const timerEl = document.getElementById('timer');
+    const statusEl = document.getElementById('status');
+    const playPauseBtn = document.getElementById('playPause');
+    const playPauseIcon = document.getElementById('playPauseIcon');
+    const openMainBtn = document.getElementById('openMain');
+    const closeBtn = document.getElementById('closeBtn');
+
+    let isActive = false;
+
+    function formatTime(seconds) {
+      if (seconds <= 0) return '00:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function updateTimer() {
+      const savedTarget = localStorage.getItem(STORAGE_KEYS.TIMER_TARGET);
+      const savedActive = localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true';
+
+      if (savedActive && savedTarget) {
+        const targetTime = parseInt(savedTarget, 10);
+        const now = Date.now();
+        const diff = Math.ceil((targetTime - now) / 1000);
+
+        if (diff > 0) {
+          isActive = true;
+          timerEl.textContent = formatTime(diff);
+          timerEl.classList.remove('paused');
+          statusEl.textContent = 'Focusing';
+          statusEl.classList.add('active');
+          playPauseIcon.textContent = 'pause';
+        } else {
+          isActive = false;
+          timerEl.textContent = '00:00';
+          timerEl.classList.add('paused');
+          statusEl.textContent = 'Complete!';
+          statusEl.classList.remove('active');
+          playPauseIcon.textContent = 'play_arrow';
+        }
+      } else {
+        isActive = false;
+        timerEl.classList.add('paused');
+        statusEl.textContent = 'Paused';
+        statusEl.classList.remove('active');
+        playPauseIcon.textContent = 'play_arrow';
+
+        // Try to show remaining time even when paused
+        if (savedTarget) {
+          const targetTime = parseInt(savedTarget, 10);
+          const now = Date.now();
+          const diff = Math.ceil((targetTime - now) / 1000);
+          if (diff > 0) {
+            timerEl.textContent = formatTime(diff);
+          }
+        }
+      }
+    }
+
+    // Toggle play/pause
+    playPauseBtn.addEventListener('click', () => {
+      const savedTarget = localStorage.getItem(STORAGE_KEYS.TIMER_TARGET);
+      const savedActive = localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true';
+
+      if (savedActive) {
+        // Pause
+        localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'false');
+        try {
+          chrome.runtime.sendMessage({ action: 'stopTimer' });
+        } catch (e) {}
+      } else if (savedTarget) {
+        // Resume with remaining time
+        const targetTime = parseInt(savedTarget, 10);
+        const now = Date.now();
+        const diff = Math.ceil((targetTime - now) / 1000);
+
+        if (diff > 0) {
+          const newTarget = Date.now() + (diff * 1000);
+          localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(newTarget));
+          localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'true');
+          try {
+            chrome.runtime.sendMessage({ action: 'startTimer', seconds: diff });
+          } catch (e) {}
+        }
+      }
+
+      updateTimer();
+    });
+
+    // Open main app
+    openMainBtn.addEventListener('click', () => {
+      try {
+        chrome.runtime.sendMessage({ action: 'openPopup' });
+        window.open(chrome.runtime.getURL('index.html'));
+      } catch (e) {
+        window.open('index.html');
+      }
+    });
+
+    // Close window
+    closeBtn.addEventListener('click', () => {
+      window.close();
+    });
+
+    // Update every second
+    updateTimer();
+    setInterval(updateTimer, 1000);
+
+    // Listen for storage changes from main app
+    window.addEventListener('storage', (e) => {
+      if (e.key === STORAGE_KEYS.TIMER_TARGET || e.key === STORAGE_KEYS.TIMER_ACTIVE) {
+        updateTimer();
+      }
+    });
+  </script>
+</body>
+</html>
