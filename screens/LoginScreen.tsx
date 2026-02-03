@@ -78,13 +78,14 @@ export const LoginScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
             )}
           </button>
 
-          {/* Guest Login */}
+          {/* Guest Login - Made prominent for easy access */}
           <div className="pt-2">
             <button
               onClick={handleGuestLogin}
-              className="w-full h-12 bg-transparent text-muted hover:text-white text-xs font-medium transition-colors"
+              className="w-full h-12 bg-white/10 border border-white/20 text-white rounded-lg font-bold text-sm flex items-center justify-center gap-2 hover:bg-white/20 transition-colors"
             >
-              Continue as Guest (Offline)
+              <span className="material-symbols-outlined text-lg">person</span>
+              Continue as Guest
             </button>
           </div>
 
