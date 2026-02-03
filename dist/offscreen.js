@@ -8,6 +8,12 @@ let isPlaying = false;
 let currentTrackId = null;
 let currentVolume = 0.5;
 
+// Focus Beat state
+let focusBeatInterval = null;
+let focusBeatEnabled = false;
+let focusBeatIntervalMs = 1000;
+let focusBeatCount = 0;
+
 // Binaural range frequency mappings
 const BINAURAL_RANGE_MAP = {
   '1': {
@@ -243,7 +249,108 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'getStatus':
       sendResponse({ isPlaying, trackId: currentTrackId, volume: currentVolume });
       break;
+
+    // Focus Beat commands
+    case 'focusBeat-start':
+      startFocusBeat(message.intervalSeconds || 1);
+      sendResponse({ success: true, ...getFocusBeatStatus() });
+      break;
+
+    case 'focusBeat-stop':
+      stopFocusBeat();
+      sendResponse({ success: true, enabled: false });
+      break;
+
+    case 'focusBeat-status':
+      sendResponse(getFocusBeatStatus());
+      break;
+
+    case 'playCompletionSound':
+      playCompletionBeep();
+      sendResponse({ success: true });
+      break;
   }
 });
+
+// ============================================================================
+// FOCUS BEAT - Persistent metronome that works when popup is closed
+// ============================================================================
+
+function playBeatSound() {
+  const ctx = getContext();
+  if (ctx.state === 'suspended') ctx.resume();
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.frequency.value = 220;
+  osc.type = 'sine';
+  gain.gain.setValueAtTime(0.4, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.15);
+  focusBeatCount++;
+}
+
+function startFocusBeat(intervalSeconds) {
+  stopFocusBeat();
+  focusBeatEnabled = true;
+  focusBeatIntervalMs = intervalSeconds * 1000;
+  focusBeatCount = 0;
+  playBeatSound();
+  focusBeatInterval = setInterval(playBeatSound, focusBeatIntervalMs);
+  console.log('[Tempo] Focus Beat started, interval:', intervalSeconds, 's');
+}
+
+function stopFocusBeat() {
+  if (focusBeatInterval) {
+    clearInterval(focusBeatInterval);
+    focusBeatInterval = null;
+  }
+  focusBeatEnabled = false;
+  focusBeatCount = 0;
+  console.log('[Tempo] Focus Beat stopped');
+}
+
+function getFocusBeatStatus() {
+  return {
+    enabled: focusBeatEnabled,
+    intervalMs: focusBeatIntervalMs,
+    count: focusBeatCount
+  };
+}
+
+// ============================================================================
+// COMPLETION BEEP - Plays when timer completes
+// ============================================================================
+
+function playCompletionBeep() {
+  const ctx = getContext();
+  if (ctx.state === 'suspended') ctx.resume();
+
+  // Play a pleasant completion sound - 3 ascending tones
+  const playTone = (freq, startTime, duration) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = freq;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(0.4, startTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    osc.start(startTime);
+    osc.stop(startTime + duration);
+  };
+
+  const now = ctx.currentTime;
+  // Three ascending tones for a pleasant "ding-ding-ding" effect
+  playTone(523.25, now, 0.2);        // C5
+  playTone(659.25, now + 0.15, 0.2); // E5
+  playTone(783.99, now + 0.3, 0.4);  // G5 (longer)
+
+  console.log('[Tempo] Completion beep played');
+}
 
 console.log('[Tempo] Offscreen audio engine loaded');

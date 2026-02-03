@@ -111,6 +111,12 @@ function updateTimerBadge() {
     chrome.action.setBadgeText({ text: '✓' });
     chrome.action.setBadgeBackgroundColor({ color: '#22C55E' });
 
+    // Play completion sound via offscreen document
+    sendToOffscreen({
+      target: 'offscreen-audio',
+      action: 'playCompletionSound'
+    }, () => {});
+
     // Show Chrome notification
     chrome.notifications.create('timerComplete-' + Date.now(), {
       type: 'basic',
@@ -197,12 +203,46 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  // --- Focus Beat commands ---
+  if (request.action === 'focusBeat-start') {
+    sendToOffscreen({
+      target: 'offscreen-audio',
+      action: 'focusBeat-start',
+      intervalSeconds: request.intervalSeconds || 1
+    }, sendResponse);
+    return true;
+  }
+
+  if (request.action === 'focusBeat-stop') {
+    sendToOffscreen({
+      target: 'offscreen-audio',
+      action: 'focusBeat-stop'
+    }, sendResponse);
+    return true;
+  }
+
+  if (request.action === 'focusBeat-status') {
+    sendToOffscreen({
+      target: 'offscreen-audio',
+      action: 'focusBeat-status'
+    }, sendResponse);
+    return true;
+  }
+
   // --- Timer commands ---
 
   if (request.action === 'timerComplete') {
     timerTargetTime = null;
     saveTimerState();
     chrome.alarms.clear('badgeTick');
+
+    // Play completion sound via offscreen document
+    sendToOffscreen({
+      target: 'offscreen-audio',
+      action: 'playCompletionSound'
+    }, () => {});
+
+    // Show Chrome notification
     chrome.notifications.create('timerComplete-' + Date.now(), {
       type: 'basic',
       iconUrl: 'icons/icon128_v3.png',
