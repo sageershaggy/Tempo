@@ -19,9 +19,9 @@ export const OnboardingScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({
 
   return (
     <div className="h-[600px] w-full flex flex-col bg-background-dark relative">
-        {/* Skip Button */}
-        <div className="absolute top-12 right-6 z-20">
-            <button onClick={() => setScreen(Screen.TIMER)} className="text-sm font-bold text-muted hover:text-white transition-colors">Skip</button>
+        {/* Skip Button - Made prominent for easy access */}
+        <div className="absolute top-6 right-6 z-20">
+            <button onClick={() => setScreen(Screen.TIMER)} className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-sm font-bold text-white hover:bg-white/20 transition-colors">Skip →</button>
         </div>
 
         {/* Content */}
