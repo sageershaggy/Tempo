@@ -38,19 +38,24 @@ async function ensureOffscreenDocument() {
 // Safe message forwarding to offscreen document with lastError handling
 function sendToOffscreen(message, sendResponse) {
   ensureOffscreenDocument().then(() => {
-    try {
-      chrome.runtime.sendMessage(message, (response) => {
-        if (chrome.runtime.lastError) {
-          console.warn('[Tempo] Offscreen message failed:', chrome.runtime.lastError.message);
-          sendResponse({ success: false, error: chrome.runtime.lastError.message });
-        } else {
-          sendResponse(response || { success: false });
-        }
-      });
-    } catch (e) {
-      sendResponse({ success: false, error: e.message });
-    }
+    // Small delay to ensure offscreen is ready to receive messages
+    setTimeout(() => {
+      try {
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime.lastError) {
+            console.warn('[Tempo] Offscreen message failed:', chrome.runtime.lastError.message);
+            sendResponse({ success: false, error: chrome.runtime.lastError.message });
+          } else {
+            sendResponse(response || { success: false });
+          }
+        });
+      } catch (e) {
+        console.error('[Tempo] sendToOffscreen error:', e);
+        sendResponse({ success: false, error: e.message });
+      }
+    }, 50);
   }).catch(e => {
+    console.error('[Tempo] ensureOffscreenDocument error:', e);
     sendResponse({ success: false, error: e.message });
   });
 }
@@ -282,6 +287,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ success: true });
   }
 
+  // --- Mini timer always on top ---
+  if (request.action === 'setAlwaysOnTop') {
+    // Get the sender's window ID and update it
+    if (sender.tab && sender.tab.windowId) {
+      chrome.windows.update(sender.tab.windowId, {
+        focused: true,
+        // Note: Chrome extensions can't directly set alwaysOnTop for regular windows
+        // But the popup window created with type: 'popup' stays on top when focused
+      });
+    }
+    sendResponse({ success: true });
+    return;
+  }
+
   // --- Pro status ---
 
   if (request.action === 'checkProStatus') {
@@ -354,5 +373,6 @@ chrome.runtime.onStartup.addListener(() => {
   loadTimerState();
 });
 
-// Also load timer state when service worker wakes up
+// Also load timer state and ensure offscreen when service worker wakes up
 loadTimerState();
+ensureOffscreenDocument();

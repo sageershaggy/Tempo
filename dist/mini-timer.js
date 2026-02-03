@@ -5,12 +5,16 @@ const container = document.getElementById('container');
 const timerEl = document.getElementById('timer');
 const pulseDot = document.getElementById('pulseDot');
 const closeBtn = document.getElementById('closeBtn');
+const pinBtn = document.getElementById('pinBtn');
 
 // Storage keys matching main app constants
 const STORAGE_KEYS = {
   TIMER_TARGET: 'tempo_timer_target',
-  TIMER_ACTIVE: 'tempo_timer_active'
+  TIMER_ACTIVE: 'tempo_timer_active',
+  TIMER_MODE: 'tempo_timer_mode'
 };
+
+let isPinned = false;
 
 function formatTime(seconds) {
   if (seconds <= 0) return '00:00';
@@ -19,7 +23,22 @@ function formatTime(seconds) {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
+function updateTheme() {
+  const timerMode = localStorage.getItem(STORAGE_KEYS.TIMER_MODE) || 'focus';
+
+  if (timerMode === 'break') {
+    pulseDot.classList.add('break-mode');
+    document.documentElement.style.setProperty('--theme-color', '#22C55E');
+  } else {
+    pulseDot.classList.remove('break-mode');
+    document.documentElement.style.setProperty('--theme-color', '#7F13EC');
+  }
+}
+
 function updateTimer() {
+  // Update theme based on mode
+  updateTheme();
+
   // Primary: read from localStorage (same as main app)
   const savedTarget = localStorage.getItem(STORAGE_KEYS.TIMER_TARGET);
   const savedActive = localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true';
@@ -74,6 +93,32 @@ closeBtn.addEventListener('click', (e) => {
   window.close();
 });
 
+// Pin/Always on top toggle
+pinBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  isPinned = !isPinned;
+
+  if (isPinned) {
+    pinBtn.classList.add('pinned');
+    pinBtn.title = 'Unpin (disable always on top)';
+  } else {
+    pinBtn.classList.remove('pinned');
+    pinBtn.title = 'Always on top';
+  }
+
+  // Send message to background to toggle always on top
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      chrome.runtime.sendMessage({
+        action: 'setAlwaysOnTop',
+        alwaysOnTop: isPinned
+      });
+    }
+  } catch (e) {
+    console.log('Could not toggle always on top');
+  }
+});
+
 // Click on timer to open main app
 container.addEventListener('dblclick', () => {
   try {
@@ -91,7 +136,7 @@ setInterval(updateTimer, 500);
 
 // Listen for localStorage changes from other windows/tabs
 window.addEventListener('storage', (e) => {
-  if (e.key === STORAGE_KEYS.TIMER_TARGET || e.key === STORAGE_KEYS.TIMER_ACTIVE) {
+  if (e.key === STORAGE_KEYS.TIMER_TARGET || e.key === STORAGE_KEYS.TIMER_ACTIVE || e.key === STORAGE_KEYS.TIMER_MODE) {
     updateTimer();
   }
 });

@@ -338,6 +338,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     stateInitializedRef.current = true;
   }, []);
 
+  // Persist timer mode for mini timer to read
+  useEffect(() => {
+    localStorage.setItem('tempo_timer_mode', timerMode);
+  }, [timerMode]);
+
   // Timer Tick & Persistence
   useEffect(() => {
     let interval: any;
@@ -391,11 +396,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           Notification.requestPermission();
         }
 
-        // Automatically set up break timer
+        // Automatically set up break timer - use setTimeout to ensure state updates properly
         const breakTime = getBreakForTemplate(activeTemplateId);
-        setTimerMode('break');
-        setInitialTime(breakTime);
-        setTimeLeft(breakTime);
+        setTimeout(() => {
+          setTimerMode('break');
+          setInitialTime(breakTime);
+          setTimeLeft(breakTime);
+        }, 0);
       } else {
         // Break completed - transition back to focus mode
         setShowCompletionNotification(true);
