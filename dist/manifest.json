@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Tempo Focus",
-  "description": "A high-performance focus timer and productivity app featuring deep work tracking, social leaderboards, and AI-enhanced task management.",
-  "version": "1.0.0",
+  "description": "A smart focus timer to track deep work, boost productivity, and manage tasks efficiently.",
+  "version": "1.0.1",
   "icons": {
     "16": "icons/icon16_v3.png",
     "48": "icons/icon48_v3.png",

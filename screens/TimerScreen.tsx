@@ -412,6 +412,37 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           </p>
         </div>
         <div className="flex items-center gap-1.5">
+          {/* Mini Floating Timer Button */}
+          <button
+            onClick={() => {
+              try {
+                const w = window as any;
+                if (w.chrome?.windows?.create) {
+                  w.chrome.windows.create({
+                    url: w.chrome.runtime.getURL('mini-timer.html'),
+                    type: 'popup',
+                    width: 180,
+                    height: 80,
+                    top: 100,
+                    left: screen.width - 200,
+                    focused: true
+                  });
+                } else {
+                  window.open(
+                    (w.chrome?.runtime?.getURL?.('mini-timer.html')) || 'mini-timer.html',
+                    'MiniTimer',
+                    'width=180,height=80,top=100,left=' + (screen.width - 200) + ',toolbar=no,menubar=no'
+                  );
+                }
+              } catch (e) {
+                console.error('Failed to open mini timer:', e);
+              }
+            }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-white hover:bg-white/5 transition-all"
+            title="Floating Mini Timer"
+          >
+            <span className="material-symbols-outlined text-[18px]">pip</span>
+          </button>
           <button
             onClick={() => {
               try { window.open((window as any).chrome.runtime.getURL('index.html')); } catch (e) { window.open(window.location.href); }
