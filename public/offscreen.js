@@ -269,6 +269,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       playCompletionBeep();
       sendResponse({ success: true });
       break;
+
+    case 'playReminderSound':
+      playReminderBeep();
+      sendResponse({ success: true });
+      break;
   }
 });
 
@@ -351,6 +356,37 @@ function playCompletionBeep() {
   playTone(783.99, now + 0.3, 0.4);  // G5 (longer)
 
   console.log('[Tempo] Completion beep played');
+}
+
+// ============================================================================
+// REMINDER BEEP - Plays for task due date reminders
+// ============================================================================
+
+function playReminderBeep() {
+  const ctx = getContext();
+  if (ctx.state === 'suspended') ctx.resume();
+
+  // Play an alert sound - two quick beeps
+  const playTone = (freq, startTime, duration) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = freq;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(0.3, startTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    osc.start(startTime);
+    osc.stop(startTime + duration);
+  };
+
+  const now = ctx.currentTime;
+  // Two alert beeps
+  playTone(880, now, 0.15);       // A5
+  playTone(880, now + 0.2, 0.15); // A5 again
+
+  console.log('[Tempo] Reminder beep played');
 }
 
 console.log('[Tempo] Offscreen audio engine loaded');

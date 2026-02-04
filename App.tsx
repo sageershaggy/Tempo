@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 declare var chrome: any;
 import { Screen, AudioState, Task } from './types';
 import { BottomNav } from './components/BottomNav';
+import { InTabNotification, NotificationData, useInTabNotification } from './components/InTabNotification';
 import { SplashScreen } from './screens/SplashScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { OnboardingScreen } from './screens/OnboardingScreen';
@@ -64,6 +65,9 @@ const SCREEN_ROUTES: Record<string, Screen> = {
 };
 
 const App: React.FC = () => {
+  // In-tab notification system
+  const { notification, showNotification, dismissNotification } = useInTabNotification();
+
   const getInitialScreen = (): Screen => {
     const params = new URLSearchParams(window.location.search);
     const screenParam = params.get('screen');
@@ -127,6 +131,104 @@ const App: React.FC = () => {
       saveTasks(tasks);
     }
   }, [tasks, isLoading]);
+
+  // Check for due task reminders
+  const checkTaskReminders = useCallback(() => {
+    const now = new Date();
+    const fifteenMinutesFromNow = new Date(now.getTime() + 15 * 60 * 1000);
+
+    tasks.forEach(task => {
+      if (task.completed || !task.dueDate || !task.reminderEnabled) return;
+
+      // Check if snoozed
+      if (task.snoozedUntil && new Date(task.snoozedUntil) > now) return;
+
+      const dueDate = new Date(task.dueDate);
+
+      // Show reminder if task is due within 15 minutes or already overdue
+      if (dueDate <= fifteenMinutesFromNow) {
+        const isOverdue = dueDate < now;
+        const reminderKey = `reminder_shown_${task.id}_${task.dueDate}`;
+
+        // Only show reminder once per session unless snoozed
+        if (!sessionStorage.getItem(reminderKey)) {
+          sessionStorage.setItem(reminderKey, 'true');
+
+          showNotification({
+            type: 'reminder',
+            title: isOverdue ? 'Task Overdue!' : 'Task Due Soon',
+            message: task.title,
+            icon: isOverdue ? 'warning' : 'schedule',
+            actions: [
+              {
+                label: 'Snooze 15m',
+                onClick: () => handleSnoozeTask(task.id, 15),
+              },
+              {
+                label: 'View Task',
+                onClick: () => setCurrentScreen(Screen.TASKS),
+                primary: true,
+              },
+            ],
+          });
+        }
+      }
+    });
+  }, [tasks, showNotification]);
+
+  // Handle snoozing a task
+  const handleSnoozeTask = useCallback((taskId: string, minutes: number) => {
+    const snoozeUntil = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+    setTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, snoozedUntil: snoozeUntil } : t
+    ));
+    // Clear the reminder key so it can show again after snooze
+    const task = tasks.find(t => t.id === taskId);
+    if (task?.dueDate) {
+      sessionStorage.removeItem(`reminder_shown_${taskId}_${task.dueDate}`);
+    }
+  }, [tasks, setTasks]);
+
+  // Check reminders periodically
+  useEffect(() => {
+    // Initial check after tasks load
+    if (!isLoading && tasks.length > 0) {
+      const timeout = setTimeout(checkTaskReminders, 2000);
+      return () => clearTimeout(timeout);
+    }
+  }, [isLoading, tasks.length]);
+
+  useEffect(() => {
+    // Check every minute for due tasks
+    const interval = setInterval(checkTaskReminders, 60000);
+    return () => clearInterval(interval);
+  }, [checkTaskReminders]);
+
+  // Listen for timer completion from background
+  useEffect(() => {
+    const handleMessage = (message: any) => {
+      if (message.action === 'showTimerNotification') {
+        showNotification({
+          type: 'timer',
+          title: 'Focus Session Complete!',
+          message: 'Great work! Time for a well-deserved break.',
+          icon: 'celebration',
+          actions: [
+            {
+              label: 'Start Break',
+              onClick: () => {}, // Will be handled by timer screen
+              primary: true,
+            },
+          ],
+        });
+      }
+    };
+
+    if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener(handleMessage);
+      return () => chrome.runtime.onMessage.removeListener(handleMessage);
+    }
+  }, [showNotification]);
 
   const renderScreen = () => {
     const props = {
@@ -229,6 +331,13 @@ const App: React.FC = () => {
 
         {renderScreen()}
         <BottomNav currentScreen={currentScreen} setScreen={setCurrentScreen} />
+
+        {/* In-Tab Notification Popup */}
+        <InTabNotification
+          notification={notification}
+          onDismiss={dismissNotification}
+          playSound={true}
+        />
       </div>
     </div>
   );

@@ -38,6 +38,9 @@ export interface Task {
   updatedAt?: number; // Timestamp
   notes?: string;
   milestoneId?: string;
+  // Snooze/Reminder fields
+  snoozedUntil?: string; // ISO Date string - when to remind again
+  reminderEnabled?: boolean; // Whether to show due date reminder
 }
 
 export interface Milestone {
