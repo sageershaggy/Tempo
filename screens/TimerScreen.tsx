@@ -238,23 +238,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       if (response?.enabled) {
         // Beat is running in offscreen, sync UI
         setBeatEnabled(true);
-        setBeatCount(response.count || 0);
-        localStorage.setItem('tempo_beatEnabled', 'true');
-      } else {
-        // Beat is NOT running. Check if we expect it to be.
-        const savedBeatEnabled = localStorage.getItem('tempo_beatEnabled') === 'true';
-        const savedTimerActive = localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true';
-        const savedInterval = parseInt(localStorage.getItem('tempo_beatInterval') || '1', 10);
-
-        if (savedBeatEnabled && savedTimerActive) {
-          console.log('[Tempo] Restoring Focus Beat...');
-          setBeatEnabled(true);
-          w.chrome.runtime.sendMessage({
-            action: 'focusBeat-start',
-            intervalSeconds: savedInterval
-          });
+        if (response.count !== undefined) {
+          setBeatCount(response.count);
         }
+        localStorage.setItem('tempo_beatEnabled', 'true');
       }
+      // REMOVED: Aggressive auto-restore which caused resets. 
+      // We now rely on offscreen.js internal persistence.
     });
 
     // Poll for beat count updates while popup is open
