@@ -89,6 +89,14 @@ export interface CategoryConfig {
 
 export interface SocialConfig {
   mockLeaderboard: LeaderboardUserConfig[];
+  mockMilestones: MilestoneConfig[];
+}
+
+export interface MilestoneConfig {
+  id: string;
+  title: string;
+  progress: number;
+  color: string;
 }
 
 export interface LeaderboardUserConfig {
@@ -286,6 +294,11 @@ export const defaultAppConfig: AppConfig = {
       { name: 'Alex Chen', hours: '42h', img: 1005, streak: 4 },
       { name: 'Jordan Lee', hours: '38h', img: 1014, streak: 3 },
       { name: 'Casey West', hours: '12h', img: 1024, streak: 0 },
+    ],
+    mockMilestones: [
+      { id: 'm1', title: 'Launch MVP Beta', progress: 75, color: 'bg-primary' },
+      { id: 'm2', title: 'Complete User Research', progress: 100, color: 'bg-secondary' },
+      { id: 'm3', title: 'Design System v2', progress: 30, color: 'bg-blue-500' },
     ],
   },
 

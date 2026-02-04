@@ -4,13 +4,9 @@ import { suggestSubtasks, analyzeTaskPriority } from '../services/geminiService'
 import { configManager } from '../config';
 import { googleTasksService } from '../services/googleTasks';
 
-const MOCK_MILESTONES = [
-    { id: 'm1', title: 'Launch MVP Beta', progress: 75, color: 'bg-primary' },
-    { id: 'm2', title: 'Complete User Research', progress: 100, color: 'bg-secondary' },
-    { id: 'm3', title: 'Design System v2', progress: 30, color: 'bg-blue-500' },
-];
-
 export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks }) => {
+    // Get milestones from config
+    const milestones = configManager.getConfig().social.mockMilestones;
     const [searchQuery, setSearchQuery] = useState('');
     const [filter, setFilter] = useState<string>('All');
     const [sort, setSort] = useState<'Manual' | 'Date' | 'Priority' | 'Title'>('Manual');
@@ -390,7 +386,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                             ? (task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100
                             : 0;
                         const isSelected = selectedTaskIds.has(task.id);
-                        const linkedMilestone = MOCK_MILESTONES.find(m => m.id === task.milestoneId);
+                        const linkedMilestone = milestones.find(m => m.id === task.milestoneId);
 
                         return (
                             <div
@@ -530,7 +526,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                                 className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white focus:border-primary/50 focus:outline-none appearance-none cursor-pointer hover:bg-white/10 transition-colors"
                                                             >
                                                                 <option value="">No Milestone</option>
-                                                                {MOCK_MILESTONES.map(m => (
+                                                                {milestones.map(m => (
                                                                     <option key={m.id} value={m.id}>{m.title}</option>
                                                                 ))}
                                                             </select>
