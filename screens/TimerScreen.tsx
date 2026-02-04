@@ -5,6 +5,7 @@ import { STORAGE_KEYS, formatTimer, UI_DIMENSIONS, extractYouTubeId } from '../c
 import { getSettings, updateStats } from '../services/storageService';
 import { playSound, stopSound, setVolume as setSoundVolume, isBuiltInTrack } from '../services/soundGenerator';
 import { playOffscreen, stopOffscreen, setOffscreenVolume, getOffscreenStatus, isOffscreenAvailable } from '../services/audioBridge';
+import { googleTasksService } from '../services/googleTasks';
 
 // Use offscreen audio when available (Chrome extension), fallback to direct Web Audio
 const useOffscreen = isOffscreenAvailable();
@@ -42,6 +43,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const beatAudioCtxRef = useRef<AudioContext | null>(null);
   const stateInitializedRef = useRef(false); // Track if we've done initial load of both timer and beat state
 
+  // Quick task state
+  const [quickTaskTitle, setQuickTaskTitle] = useState('');
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [isSyncingTask, setIsSyncingTask] = useState(false);
+
   const handleCreateTask = () => {
     if (!newTaskTitle.trim()) return;
     const newTask = {
@@ -58,6 +64,52 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     setCurrentTask(newTask);
     setNewTaskTitle('');
     setShowTaskSelector(false);
+  };
+
+  // Quick task creation with Google Tasks sync
+  const handleQuickTaskCreate = async () => {
+    if (!quickTaskTitle.trim()) return;
+
+    setIsSyncingTask(true);
+
+    const newTask = {
+      id: Date.now().toString(),
+      title: quickTaskTitle.trim(),
+      category: 'Work',
+      priority: 'Medium' as const,
+      completed: false,
+      subtasks: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    // Add to local tasks
+    setTasks(prev => [newTask, ...prev]);
+    setCurrentTask(newTask);
+    setQuickTaskTitle('');
+
+    // Sync with Google Tasks if connected
+    if (isGoogleConnected) {
+      try {
+        await googleTasksService.createTask('@default', newTask.title);
+      } catch (err) {
+        console.error('Failed to sync task to Google:', err);
+      }
+    }
+
+    setIsSyncingTask(false);
+  };
+
+  // Connect to Google Tasks
+  const handleGoogleConnect = async () => {
+    setIsSyncingTask(true);
+    try {
+      const success = await googleTasksService.authenticate();
+      setIsGoogleConnected(success);
+    } catch (err) {
+      console.error('Google Tasks connection failed:', err);
+    }
+    setIsSyncingTask(false);
   };
 
   // Get initial time from a template
@@ -103,6 +155,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           });
         }
       }
+
+      // Check Google Tasks connection
+      setIsGoogleConnected(googleTasksService.isConnected());
     };
     loadUserSettings();
   }, []);
@@ -204,19 +259,24 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     setBeatEnabled(newEnabled);
 
     if (useOffscreen && w.chrome?.runtime?.sendMessage) {
-      if (newEnabled && isActive) {
-        // Start beat (timer is running and user enabled beat)
-        setBeatCount(0);
-        w.chrome.runtime.sendMessage({
-          action: 'focusBeat-start',
-          intervalSeconds: beatInterval
-        });
-      } else if (!newEnabled) {
+      if (newEnabled) {
+        // Start beat immediately if timer is running, or it will start when timer starts
+        if (isActive) {
+          setBeatCount(0);
+          w.chrome.runtime.sendMessage({
+            action: 'focusBeat-start',
+            intervalSeconds: beatInterval
+          }, (response: any) => {
+            console.log('[Tempo] Focus Beat start response:', response);
+          });
+        }
+      } else {
         // Stop beat (user disabled beat)
-        w.chrome.runtime.sendMessage({ action: 'focusBeat-stop' });
+        w.chrome.runtime.sendMessage({ action: 'focusBeat-stop' }, (response: any) => {
+          console.log('[Tempo] Focus Beat stop response:', response);
+        });
         setBeatCount(0);
       }
-      // If newEnabled && !isActive, do nothing - beat will start when timer starts
     }
   };
 
@@ -281,23 +341,25 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     // In extension context: manage offscreen beat based on timer state
     if (beatEnabled) {
       if (isActive) {
-        // Timer just started, start beat if not already running
-        w.chrome.runtime.sendMessage({ action: 'focusBeat-status' }, (response: any) => {
-          if (!response?.enabled) {
-            setBeatCount(0);
-            w.chrome.runtime.sendMessage({
-              action: 'focusBeat-start',
-              intervalSeconds: beatInterval
-            });
-          }
+        // Timer just started, always start beat
+        setBeatCount(0);
+        console.log('[Tempo] Starting focus beat with interval:', beatInterval);
+        w.chrome.runtime.sendMessage({
+          action: 'focusBeat-start',
+          intervalSeconds: beatInterval
+        }, (response: any) => {
+          console.log('[Tempo] Focus beat start response:', response);
         });
       } else {
         // Timer stopped, stop beat
-        w.chrome.runtime.sendMessage({ action: 'focusBeat-stop' });
+        console.log('[Tempo] Stopping focus beat');
+        w.chrome.runtime.sendMessage({ action: 'focusBeat-stop' }, (response: any) => {
+          console.log('[Tempo] Focus beat stop response:', response);
+        });
         setBeatCount(0);
       }
     }
-  }, [isActive]);
+  }, [isActive, beatEnabled]);
 
   // Update timer when template changes
   useEffect(() => {
@@ -729,6 +791,50 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             <span className="text-[10px] text-muted">sec</span>
           </div>
         )}
+      </div>
+
+      {/* Quick Task Input */}
+      <div className="mt-3 w-full rounded-xl bg-surface-dark/80 border border-white/5 p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="material-symbols-outlined text-sm text-primary">add_task</span>
+          <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Quick Task</span>
+          {isGoogleConnected ? (
+            <div className="flex items-center gap-1 ml-auto">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+              <span className="text-[9px] text-green-400 font-medium">Synced</span>
+            </div>
+          ) : (
+            <button
+              onClick={handleGoogleConnect}
+              disabled={isSyncingTask}
+              className="ml-auto flex items-center gap-1 text-[9px] text-muted hover:text-white transition-colors"
+            >
+              <span className="material-symbols-outlined text-[12px]">sync</span>
+              <span>Connect Google</span>
+            </button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Add a task..."
+            value={quickTaskTitle}
+            onChange={(e) => setQuickTaskTitle(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleQuickTaskCreate()}
+            className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-xs focus:border-primary/50 outline-none placeholder-muted/50"
+          />
+          <button
+            onClick={handleQuickTaskCreate}
+            disabled={!quickTaskTitle.trim() || isSyncingTask}
+            className="px-3 bg-primary rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-light transition-colors"
+          >
+            {isSyncingTask ? (
+              <span className="material-symbols-outlined text-sm text-white animate-spin">sync</span>
+            ) : (
+              <span className="material-symbols-outlined text-sm text-white">add</span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Current Task Card */}
