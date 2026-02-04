@@ -572,6 +572,79 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                     </div>
                                                 )}
 
+                                                {/* Reminder & Snooze Section */}
+                                                {task.dueDate && (
+                                                    <div className="bg-surface-light border border-white/5 rounded-lg p-3">
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="material-symbols-outlined text-orange-400 text-lg">notifications_active</span>
+                                                                <span className="text-xs font-bold text-white">Due Date Reminder</span>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => handleUpdateTask(task.id, { reminderEnabled: !task.reminderEnabled })}
+                                                                className={`relative w-10 h-5 rounded-full transition-colors ${task.reminderEnabled ? 'bg-primary' : 'bg-white/10'}`}
+                                                            >
+                                                                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${task.reminderEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                                            </button>
+                                                        </div>
+                                                        {task.reminderEnabled && (
+                                                            <div className="space-y-2">
+                                                                <p className="text-[10px] text-muted">
+                                                                    You'll be notified when this task is due or overdue.
+                                                                </p>
+                                                                {task.snoozedUntil && new Date(task.snoozedUntil) > new Date() && (
+                                                                    <div className="flex items-center justify-between bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2">
+                                                                        <span className="text-[10px] text-orange-400 flex items-center gap-1">
+                                                                            <span className="material-symbols-outlined text-xs">snooze</span>
+                                                                            Snoozed until {new Date(task.snoozedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                        </span>
+                                                                        <button
+                                                                            onClick={() => handleUpdateTask(task.id, { snoozedUntil: undefined })}
+                                                                            className="text-[10px] text-orange-400 hover:text-orange-300 font-bold"
+                                                                        >
+                                                                            Cancel
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                                <div className="flex gap-2">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const snoozeUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+                                                                            handleUpdateTask(task.id, { snoozedUntil: snoozeUntil });
+                                                                        }}
+                                                                        className="flex-1 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold text-muted hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-1"
+                                                                    >
+                                                                        <span className="material-symbols-outlined text-xs">snooze</span>
+                                                                        15 min
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const snoozeUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+                                                                            handleUpdateTask(task.id, { snoozedUntil: snoozeUntil });
+                                                                        }}
+                                                                        className="flex-1 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold text-muted hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-1"
+                                                                    >
+                                                                        <span className="material-symbols-outlined text-xs">snooze</span>
+                                                                        1 hour
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const tomorrow = new Date();
+                                                                            tomorrow.setDate(tomorrow.getDate() + 1);
+                                                                            tomorrow.setHours(9, 0, 0, 0);
+                                                                            handleUpdateTask(task.id, { snoozedUntil: tomorrow.toISOString() });
+                                                                        }}
+                                                                        className="flex-1 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold text-muted hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-1"
+                                                                    >
+                                                                        <span className="material-symbols-outlined text-xs">snooze</span>
+                                                                        Tomorrow
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
                                                 <div>
                                                     <label className="text-[10px] uppercase font-bold text-muted block mb-1">Notes</label>
                                                     <textarea
