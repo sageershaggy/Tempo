@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
-import { getStats, exportUserData, UserStats } from '../services/storageService';
+import { getStats, exportUserData, exportUserDataAsCSV, UserStats } from '../services/storageService';
 
 interface UserProfile {
   displayName: string;
@@ -47,12 +47,13 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
 
   const handleExportData = async () => {
     try {
-      const data = await exportUserData();
-      const blob = new Blob([data], { type: 'application/json' });
+      const data = await exportUserDataAsCSV();
+      // Add BOM for Excel to recognize UTF-8
+      const blob = new Blob(['\uFEFF' + data], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `tempo-data-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `tempo-data-${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {

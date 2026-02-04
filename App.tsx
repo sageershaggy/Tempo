@@ -104,6 +104,13 @@ const App: React.FC = () => {
       if (settings.theme) {
         applyTheme(settings.theme);
       }
+      // Apply dark mode preference
+      if (settings.darkMode !== undefined) {
+        document.documentElement.classList.toggle('dark', settings.darkMode);
+      } else {
+        // Default to dark mode if not set
+        document.documentElement.classList.add('dark');
+      }
     };
     initApp();
   }, []);
@@ -216,7 +223,7 @@ const App: React.FC = () => {
           actions: [
             {
               label: 'Start Break',
-              onClick: () => {}, // Will be handled by timer screen
+              onClick: () => { }, // Will be handled by timer screen
               primary: true,
             },
           ],

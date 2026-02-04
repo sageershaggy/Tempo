@@ -280,12 +280,11 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                     const next = { 'Off': '10', '10': '20', '20': '30', '30': 'Off' };
                                     return next[prev as keyof typeof next] || 'Off';
                                 })}
-                                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                                    autoSyncStatus === 'syncing' ? 'bg-blue-500/30 text-blue-400 animate-pulse' :
-                                    autoSyncStatus === 'success' ? 'bg-green-500/30 text-green-400' :
-                                    autoSyncStatus === 'error' ? 'bg-red-500/30 text-red-400' :
-                                    'bg-surface-light hover:bg-surface-light/80 text-white'
-                                }`}
+                                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${autoSyncStatus === 'syncing' ? 'bg-blue-500/30 text-blue-400 animate-pulse' :
+                                        autoSyncStatus === 'success' ? 'bg-green-500/30 text-green-400' :
+                                            autoSyncStatus === 'error' ? 'bg-red-500/30 text-red-400' :
+                                                'bg-surface-light hover:bg-surface-light/80 text-white'
+                                    }`}
                                 title={`Sync Interval: ${syncInterval === 'Off' ? 'Manual' : syncInterval + 'm'}${lastAutoSync ? ` | Last: ${new Date(lastAutoSync).toLocaleTimeString()}` : ''}`}
                             >
                                 <div className="flex flex-col items-center leading-none">
@@ -446,7 +445,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                     onMouseDown={(e) => e.stopPropagation()}
                                                 >
                                                     <label className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${overdue && !task.completed
-                                                        ? 'border-secondary/50 text-secondary bg-secondary/10'
+                                                        ? 'border-red-500/50 text-red-500 bg-red-500/10'
                                                         : 'border-white/10 text-muted hover:text-white bg-white/5 hover:bg-white/10'
                                                         }`}>
                                                         <span className="material-symbols-outlined text-[16px]">calendar_month</span>
