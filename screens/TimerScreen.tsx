@@ -158,6 +158,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
       // Check Google Tasks connection
       setIsGoogleConnected(googleTasksService.isConnected());
+
+      // Mark state as fully initialized after settings are loaded
+      stateInitializedRef.current = true;
     };
     loadUserSettings();
   }, []);
@@ -237,6 +240,20 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         setBeatEnabled(true);
         setBeatCount(response.count || 0);
         localStorage.setItem('tempo_beatEnabled', 'true');
+      } else {
+        // Beat is NOT running. Check if we expect it to be.
+        const savedBeatEnabled = localStorage.getItem('tempo_beatEnabled') === 'true';
+        const savedTimerActive = localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true';
+        const savedInterval = parseInt(localStorage.getItem('tempo_beatInterval') || '1', 10);
+
+        if (savedBeatEnabled && savedTimerActive) {
+          console.log('[Tempo] Restoring Focus Beat...');
+          setBeatEnabled(true);
+          w.chrome.runtime.sendMessage({
+            action: 'focusBeat-start',
+            intervalSeconds: savedInterval
+          });
+        }
       }
     });
 
@@ -260,21 +277,17 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
     if (useOffscreen && w.chrome?.runtime?.sendMessage) {
       if (newEnabled) {
-        // Start beat immediately if timer is running, or it will start when timer starts
+        // Start beat immediately if timer is running
         if (isActive) {
           setBeatCount(0);
           w.chrome.runtime.sendMessage({
             action: 'focusBeat-start',
             intervalSeconds: beatInterval
-          }, (response: any) => {
-            console.log('[Tempo] Focus Beat start response:', response);
           });
         }
       } else {
         // Stop beat (user disabled beat)
-        w.chrome.runtime.sendMessage({ action: 'focusBeat-stop' }, (response: any) => {
-          console.log('[Tempo] Focus Beat stop response:', response);
-        });
+        w.chrome.runtime.sendMessage({ action: 'focusBeat-stop' });
         setBeatCount(0);
       }
     }
@@ -298,8 +311,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     if (!stateInitializedRef.current) return;
 
     const w = window as any;
+    // Only handle LOCAL fallback here. Extension logic is handled in event handlers.
     if (!useOffscreen || !w.chrome?.runtime?.sendMessage) {
-      // Fallback local audio for non-extension context
       if (isActive && beatEnabled) {
         const playBeat = () => {
           setBeatCount(prev => prev + 1);
@@ -319,7 +332,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
             osc.start(ctx.currentTime);
             osc.stop(ctx.currentTime + 0.15);
-          } catch (e) {}
+          } catch (e) { }
         };
         playBeat();
         beatIntervalRef.current = setInterval(playBeat, beatInterval * 1000);
@@ -336,28 +349,6 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           beatIntervalRef.current = null;
         }
       };
-    }
-
-    // In extension context: manage offscreen beat based on timer state
-    if (beatEnabled) {
-      if (isActive) {
-        // Timer just started, always start beat
-        setBeatCount(0);
-        console.log('[Tempo] Starting focus beat with interval:', beatInterval);
-        w.chrome.runtime.sendMessage({
-          action: 'focusBeat-start',
-          intervalSeconds: beatInterval
-        }, (response: any) => {
-          console.log('[Tempo] Focus beat start response:', response);
-        });
-      } else {
-        // Timer stopped, stop beat
-        console.log('[Tempo] Stopping focus beat');
-        w.chrome.runtime.sendMessage({ action: 'focusBeat-stop' }, (response: any) => {
-          console.log('[Tempo] Focus beat stop response:', response);
-        });
-        setBeatCount(0);
-      }
     }
   }, [isActive, beatEnabled]);
 
@@ -388,6 +379,15 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       if (diff > 0) {
         setTimeLeft(diff);
         setIsActive(true);
+
+        // Notify background that timer is running (in case it forgot/reloaded)
+        try {
+          const w = window as any;
+          if (w.chrome?.runtime?.sendMessage) {
+            w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: diff });
+          }
+        } catch (e) { }
+
       } else {
         setTimeLeft(0);
         setIsActive(false);
@@ -396,8 +396,6 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       }
     }
 
-    // Mark state as fully initialized after timer state is loaded
-    stateInitializedRef.current = true;
   }, []);
 
   // Persist timer mode for mini timer to read
@@ -427,7 +425,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
       if (timerMode === 'focus') {
         // Focus session completed - record stats and transition to break
-        const sessionMinutes = Math.round(initialTime / 60);
+        // Ensure at least 1 minute is recorded for completed sessions (rounded up)
+        const sessionMinutes = Math.max(1, Math.round(initialTime / 60));
         updateStats(sessionMinutes).catch(err => console.error('Failed to update stats:', err));
 
         if (audioState.isPlaying && audioState.autoPlay) {
@@ -443,6 +442,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           if (w.chrome?.runtime?.sendMessage) {
             w.chrome.runtime.sendMessage({ action: 'timerComplete' });
             w.chrome.runtime.sendMessage({ action: 'stopTimer' });
+            // Also stop focus beat if it was running
+            if (beatEnabled) {
+              w.chrome.runtime.sendMessage({ action: 'focusBeat-stop' });
+              setBeatCount(0);
+            }
           }
         } catch (e) {
           // Not in extension context
@@ -476,7 +480,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             w.chrome.runtime.sendMessage({ action: 'timerComplete' });
             w.chrome.runtime.sendMessage({ action: 'stopTimer' });
           }
-        } catch (e) {}
+        } catch (e) { }
 
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification('Break Complete!', {
@@ -501,27 +505,44 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, String(newActive));
     localStorage.setItem(STORAGE_KEYS.TIMER_MODE, activeTemplateId);
 
+    const w = window as any;
+    const isExtension = useOffscreen && w.chrome?.runtime?.sendMessage;
+
     if (newActive) {
       const target = Date.now() + (timeLeft * 1000);
       localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(target));
 
-      // Update extension badge with timer (send exact seconds for real-time badge)
+      // Update extension badge with timer
       try {
-        const w = window as any;
         if (w.chrome?.runtime?.sendMessage) {
           w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: timeLeft });
         }
-      } catch (e) {}
+      } catch (e) { }
+
+      // Start Focus Beat if enabled
+      if (beatEnabled && isExtension) {
+        setBeatCount(0);
+        w.chrome.runtime.sendMessage({
+          action: 'focusBeat-start',
+          intervalSeconds: beatInterval
+        });
+      }
+
     } else {
       localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
 
       // Clear extension badge
       try {
-        const w = window as any;
         if (w.chrome?.runtime?.sendMessage) {
           w.chrome.runtime.sendMessage({ action: 'stopTimer' });
         }
-      } catch (e) {}
+      } catch (e) { }
+
+      // Stop Focus Beat if enabled
+      if (beatEnabled && isExtension) {
+        w.chrome.runtime.sendMessage({ action: 'focusBeat-stop' });
+        setBeatCount(0);
+      }
     }
   };
 
@@ -745,7 +766,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                   if (w.chrome?.runtime?.sendMessage) {
                     w.chrome.runtime.sendMessage({ action: 'stopTimer' });
                   }
-                } catch (e) {}
+                } catch (e) { }
               }}
               className="w-10 h-10 rounded-full bg-white/10 text-white border border-white/10 hover:bg-white/15 flex items-center justify-center transition-all active:scale-95"
               title="Reset Timer"
@@ -1122,7 +1143,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                     if (w.chrome?.runtime?.sendMessage) {
                       w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: timeLeft });
                     }
-                  } catch (e) {}
+                  } catch (e) { }
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-light transition-colors"
               >

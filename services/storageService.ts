@@ -290,3 +290,39 @@ export const exportUserData = async (): Promise<string> => {
 
   return JSON.stringify({ settings, stats, tasks, exportedAt: new Date().toISOString() }, null, 2);
 };
+
+// Export user data as CSV for Excel
+export const exportUserDataAsCSV = async (): Promise<string> => {
+  const stats = await getStats();
+  const tasks = await getTasks();
+
+  const sections: string[] = [];
+
+  // 1. Stats Summary
+  sections.push('STATS SUMMARY');
+  sections.push('Total Sessions,Total Hours,Current Streak,Last Session');
+  sections.push(`${stats.totalSessions},${(stats.totalFocusMinutes / 60).toFixed(1)},${stats.currentStreak},${stats.lastSessionDate || 'N/A'}`);
+  sections.push('');
+
+  // 2. Weekly Data
+  sections.push('DAILY ACTIVITY (Last 7 Days)');
+  sections.push('Date,Minutes');
+  Object.entries(stats.weeklyData || {}).slice(-7).forEach(([date, mins]) => {
+    sections.push(`${date},${mins}`);
+  });
+  sections.push('');
+
+  // 3. Tasks
+  sections.push('TASKS');
+  sections.push('Title,Status,Priority,Category,Due Date,Notes');
+  tasks.forEach(t => {
+    const status = t.completed ? 'Completed' : 'Pending';
+    // Escape commas in strings
+    const title = `"${(t.title || '').replace(/"/g, '""')}"`;
+    const notes = `"${(t.notes || '').replace(/"/g, '""')}"`;
+    const dueDate = t.dueDate ? new Date(t.dueDate).toLocaleDateString() + ' ' + new Date(t.dueDate).toLocaleTimeString() : 'No Date';
+    sections.push(`${title},${status},${t.priority},${t.category},${dueDate},${notes}`);
+  });
+
+  return sections.join('\n');
+};

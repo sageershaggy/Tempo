@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
-import { getSettings, saveSettings, UserSettings, exportUserData } from '../services/storageService';
+import { getSettings, saveSettings, UserSettings, exportUserData, exportUserDataAsCSV } from '../services/storageService';
 import { configManager } from '../config';
 import { STORAGE_KEYS, LIMITS } from '../config/constants';
 
@@ -66,6 +66,9 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   // Save settings when changed
   const handleSettingChange = async (key: keyof UserSettings, value: any) => {
     await saveSettings({ [key]: value });
+    if (key === 'darkMode') {
+      document.documentElement.classList.toggle('dark', value);
+    }
   };
 
   // Load configuration dynamically
@@ -91,12 +94,13 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
 
   const handleExportData = async () => {
     try {
-      const data = await exportUserData();
-      const blob = new Blob([data], { type: 'application/json' });
+      const data = await exportUserDataAsCSV();
+      // Add BOM for Excel
+      const blob = new Blob(['\uFEFF' + data], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `tempo-data-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `tempo-data-${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -688,7 +692,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
               className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5"
             >
               <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-white">Export Data (JSON)</p>
+                <p className="text-sm font-bold text-white">Export Data (Excel/CSV)</p>
               </div>
               <span className="material-symbols-outlined text-muted text-sm">download</span>
             </div>
@@ -894,17 +898,15 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                         onClick={() => {
                           handleThemeSelect(theme.id);
                         }}
-                        className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
-                          isActive
-                            ? 'border-white/40 bg-white/10 scale-105'
-                            : 'border-white/5 hover:border-white/20 hover:bg-white/5'
-                        }`}
+                        className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${isActive
+                          ? 'border-white/40 bg-white/10 scale-105'
+                          : 'border-white/5 hover:border-white/20 hover:bg-white/5'
+                          }`}
                       >
                         <div className="relative">
                           <div
-                            className={`w-12 h-12 rounded-full ${theme.color} shadow-lg transition-all ${
-                              isActive ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-dark' : ''
-                            }`}
+                            className={`w-12 h-12 rounded-full ${theme.color} shadow-lg transition-all ${isActive ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-dark' : ''
+                              }`}
                           ></div>
                           {isActive && (
                             <div className="absolute inset-0 flex items-center justify-center">
@@ -912,9 +914,8 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                             </div>
                           )}
                         </div>
-                        <span className={`text-[10px] font-semibold leading-tight text-center ${
-                          isActive ? 'text-white' : 'text-muted'
-                        }`}>{theme.name}</span>
+                        <span className={`text-[10px] font-semibold leading-tight text-center ${isActive ? 'text-white' : 'text-muted'
+                          }`}>{theme.name}</span>
                       </button>
                     );
                   })}
@@ -938,17 +939,15 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                         onClick={() => {
                           handleThemeSelect(theme.id);
                         }}
-                        className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
-                          isActive
-                            ? 'border-white/40 bg-white/10 scale-105'
-                            : 'border-white/5 hover:border-white/20 hover:bg-white/5'
-                        }`}
+                        className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${isActive
+                          ? 'border-white/40 bg-white/10 scale-105'
+                          : 'border-white/5 hover:border-white/20 hover:bg-white/5'
+                          }`}
                       >
                         <div className="relative">
                           <div
-                            className={`w-12 h-12 rounded-full ${theme.color} shadow-lg transition-all ${
-                              isActive ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-dark' : ''
-                            }`}
+                            className={`w-12 h-12 rounded-full ${theme.color} shadow-lg transition-all ${isActive ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-dark' : ''
+                              }`}
                           ></div>
                           {isActive && (
                             <div className="absolute inset-0 flex items-center justify-center">
@@ -959,9 +958,8 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                             <span className="material-symbols-outlined text-[8px] text-black">star</span>
                           </div>
                         </div>
-                        <span className={`text-[10px] font-semibold leading-tight text-center ${
-                          isActive ? 'text-white' : 'text-muted'
-                        }`}>{theme.name}</span>
+                        <span className={`text-[10px] font-semibold leading-tight text-center ${isActive ? 'text-white' : 'text-muted'
+                          }`}>{theme.name}</span>
                       </button>
                     );
                   })}
