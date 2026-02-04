@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Screen, GlobalProps } from '../types';
 import { getStats, UserStats } from '../services/storageService';
 import { configManager } from '../config';
@@ -9,40 +9,51 @@ type TimePeriod = 'daily' | 'weekly' | 'monthly';
 interface LeaderboardUser {
   rank: number;
   name: string;
-  hours: number;
+  minutes: number; // Track minutes for accuracy
   streak: number;
   points: number;
   me?: boolean;
 }
 
-const POINT_TIERS = [
-  { label: 'Top 3', maxRank: 3, points: 100 },
-  { label: 'Top 10', maxRank: 10, points: 50 },
-  { label: 'Top 25', maxRank: 25, points: 35 },
-  { label: 'Top 50', maxRank: 50, points: 20 },
-  { label: 'Top 100', maxRank: 100, points: 10 },
-  { label: 'Participant', maxRank: Infinity, points: 5 },
+// Rank bonus points (awarded based on leaderboard position)
+const RANK_BONUS = [
+  { label: 'Top 3', maxRank: 3, bonus: 100 },
+  { label: 'Top 10', maxRank: 10, bonus: 50 },
+  { label: 'Top 25', maxRank: 25, bonus: 35 },
+  { label: 'Top 50', maxRank: 50, bonus: 20 },
 ];
 
-const getPointsForRank = (rank: number): number => {
-  for (const tier of POINT_TIERS) {
-    if (rank <= tier.maxRank) return tier.points;
+// Calculate points from focus time:
+// - 1 point per 10 minutes
+// - +2 bonus points per full hour
+const calculatePointsFromMinutes = (minutes: number): number => {
+  const basePoints = Math.floor(minutes / 10); // 1 point per 10 mins
+  const hourBonus = Math.floor(minutes / 60) * 2; // +2 per hour
+  return basePoints + hourBonus;
+};
+
+const getRankBonus = (rank: number): number => {
+  for (const tier of RANK_BONUS) {
+    if (rank <= tier.maxRank) return tier.bonus;
   }
-  return 5;
+  return 0;
 };
 
 const getTierForRank = (rank: number): string => {
-  for (const tier of POINT_TIERS) {
+  for (const tier of RANK_BONUS) {
     if (rank <= tier.maxRank) return tier.label;
   }
-  return 'Participant';
+  return 'Top 100';
 };
 
-// Mock data multipliers for different time periods
-const PERIOD_MULTIPLIERS: Record<TimePeriod, number> = {
-  daily: 1,
-  weekly: 5,
-  monthly: 18,
+// Format minutes as "Xh Ym" or "Ym"
+const formatTime = (minutes: number): string => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours > 0) {
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  }
+  return `${mins}m`;
 };
 
 export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
@@ -74,37 +85,86 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
     localStorage.setItem('tempo_gamification', String(newVal));
   };
 
-  const multiplier = PERIOD_MULTIPLIERS[period];
-  const myHoursTotal = Math.floor((stats?.totalFocusMinutes || 0) / 60);
-  const myHours = period === 'daily' ? Math.max(1, Math.floor(myHoursTotal / 30)) : period === 'weekly' ? Math.max(1, Math.floor(myHoursTotal / 4)) : myHoursTotal;
-  const myStreak = stats?.currentStreak || 0;
-
   const config = configManager.getConfig();
   const mockLeaderboard = config.social.mockLeaderboard;
+  const myStreak = stats?.currentStreak || 0;
 
-  // Build leaderboard with period-adjusted hours
-  const allUsers: LeaderboardUser[] = [
-    ...mockLeaderboard.map((u) => {
-      const baseHours = parseInt(u.hours) || 0;
-      const adjustedHours = period === 'daily' ? Math.max(1, Math.floor(baseHours / 30)) : period === 'weekly' ? Math.max(1, Math.floor(baseHours / 4)) : baseHours;
-      return {
-        rank: 0,
-        name: u.name,
-        hours: adjustedHours,
-        streak: u.streak,
-        points: 0,
-      };
-    }),
-    { rank: 0, name: userName, hours: myHours, streak: myStreak, points: 0, me: true },
-  ];
+  // Calculate user's minutes for the selected period - recalculates when period or stats change
+  const myMinutes = useMemo(() => {
+    if (!stats?.weeklyData) return 0;
 
-  const sortedUsers = allUsers
-    .sort((a, b) => b.hours - a.hours)
-    .map((u, idx) => ({ ...u, rank: idx + 1, points: getPointsForRank(idx + 1) }));
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
 
-  const yourRank = sortedUsers.find(u => u.me)?.rank || sortedUsers.length;
-  const yourPoints = getPointsForRank(yourRank);
-  const yourTier = getTierForRank(yourRank);
+    if (period === 'daily') {
+      // Just today's minutes
+      return stats.weeklyData[todayStr] || 0;
+    } else if (period === 'weekly') {
+      // Last 7 days
+      let total = 0;
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        total += stats.weeklyData[dateStr] || 0;
+      }
+      return total;
+    } else {
+      // Monthly - last 30 days
+      let total = 0;
+      for (let i = 0; i < 30; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        total += stats.weeklyData[dateStr] || 0;
+      }
+      return total;
+    }
+  }, [period, stats]);
+
+  const myPoints = calculatePointsFromMinutes(myMinutes);
+
+  // Build leaderboard with period-adjusted minutes - recalculates when period changes
+  const { sortedUsers, yourRank, yourTotalPoints, yourTier } = useMemo(() => {
+    const allUsers: LeaderboardUser[] = [
+      ...mockLeaderboard.map((u) => {
+        const baseHours = parseInt(u.hours) || 0;
+        const baseMinutes = baseHours * 60;
+        // Adjust mock data for period - daily gets ~1/30, weekly gets ~1/4 of monthly
+        const adjustedMinutes = period === 'daily'
+          ? Math.max(30, Math.floor(baseMinutes / 30)) // At least 30 mins for daily
+          : period === 'weekly'
+            ? Math.max(60, Math.floor(baseMinutes / 4)) // At least 1h for weekly
+            : baseMinutes;
+        return {
+          rank: 0,
+          name: u.name,
+          minutes: adjustedMinutes,
+          streak: u.streak,
+          points: calculatePointsFromMinutes(adjustedMinutes),
+        };
+      }),
+      { rank: 0, name: userName, minutes: myMinutes, streak: myStreak, points: myPoints, me: true },
+    ];
+
+    // Sort by points (which reflects time spent)
+    const sorted = allUsers
+      .sort((a, b) => b.points - a.points)
+      .map((u, idx) => ({
+        ...u,
+        rank: idx + 1,
+        // Add rank bonus to points
+        points: u.points + getRankBonus(idx + 1)
+      }));
+
+    const yourEntry = sorted.find(u => u.me);
+    return {
+      sortedUsers: sorted,
+      yourRank: yourEntry?.rank || sorted.length,
+      yourTotalPoints: yourEntry?.points || myPoints,
+      yourTier: getTierForRank(yourEntry?.rank || sorted.length)
+    };
+  }, [period, mockLeaderboard, userName, myMinutes, myStreak, myPoints]);
 
   const getInitials = (name: string) =>
     name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -165,11 +225,11 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-right">
-                    <p className="text-base font-black text-primary">{myHours}h</p>
+                    <p className="text-base font-black text-primary">{formatTime(myMinutes)}</p>
                     <p className="text-[9px] text-muted uppercase">Focus</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-base font-black text-secondary">{yourPoints}</p>
+                    <p className="text-base font-black text-secondary">{yourTotalPoints}</p>
                     <p className="text-[9px] text-muted uppercase">Pts</p>
                   </div>
                 </div>
@@ -191,11 +251,26 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
               ))}
             </div>
 
-            {/* Point Tiers Info */}
+            {/* Points Info */}
+            <div className="bg-surface-dark rounded-xl border border-white/5 p-3">
+              <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">How Points Work</p>
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded bg-primary/20 flex items-center justify-center text-primary font-bold">1</span>
+                  <span className="text-white/70">per 10 min focused</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded bg-secondary/20 flex items-center justify-center text-secondary font-bold">+2</span>
+                  <span className="text-white/70">bonus per hour</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Rank Bonus Tiers */}
             <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
-              {POINT_TIERS.slice(0, 4).map((tier) => (
+              {RANK_BONUS.map((tier) => (
                 <div key={tier.label} className="flex-1 min-w-0 bg-surface-dark rounded-lg border border-white/5 p-2 text-center">
-                  <p className="text-xs font-black text-white">{tier.points}</p>
+                  <p className="text-xs font-black text-white">+{tier.bonus}</p>
                   <p className="text-[8px] text-muted uppercase tracking-wider">{tier.label}</p>
                 </div>
               ))}
@@ -235,7 +310,7 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                           <p className={`text-xs font-semibold truncate ${user.me ? 'text-white' : 'text-white/80'}`}>
                             {user.name} {user.me && <span className="text-[10px] text-primary font-bold">(you)</span>}
                           </p>
-                          <p className="text-[10px] text-muted">{user.hours}h focused</p>
+                          <p className="text-[10px] text-muted">{formatTime(user.minutes)} focused</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
