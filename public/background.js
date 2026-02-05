@@ -7,6 +7,12 @@ async function ensureOffscreenDocument() {
   if (offscreenCreated) return;
 
   try {
+    // Safety check: ensure chrome.runtime and chrome.offscreen are available
+    if (!chrome.runtime?.getContexts || !chrome.offscreen?.createDocument) {
+      console.log('[Tempo] Chrome APIs not ready yet, deferring offscreen creation');
+      return;
+    }
+
     // Check if offscreen document already exists
     const existingContexts = await chrome.runtime.getContexts({
       contextTypes: ['OFFSCREEN_DOCUMENT'],
@@ -29,6 +35,9 @@ async function ensureOffscreenDocument() {
     // May already exist
     if (e.message?.includes('Only a single offscreen')) {
       offscreenCreated = true;
+    } else if (e.message?.includes('No current')) {
+      // Service worker not fully initialized - this is normal during startup
+      console.log('[Tempo] Service worker initializing, will retry offscreen creation');
     } else {
       console.error('[Tempo] Failed to create offscreen document:', e);
     }
@@ -36,41 +45,61 @@ async function ensureOffscreenDocument() {
 }
 
 // Safe message forwarding to offscreen document with lastError handling
-function sendToOffscreen(message, sendResponse) {
-  console.log('[Tempo] sendToOffscreen called with:', message.action);
+function sendToOffscreen(message, sendResponse, retryCount = 0) {
+  const MAX_RETRIES = 3;
+  console.log('[Tempo] sendToOffscreen called with:', message.action, 'retry:', retryCount);
+
   ensureOffscreenDocument().then(() => {
+    // If offscreen wasn't created yet, wait and retry
+    if (!offscreenCreated) {
+      if (retryCount < MAX_RETRIES) {
+        console.log('[Tempo] Offscreen not ready, retrying...');
+        setTimeout(() => sendToOffscreen(message, sendResponse, retryCount + 1), 300);
+      } else {
+        console.error('[Tempo] Offscreen document never became ready');
+        sendResponse({ success: false, error: 'Offscreen document not available' });
+      }
+      return;
+    }
+
     console.log('[Tempo] Offscreen document ready, sending message');
-    // Allow time for offscreen document to initialize
+    // Allow time for offscreen document to initialize its listener
+    const delay = retryCount === 0 ? 50 : 200;
     setTimeout(() => {
       try {
         chrome.runtime.sendMessage(message, (response) => {
           if (chrome.runtime.lastError) {
-            console.warn('[Tempo] Offscreen message failed:', chrome.runtime.lastError.message);
-            // Retry once after a longer delay
-            setTimeout(() => {
-              chrome.runtime.sendMessage(message, (retryResponse) => {
-                if (chrome.runtime.lastError) {
-                  console.error('[Tempo] Retry also failed:', chrome.runtime.lastError.message);
-                  sendResponse({ success: false, error: chrome.runtime.lastError.message });
-                } else {
-                  console.log('[Tempo] Retry succeeded:', retryResponse);
-                  sendResponse(retryResponse || { success: false });
-                }
-              });
-            }, 200);
+            const errorMsg = chrome.runtime.lastError.message;
+            console.warn('[Tempo] Offscreen message failed:', errorMsg);
+
+            // Retry if we haven't exhausted retries
+            if (retryCount < MAX_RETRIES) {
+              setTimeout(() => sendToOffscreen(message, sendResponse, retryCount + 1), 300);
+            } else {
+              console.error('[Tempo] All retries failed:', errorMsg);
+              sendResponse({ success: false, error: errorMsg });
+            }
           } else {
             console.log('[Tempo] Message sent successfully:', response);
-            sendResponse(response || { success: false });
+            sendResponse(response || { success: true });
           }
         });
       } catch (e) {
         console.error('[Tempo] sendToOffscreen error:', e);
-        sendResponse({ success: false, error: e.message });
+        if (retryCount < MAX_RETRIES) {
+          setTimeout(() => sendToOffscreen(message, sendResponse, retryCount + 1), 300);
+        } else {
+          sendResponse({ success: false, error: e.message });
+        }
       }
-    }, 100);
+    }, delay);
   }).catch(e => {
     console.error('[Tempo] ensureOffscreenDocument error:', e);
-    sendResponse({ success: false, error: e.message });
+    if (retryCount < MAX_RETRIES) {
+      setTimeout(() => sendToOffscreen(message, sendResponse, retryCount + 1), 300);
+    } else {
+      sendResponse({ success: false, error: e.message });
+    }
   });
 }
 
@@ -434,6 +463,58 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const mode = request.mode || 'focus';
     const duration = request.duration || 25;
 
+    // IMPORTANT: Update stats when timer completes (for focus sessions only)
+    if (mode === 'focus') {
+      (async () => {
+        try {
+          const statsData = await chrome.storage.local.get('stats');
+          const stats = statsData.stats || {
+            totalSessions: 0,
+            totalFocusMinutes: 0,
+            currentStreak: 0,
+            lastSessionDate: null,
+            weeklyData: {}
+          };
+
+          const today = new Date().toISOString().split('T')[0];
+
+          // Update streak
+          if (stats.lastSessionDate) {
+            const lastDate = new Date(stats.lastSessionDate);
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            if (lastDate.toISOString().split('T')[0] === yesterday.toISOString().split('T')[0]) {
+              stats.currentStreak = (stats.currentStreak || 0) + 1;
+            } else if (stats.lastSessionDate !== today) {
+              stats.currentStreak = 1;
+            }
+          } else {
+            stats.currentStreak = 1;
+          }
+
+          stats.totalSessions = (stats.totalSessions || 0) + 1;
+          stats.totalFocusMinutes = (stats.totalFocusMinutes || 0) + duration;
+          stats.lastSessionDate = today;
+
+          if (!stats.weeklyData) stats.weeklyData = {};
+          stats.weeklyData[today] = (stats.weeklyData[today] || 0) + duration;
+
+          await chrome.storage.local.set({ stats });
+          // Also sync to sync storage
+          try {
+            await chrome.storage.sync.set({ stats });
+          } catch (e) {
+            console.log('[Tempo] Sync storage save failed:', e);
+          }
+
+          console.log('[Tempo] Stats updated from timerComplete:', stats);
+        } catch (e) {
+          console.error('[Tempo] Failed to update stats from timerComplete:', e);
+        }
+      })();
+    }
+
     // Open the alarm page in a new tab - this is the main notification!
     chrome.tabs.create({
       url: `alarm.html?mode=${mode}&duration=${duration}`,
@@ -594,5 +675,8 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 // Also load timer state and ensure offscreen when service worker wakes up
-loadTimerState();
-ensureOffscreenDocument();
+// Use setTimeout to ensure Chrome APIs are fully initialized
+setTimeout(() => {
+  loadTimerState();
+  ensureOffscreenDocument();
+}, 100);

@@ -15,6 +15,15 @@ const STORAGE_KEYS = {
 };
 
 let isPinned = false;
+let pinInterval = null;
+let currentWindowId = null;
+
+// Get current window ID on load
+if (typeof chrome !== 'undefined' && chrome.windows) {
+  chrome.windows.getCurrent((win) => {
+    currentWindowId = win.id;
+  });
+}
 
 function formatTime(seconds) {
   if (seconds <= 0) return '00:00';
@@ -93,29 +102,43 @@ closeBtn.addEventListener('click', (e) => {
   window.close();
 });
 
-// Pin/Always on top toggle
+// Pin/Always on top toggle - keeps window focused when pinned
 pinBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   isPinned = !isPinned;
 
   if (isPinned) {
     pinBtn.classList.add('pinned');
-    pinBtn.title = 'Unpin (disable always on top)';
+    pinBtn.title = 'Unpin (stop keeping on top)';
+
+    // Start interval to keep window focused/on top
+    // This checks every 500ms if another window took focus and brings this back
+    if (pinInterval) clearInterval(pinInterval);
+    pinInterval = setInterval(() => {
+      if (isPinned && currentWindowId && typeof chrome !== 'undefined' && chrome.windows) {
+        // Get current focused window
+        chrome.windows.getLastFocused((focusedWin) => {
+          // If a different window is focused, bring mini timer back to front
+          if (focusedWin.id !== currentWindowId) {
+            chrome.windows.update(currentWindowId, { focused: true });
+          }
+        });
+      }
+    }, 500);
+
+    // Immediately focus
+    if (currentWindowId && typeof chrome !== 'undefined' && chrome.windows) {
+      chrome.windows.update(currentWindowId, { focused: true });
+    }
   } else {
     pinBtn.classList.remove('pinned');
-    pinBtn.title = 'Always on top';
-  }
+    pinBtn.title = 'Keep on top';
 
-  // Send message to background to toggle always on top
-  try {
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
-      chrome.runtime.sendMessage({
-        action: 'setAlwaysOnTop',
-        alwaysOnTop: isPinned
-      });
+    // Stop the focus interval
+    if (pinInterval) {
+      clearInterval(pinInterval);
+      pinInterval = null;
     }
-  } catch (e) {
-    console.log('Could not toggle always on top');
   }
 });
 
