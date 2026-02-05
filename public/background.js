@@ -44,63 +44,107 @@ async function ensureOffscreenDocument() {
   }
 }
 
-// Safe message forwarding to offscreen document with lastError handling
-function sendToOffscreen(message, sendResponse, retryCount = 0) {
-  const MAX_RETRIES = 3;
-  console.log('[Tempo] sendToOffscreen called with:', message.action, 'retry:', retryCount);
+// Check if offscreen document actually exists and is responsive
+async function checkOffscreenExists() {
+  try {
+    if (!chrome.runtime?.getContexts) return false;
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT'],
+      documentUrls: [chrome.runtime.getURL('offscreen.html')]
+    });
+    return contexts.length > 0;
+  } catch (e) {
+    return false;
+  }
+}
 
-  ensureOffscreenDocument().then(() => {
-    // If offscreen wasn't created yet, wait and retry
-    if (!offscreenCreated) {
+// Ping offscreen to verify it's responsive
+function pingOffscreen() {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve(false), 500);
+    try {
+      chrome.runtime.sendMessage({ target: 'offscreen-audio', action: 'ping' }, (response) => {
+        clearTimeout(timeout);
+        if (chrome.runtime.lastError) {
+          resolve(false);
+        } else {
+          resolve(response?.pong === true);
+        }
+      });
+    } catch (e) {
+      clearTimeout(timeout);
+      resolve(false);
+    }
+  });
+}
+
+// Safe message forwarding to offscreen document with lastError handling
+async function sendToOffscreen(message, sendResponse, retryCount = 0) {
+  const MAX_RETRIES = 5;
+  const RETRY_DELAY = 500;
+
+  try {
+    // First ensure offscreen document exists
+    await ensureOffscreenDocument();
+
+    // Double-check it actually exists
+    const exists = await checkOffscreenExists();
+    if (!exists) {
+      offscreenCreated = false; // Reset flag
       if (retryCount < MAX_RETRIES) {
-        console.log('[Tempo] Offscreen not ready, retrying...');
-        setTimeout(() => sendToOffscreen(message, sendResponse, retryCount + 1), 300);
+        console.log('[Tempo] Offscreen not found, recreating... retry:', retryCount);
+        setTimeout(() => sendToOffscreen(message, sendResponse, retryCount + 1), RETRY_DELAY);
+        return;
       } else {
-        console.error('[Tempo] Offscreen document never became ready');
-        sendResponse({ success: false, error: 'Offscreen document not available' });
+        console.error('[Tempo] Could not create offscreen document');
+        sendResponse({ success: false, error: 'Offscreen unavailable' });
+        return;
       }
-      return;
     }
 
-    console.log('[Tempo] Offscreen document ready, sending message');
-    // Allow time for offscreen document to initialize its listener
-    const delay = retryCount === 0 ? 50 : 200;
-    setTimeout(() => {
-      try {
-        chrome.runtime.sendMessage(message, (response) => {
-          if (chrome.runtime.lastError) {
-            const errorMsg = chrome.runtime.lastError.message;
-            console.warn('[Tempo] Offscreen message failed:', errorMsg);
-
-            // Retry if we haven't exhausted retries
-            if (retryCount < MAX_RETRIES) {
-              setTimeout(() => sendToOffscreen(message, sendResponse, retryCount + 1), 300);
-            } else {
-              console.error('[Tempo] All retries failed:', errorMsg);
-              sendResponse({ success: false, error: errorMsg });
-            }
-          } else {
-            console.log('[Tempo] Message sent successfully:', response);
-            sendResponse(response || { success: true });
-          }
-        });
-      } catch (e) {
-        console.error('[Tempo] sendToOffscreen error:', e);
-        if (retryCount < MAX_RETRIES) {
-          setTimeout(() => sendToOffscreen(message, sendResponse, retryCount + 1), 300);
-        } else {
-          sendResponse({ success: false, error: e.message });
-        }
+    // On first attempt, ping to verify offscreen is responsive
+    if (retryCount === 0) {
+      const isResponsive = await pingOffscreen();
+      if (!isResponsive) {
+        console.log('[Tempo] Offscreen not responding to ping, retrying...');
+        setTimeout(() => sendToOffscreen(message, sendResponse, retryCount + 1), RETRY_DELAY);
+        return;
       }
-    }, delay);
-  }).catch(e => {
-    console.error('[Tempo] ensureOffscreenDocument error:', e);
+    }
+
+    // Send the message
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        const errorMsg = chrome.runtime.lastError.message;
+
+        // If receiving end doesn't exist, the offscreen might have been unloaded
+        if (errorMsg.includes('Receiving end does not exist') || errorMsg.includes('Could not establish')) {
+          offscreenCreated = false; // Reset flag so we recreate
+          if (retryCount < MAX_RETRIES) {
+            console.log('[Tempo] Offscreen disconnected, retrying...', retryCount);
+            setTimeout(() => sendToOffscreen(message, sendResponse, retryCount + 1), RETRY_DELAY);
+            return;
+          }
+        }
+
+        if (retryCount >= MAX_RETRIES) {
+          console.error('[Tempo] All retries failed:', errorMsg);
+          sendResponse({ success: false, error: errorMsg });
+        } else {
+          setTimeout(() => sendToOffscreen(message, sendResponse, retryCount + 1), RETRY_DELAY);
+        }
+      } else {
+        sendResponse(response || { success: true });
+      }
+    });
+  } catch (e) {
+    console.error('[Tempo] sendToOffscreen error:', e);
     if (retryCount < MAX_RETRIES) {
-      setTimeout(() => sendToOffscreen(message, sendResponse, retryCount + 1), 300);
+      setTimeout(() => sendToOffscreen(message, sendResponse, retryCount + 1), RETRY_DELAY);
     } else {
       sendResponse({ success: false, error: e.message });
     }
-  });
+  }
 }
 
 // ============================================================================
