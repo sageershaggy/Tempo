@@ -266,7 +266,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse(getFocusBeatStatus());
       } else {
         // Check storage in case we are currently restoring or just loaded
+        // Safety check for chrome.storage
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+          sendResponse({ enabled: false, count: 0 });
+          break;
+        }
         chrome.storage.local.get(['focusBeatState'], (result) => {
+          if (chrome.runtime.lastError) {
+            sendResponse({ enabled: false, count: 0 });
+            return;
+          }
           const state = result.focusBeatState;
           if (state && state.enabled) {
             // Logic to estimate count same as getFocusBeatStatus
@@ -341,17 +350,19 @@ function startFocusBeat(intervalSeconds) {
   playBeatSound();
   focusBeatInterval = setInterval(playBeatSound, focusBeatIntervalMs);
 
-  // Persist state
-  try {
-    chrome.storage.local.set({
-      focusBeatState: {
-        enabled: true,
-        interval: intervalSeconds,
-        startTime: focusBeatStartTime
-      }
-    });
-  } catch (e) {
-    console.error('Failed to save focus beat state', e);
+  // Persist state (with safety check)
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    try {
+      chrome.storage.local.set({
+        focusBeatState: {
+          enabled: true,
+          interval: intervalSeconds,
+          startTime: focusBeatStartTime
+        }
+      });
+    } catch (e) {
+      console.error('[Tempo] Failed to save focus beat state', e);
+    }
   }
 
   console.log('[Tempo] Focus Beat started, interval:', intervalSeconds, 's');
@@ -366,8 +377,12 @@ function stopFocusBeat(clearStorage = true) {
   focusBeatCount = 0;
   focusBeatStartTime = null;
 
-  if (clearStorage) {
-    chrome.storage.local.remove('focusBeatState');
+  if (clearStorage && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    try {
+      chrome.storage.local.remove('focusBeatState');
+    } catch (e) {
+      console.warn('[Tempo] Failed to clear focus beat state', e);
+    }
   }
 
   console.log('[Tempo] Focus Beat stopped');
@@ -395,7 +410,18 @@ function getFocusBeatStatus() {
 
 // Restore state from storage on load
 function restoreFocusBeatState() {
+  // Safety check: ensure chrome.storage is available
+  if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+    console.log('[Tempo] Storage not available yet, will retry...');
+    setTimeout(restoreFocusBeatState, 100);
+    return;
+  }
+
   chrome.storage.local.get(['focusBeatState'], (result) => {
+    if (chrome.runtime.lastError) {
+      console.warn('[Tempo] Failed to get focusBeatState:', chrome.runtime.lastError.message);
+      return;
+    }
     const state = result.focusBeatState;
     if (state && state.enabled) {
       console.log('[Tempo] Restoring Persisted Focus Beat...', state);
@@ -421,8 +447,8 @@ function restoreFocusBeatState() {
   });
 }
 
-// Attempt restore immediately on load
-restoreFocusBeatState();
+// Attempt restore after a small delay to ensure chrome APIs are ready
+setTimeout(restoreFocusBeatState, 50);
 
 // ============================================================================
 // COMPLETION BEEP - Plays when timer completes
