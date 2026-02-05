@@ -216,11 +216,18 @@ function setVolumeLevel(volume) {
 
 // Listen for messages from popup/background
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('[Tempo Offscreen] Received message:', message);
-  if (message.target !== 'offscreen-audio') {
-    console.log('[Tempo Offscreen] Ignoring - not targeted at offscreen-audio');
+  // Handle ping to check if offscreen is alive
+  if (message.action === 'ping' && message.target === 'offscreen-audio') {
+    sendResponse({ success: true, pong: true });
     return;
   }
+
+  if (message.target !== 'offscreen-audio') {
+    // Not for us - don't respond
+    return false;
+  }
+
+  console.log('[Tempo Offscreen] Processing action:', message.action);
 
   console.log('[Tempo Offscreen] Processing action:', message.action);
 
