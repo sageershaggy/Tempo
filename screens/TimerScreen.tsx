@@ -498,6 +498,22 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     };
 
     loadTimerState();
+
+    // Listen for timer started from alarm page while popup is open
+    const w = window as any;
+    if (w.chrome?.storage?.onChanged) {
+      const handleStorageChange = (changes: any, areaName: string) => {
+        if (areaName === 'local' && changes.timerIsActive?.newValue === true) {
+          // Timer was started from alarm page - reload state
+          console.log('[Tempo] Timer started from alarm, syncing...');
+          loadTimerState();
+        }
+      };
+      w.chrome.storage.onChanged.addListener(handleStorageChange);
+      return () => {
+        w.chrome.storage.onChanged.removeListener(handleStorageChange);
+      };
+    }
   }, []);
 
   // Persist timer mode for mini timer to read

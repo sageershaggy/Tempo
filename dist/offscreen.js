@@ -475,144 +475,153 @@ const beatSounds = {
     attackNoise.stop(now + 0.02);
   },
 
-  // Drop - realistic water drop sound with splash and resonance
+  // Drop - realistic water droplet with cavity resonance (like dripping into a bowl)
   drop: (ctx) => {
     const now = ctx.currentTime;
 
-    // Main drop - initial impact with pitch bend (like water hitting surface)
-    const dropOsc = ctx.createOscillator();
-    const dropGain = ctx.createGain();
-    const dropFilter = ctx.createBiquadFilter();
+    // Create a more realistic water drop using FM synthesis for the "plop"
+    // The key is a quick pitch drop with resonant body
 
-    dropOsc.connect(dropFilter);
-    dropFilter.connect(dropGain);
-    dropGain.connect(ctx.destination);
+    // Main drop impact - uses two oscillators for richer tone
+    const carrier = ctx.createOscillator();
+    const modulator = ctx.createOscillator();
+    const modGain = ctx.createGain();
+    const carrierGain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
 
-    // Start high and drop quickly - mimics water drop hitting surface
-    dropOsc.frequency.setValueAtTime(2400, now);
-    dropOsc.frequency.exponentialRampToValueAtTime(800, now + 0.02);
-    dropOsc.frequency.exponentialRampToValueAtTime(400, now + 0.08);
-    dropOsc.type = 'sine';
+    // FM synthesis setup
+    modulator.connect(modGain);
+    modGain.connect(carrier.frequency);
+    carrier.connect(filter);
+    filter.connect(carrierGain);
+    carrierGain.connect(ctx.destination);
 
-    dropFilter.type = 'lowpass';
-    dropFilter.frequency.setValueAtTime(3000, now);
-    dropFilter.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+    // Carrier - the main pitch that drops
+    carrier.frequency.setValueAtTime(1800, now);
+    carrier.frequency.exponentialRampToValueAtTime(280, now + 0.06);
+    carrier.frequency.exponentialRampToValueAtTime(180, now + 0.15);
+    carrier.type = 'sine';
 
-    dropGain.gain.setValueAtTime(0.4, now);
-    dropGain.gain.exponentialRampToValueAtTime(0.15, now + 0.03);
-    dropGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    // Modulator adds the "watery" wobble
+    modulator.frequency.setValueAtTime(40, now);
+    modulator.frequency.exponentialRampToValueAtTime(8, now + 0.1);
+    modulator.type = 'sine';
+    modGain.gain.setValueAtTime(300, now);
+    modGain.gain.exponentialRampToValueAtTime(20, now + 0.1);
 
-    dropOsc.start(now);
-    dropOsc.stop(now + 0.2);
+    // Resonant lowpass for body
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(2000, now);
+    filter.frequency.exponentialRampToValueAtTime(400, now + 0.08);
+    filter.Q.value = 8; // Resonance for that hollow "ploop"
 
-    // Resonance/ripple - the "bloop" echo after impact
-    const rippleOsc = ctx.createOscillator();
+    // Volume envelope
+    carrierGain.gain.setValueAtTime(0, now);
+    carrierGain.gain.linearRampToValueAtTime(0.35, now + 0.008);
+    carrierGain.gain.exponentialRampToValueAtTime(0.15, now + 0.05);
+    carrierGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+    carrier.start(now);
+    carrier.stop(now + 0.25);
+    modulator.start(now);
+    modulator.stop(now + 0.25);
+
+    // Subtle secondary ripple/resonance
+    const ripple = ctx.createOscillator();
     const rippleGain = ctx.createGain();
+    const rippleFilter = ctx.createBiquadFilter();
 
-    rippleOsc.connect(rippleGain);
+    ripple.connect(rippleFilter);
+    rippleFilter.connect(rippleGain);
     rippleGain.connect(ctx.destination);
 
-    rippleOsc.frequency.setValueAtTime(600, now + 0.02);
-    rippleOsc.frequency.exponentialRampToValueAtTime(200, now + 0.25);
-    rippleOsc.type = 'sine';
+    ripple.frequency.setValueAtTime(320, now + 0.04);
+    ripple.frequency.exponentialRampToValueAtTime(140, now + 0.2);
+    ripple.type = 'sine';
 
-    rippleGain.gain.setValueAtTime(0, now);
-    rippleGain.gain.linearRampToValueAtTime(0.15, now + 0.03);
-    rippleGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    rippleFilter.type = 'bandpass';
+    rippleFilter.frequency.value = 250;
+    rippleFilter.Q.value = 3;
 
-    rippleOsc.start(now + 0.02);
-    rippleOsc.stop(now + 0.3);
+    rippleGain.gain.setValueAtTime(0, now + 0.04);
+    rippleGain.gain.linearRampToValueAtTime(0.12, now + 0.06);
+    rippleGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
 
-    // Subtle bubble noise
-    const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
-    const noiseData = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < noiseBuffer.length; i++) {
-      noiseData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.02));
-    }
-    const noiseSource = ctx.createBufferSource();
-    const noiseGain = ctx.createGain();
-    const noiseFilter = ctx.createBiquadFilter();
-
-    noiseSource.buffer = noiseBuffer;
-    noiseSource.connect(noiseFilter);
-    noiseFilter.connect(noiseGain);
-    noiseGain.connect(ctx.destination);
-
-    noiseFilter.type = 'bandpass';
-    noiseFilter.frequency.value = 1500;
-    noiseFilter.Q.value = 1;
-    noiseGain.gain.value = 0.08;
-
-    noiseSource.start(now);
+    ripple.start(now + 0.04);
+    ripple.stop(now + 0.35);
   },
 
-  // Pulse - realistic heartbeat with lub-dub pattern
+  // Pulse - realistic heartbeat using noise-shaped impulses (like real heart sounds)
   pulse: (ctx) => {
     const now = ctx.currentTime;
 
-    // "Lub" - first heart sound (S1) - lower, longer
-    const lub = ctx.createOscillator();
-    const lubGain = ctx.createGain();
-    const lubFilter = ctx.createBiquadFilter();
+    // Real heart sounds are more like filtered noise bursts than pure tones
+    // S1 (lub) and S2 (dub) are created using shaped noise
 
-    lub.connect(lubFilter);
-    lubFilter.connect(lubGain);
-    lubGain.connect(ctx.destination);
+    // Create noise buffer for organic texture
+    const createHeartSound = (startTime, duration, baseFreq, volume) => {
+      const bufferSize = Math.ceil(ctx.sampleRate * duration);
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
 
-    lub.frequency.setValueAtTime(60, now);
-    lub.frequency.exponentialRampToValueAtTime(40, now + 0.1);
-    lub.type = 'sine';
+      // Generate noise shaped like a heart thump
+      for (let i = 0; i < bufferSize; i++) {
+        const t = i / ctx.sampleRate;
+        const envelope = Math.exp(-t * 25) * Math.sin(Math.PI * t / duration);
+        const noise = Math.random() * 2 - 1;
+        const tone = Math.sin(2 * Math.PI * baseFreq * t * (1 - t * 3));
+        data[i] = (noise * 0.3 + tone * 0.7) * envelope;
+      }
 
-    lubFilter.type = 'lowpass';
-    lubFilter.frequency.value = 150;
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
 
-    lubGain.gain.setValueAtTime(0, now);
-    lubGain.gain.linearRampToValueAtTime(0.6, now + 0.02);
-    lubGain.gain.exponentialRampToValueAtTime(0.3, now + 0.08);
-    lubGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = baseFreq * 3;
+      filter.Q.value = 1;
 
-    lub.start(now);
-    lub.stop(now + 0.15);
+      const gain = ctx.createGain();
+      gain.gain.value = volume;
 
-    // Add subtle thump texture to lub
-    const lubThump = ctx.createOscillator();
-    const lubThumpGain = ctx.createGain();
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
 
-    lubThump.connect(lubThumpGain);
-    lubThumpGain.connect(ctx.destination);
+      source.start(startTime);
+    };
 
-    lubThump.frequency.setValueAtTime(80, now);
-    lubThump.frequency.exponentialRampToValueAtTime(30, now + 0.05);
-    lubThump.type = 'sine';
+    // S1 - "Lub" - lower, more prominent, caused by AV valve closure
+    createHeartSound(now, 0.12, 45, 0.6);
 
-    lubThumpGain.gain.setValueAtTime(0.4, now);
-    lubThumpGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    // S2 - "Dub" - slightly higher, shorter, caused by semilunar valve closure
+    // Comes about 0.1-0.15 seconds after S1
+    createHeartSound(now + 0.12, 0.08, 65, 0.45);
 
-    lubThump.start(now);
-    lubThump.stop(now + 0.08);
+    // Add subtle low sub-bass thump for chest resonance feel
+    const subBass = ctx.createOscillator();
+    const subGain = ctx.createGain();
+    const subFilter = ctx.createBiquadFilter();
 
-    // "Dub" - second heart sound (S2) - higher, shorter, comes ~0.15s after lub
-    const dub = ctx.createOscillator();
-    const dubGain = ctx.createGain();
-    const dubFilter = ctx.createBiquadFilter();
+    subBass.connect(subFilter);
+    subFilter.connect(subGain);
+    subGain.connect(ctx.destination);
 
-    dub.connect(dubFilter);
-    dubFilter.connect(dubGain);
-    dubGain.connect(ctx.destination);
+    subBass.frequency.setValueAtTime(35, now);
+    subBass.frequency.exponentialRampToValueAtTime(25, now + 0.15);
+    subBass.type = 'sine';
 
-    dub.frequency.setValueAtTime(90, now + 0.15);
-    dub.frequency.exponentialRampToValueAtTime(50, now + 0.22);
-    dub.type = 'sine';
+    subFilter.type = 'lowpass';
+    subFilter.frequency.value = 80;
 
-    dubFilter.type = 'lowpass';
-    dubFilter.frequency.value = 200;
+    subGain.gain.setValueAtTime(0, now);
+    subGain.gain.linearRampToValueAtTime(0.4, now + 0.02);
+    subGain.gain.exponentialRampToValueAtTime(0.2, now + 0.06);
+    subGain.gain.linearRampToValueAtTime(0.25, now + 0.12);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
 
-    dubGain.gain.setValueAtTime(0, now + 0.15);
-    dubGain.gain.linearRampToValueAtTime(0.45, now + 0.17);
-    dubGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-
-    dub.start(now + 0.15);
-    dub.stop(now + 0.25);
+    subBass.start(now);
+    subBass.stop(now + 0.25);
   },
 
   // Digital - electronic blip
