@@ -44,14 +44,14 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const beatAudioCtxRef = useRef<AudioContext | null>(null);
   const stateInitializedRef = useRef(false); // Track if we've done initial load of both timer and beat state
 
-  // Beat sound options
+  // Beat sound options - natural and calming sounds
   const beatSoundOptions = [
     { id: 'soft', name: 'Soft', icon: 'waves' },
     { id: 'tick', name: 'Tick', icon: 'timer' },
     { id: 'wood', name: 'Wood', icon: 'forest' },
-    { id: 'chime', name: 'Chime', icon: 'notifications' },
-    { id: 'drop', name: 'Drop', icon: 'water_drop' },
-    { id: 'pulse', name: 'Pulse', icon: 'radio_button_checked' },
+    { id: 'chime', name: 'Bell', icon: 'notifications' },
+    { id: 'drop', name: 'Water', icon: 'water_drop' },
+    { id: 'pulse', name: 'Heart', icon: 'favorite' },
     { id: 'digital', name: 'Digital', icon: 'memory' },
     { id: 'bowl', name: 'Bowl', icon: 'self_improvement' },
   ];
@@ -419,39 +419,85 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
   // Load timer state on mount
   useEffect(() => {
-    const savedTarget = localStorage.getItem(STORAGE_KEYS.TIMER_TARGET);
-    const savedTemplateId = localStorage.getItem(STORAGE_KEYS.TIMER_MODE);
-    const savedIsActive = localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true';
+    const loadTimerState = async () => {
+      const savedTarget = localStorage.getItem(STORAGE_KEYS.TIMER_TARGET);
+      const savedTemplateId = localStorage.getItem(STORAGE_KEYS.TIMER_MODE);
+      const savedIsActive = localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true';
 
-    if (savedTemplateId && templates.find(t => t.id === savedTemplateId)) {
-      setActiveTemplateId(savedTemplateId);
-    }
-
-    if (savedIsActive && savedTarget) {
-      const targetTime = parseInt(savedTarget, 10);
-      const now = Date.now();
-      const diff = Math.ceil((targetTime - now) / 1000);
-
-      if (diff > 0) {
-        setTimeLeft(diff);
-        setIsActive(true);
-
-        // Notify background that timer is running (in case it forgot/reloaded)
+      // Also check chrome.storage.local for timer started from alarm page
+      const w = window as any;
+      let chromeStorageState: any = null;
+      if (w.chrome?.storage?.local) {
         try {
-          const w = window as any;
-          if (w.chrome?.runtime?.sendMessage) {
-            w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: diff });
-          }
-        } catch (e) { }
-
-      } else {
-        setTimeLeft(0);
-        setIsActive(false);
-        localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
-        localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+          chromeStorageState = await new Promise((resolve) => {
+            w.chrome.storage.local.get(['timerTargetTime', 'timerMode', 'timerInitialTime', 'timerIsActive'], resolve);
+          });
+        } catch (e) {
+          console.log('[Tempo] Could not read chrome storage:', e);
+        }
       }
-    }
 
+      // Check if background script has a running timer (from alarm page "Start Break")
+      if (chromeStorageState?.timerTargetTime && chromeStorageState?.timerIsActive) {
+        const targetTime = chromeStorageState.timerTargetTime;
+        const now = Date.now();
+        const diff = Math.ceil((targetTime - now) / 1000);
+
+        if (diff > 0) {
+          // Sync with background script timer
+          const mode = chromeStorageState.timerMode || 'focus';
+          const initialSeconds = chromeStorageState.timerInitialTime || diff;
+
+          setTimerMode(mode);
+          setInitialTime(initialSeconds);
+          setTimeLeft(diff);
+          setIsActive(true);
+
+          // Sync localStorage with chrome storage
+          localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(targetTime));
+          localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'true');
+          localStorage.setItem('tempo_timer_mode', mode);
+
+          // Clear the sync flag so we don't re-read it
+          w.chrome.storage.local.remove(['timerIsActive']);
+          return;
+        } else {
+          // Timer already expired, clean up
+          w.chrome.storage.local.remove(['timerTargetTime', 'timerMode', 'timerInitialTime', 'timerIsActive']);
+        }
+      }
+
+      // Fall back to localStorage state
+      if (savedTemplateId && templates.find(t => t.id === savedTemplateId)) {
+        setActiveTemplateId(savedTemplateId);
+      }
+
+      if (savedIsActive && savedTarget) {
+        const targetTime = parseInt(savedTarget, 10);
+        const now = Date.now();
+        const diff = Math.ceil((targetTime - now) / 1000);
+
+        if (diff > 0) {
+          setTimeLeft(diff);
+          setIsActive(true);
+
+          // Notify background that timer is running (in case it forgot/reloaded)
+          try {
+            if (w.chrome?.runtime?.sendMessage) {
+              w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: diff });
+            }
+          } catch (e) { }
+
+        } else {
+          setTimeLeft(0);
+          setIsActive(false);
+          localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
+          localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+        }
+      }
+    };
+
+    loadTimerState();
   }, []);
 
   // Persist timer mode for mini timer to read
@@ -714,11 +760,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const displayTracks = showAllSounds ? filteredTracks : filteredTracks.slice(0, 6);
 
   return (
-    <div className="h-full flex flex-col px-5 pt-3 pb-24 overflow-y-auto no-scrollbar">
+    <div className="h-full flex flex-col px-5 pt-2 pb-20 overflow-y-auto no-scrollbar">
       {/* Header */}
-      <div className="flex justify-between items-center mb-3">
+      <div className="flex justify-between items-center mb-2">
         <div>
-          <h1 className="text-base font-bold tracking-tight">Tempo</h1>
+          <h1 className="text-base font-bold tracking-tight leading-tight">Tempo</h1>
           <p className="text-[9px] font-bold text-primary uppercase tracking-widest">
             {templates.find(t => t.id === activeTemplateId)?.description || 'Focus Session'}
           </p>
@@ -775,12 +821,12 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       </div>
 
       {/* Template Switcher */}
-      <div className="flex p-0.5 bg-surface-dark rounded-lg mb-4 border border-white/5">
+      <div className="flex p-0.5 bg-surface-dark rounded-lg mb-3 border border-white/5">
         {templates.map((tmpl) => (
           <button
             key={tmpl.id}
             onClick={() => setActiveTemplateId(tmpl.id)}
-            className={`flex-1 py-2 rounded-md text-[11px] font-semibold transition-all ${activeTemplateId === tmpl.id ? 'bg-primary text-white shadow-md shadow-primary/25' : 'text-muted hover:text-white/70'}`}
+            className={`flex-1 py-1.5 rounded-md text-[11px] font-semibold transition-all ${activeTemplateId === tmpl.id ? 'bg-primary text-white shadow-md shadow-primary/25' : 'text-muted hover:text-white/70'}`}
           >
             {tmpl.focusMinutes}/{tmpl.breakMinutes}
           </button>
@@ -788,8 +834,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       </div>
 
       {/* Timer Circle */}
-      <div className="flex flex-col items-center justify-center py-4">
-        <div className="relative flex items-center justify-center w-64 h-64 mb-6">
+      <div className="flex flex-col items-center justify-center py-2">
+        <div className="relative flex items-center justify-center w-52 h-52 mb-4">
           <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
             <circle className="stroke-surface-light" cx="50" cy="50" fill="transparent" r="44" strokeWidth="4" />
             <circle
@@ -804,8 +850,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             />
           </svg>
           <div className="absolute flex flex-col items-center">
-            <span className="text-6xl font-black tracking-tight tabular-nums leading-none">{formatTimer(timeLeft)}</span>
-            <span className="text-xs font-bold text-muted mt-2 uppercase tracking-[0.2em]">
+            <span className="text-5xl font-black tracking-tight tabular-nums leading-none">{formatTimer(timeLeft)}</span>
+            <span className="text-[10px] font-bold text-muted mt-1.5 uppercase tracking-[0.2em]">
               {isActive
                 ? (timerMode === 'focus' ? 'Focusing' : 'On Break')
                 : (timerMode === 'focus' ? 'Ready' : 'Break Ready')}
@@ -817,7 +863,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         <div className="flex items-center gap-3">
           <button
             onClick={toggleTimer}
-            className={`px-10 py-2.5 rounded-full font-bold text-sm tracking-wide flex items-center gap-2 transition-all active:scale-95 ${isActive
+            className={`px-8 py-2 rounded-full font-bold text-sm tracking-wide flex items-center gap-2 transition-all active:scale-95 ${isActive
               ? 'bg-white/10 text-white border border-white/10 hover:bg-white/15'
               : 'bg-primary text-white shadow-lg shadow-primary/30 hover:shadow-primary/40'
               }`}
@@ -851,8 +897,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         </div>
       </div>
 
-      {/* Focus Beat */}
-      <div className="mt-3 w-full rounded-xl bg-surface-dark/80 border border-white/5 p-3">
+      {/* Focus Beat - Compact Design */}
+      <div className="mt-2 w-full rounded-xl bg-surface-dark/80 border border-white/5 p-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-sm text-primary">music_note</span>
@@ -869,21 +915,21 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           </button>
         </div>
         {beatEnabled && (
-          <div className="mt-2.5 space-y-2.5">
-            {/* Sound Type Selector */}
-            <div className="grid grid-cols-4 gap-1.5">
+          <div className="mt-2 space-y-2">
+            {/* Sound Type Selector - Compact 8 in a row */}
+            <div className="flex gap-1">
               {beatSoundOptions.map((sound) => (
                 <button
                   key={sound.id}
                   onClick={() => handleBeatSoundTypeChange(sound.id)}
-                  className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition-all ${
+                  title={sound.name}
+                  className={`flex-1 flex items-center justify-center p-1.5 rounded-lg transition-all ${
                     beatSoundType === sound.id
                       ? 'bg-primary/20 border border-primary/40 text-primary'
                       : 'bg-white/5 border border-transparent text-muted hover:bg-white/10 hover:text-white'
                   }`}
                 >
                   <span className="material-symbols-outlined text-sm">{sound.icon}</span>
-                  <span className="text-[8px] font-semibold">{sound.name}</span>
                 </button>
               ))}
             </div>
@@ -894,7 +940,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 <select
                   value={beatInterval}
                   onChange={(e) => handleBeatIntervalChange(Number(e.target.value))}
-                  className="appearance-none bg-white/5 border border-white/10 text-xs font-bold text-white rounded-lg pl-3 pr-7 py-1.5 focus:outline-none focus:border-primary/50 cursor-pointer hover:bg-white/10 transition-colors"
+                  className="appearance-none bg-white/5 border border-white/10 text-xs font-bold text-white rounded-lg pl-3 pr-7 py-1 focus:outline-none focus:border-primary/50 cursor-pointer hover:bg-white/10 transition-colors"
                 >
                   {Array.from({ length: 60 }, (_, i) => i + 1).map(s => (
                     <option key={s} value={s} className="bg-surface-dark text-white">{s}s</option>
@@ -908,40 +954,21 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         )}
       </div>
 
-      {/* Quick Task Input */}
-      <div className="mt-3 w-full rounded-xl bg-surface-dark/80 border border-white/5 p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="material-symbols-outlined text-sm text-primary">add_task</span>
-          <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Quick Task</span>
-          {isGoogleConnected ? (
-            <div className="flex items-center gap-1 ml-auto">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
-              <span className="text-[9px] text-green-400 font-medium">Synced</span>
-            </div>
-          ) : (
-            <button
-              onClick={handleGoogleConnect}
-              disabled={isSyncingTask}
-              className="ml-auto flex items-center gap-1 text-[9px] text-muted hover:text-white transition-colors"
-            >
-              <span className="material-symbols-outlined text-[12px]">sync</span>
-              <span>Connect Google</span>
-            </button>
-          )}
-        </div>
+      {/* Quick Task Input - Compact */}
+      <div className="mt-2 w-full rounded-xl bg-surface-dark/80 border border-white/5 p-2.5">
         <div className="flex gap-2">
           <input
             type="text"
-            placeholder="Add a task..."
+            placeholder="+ Add quick task..."
             value={quickTaskTitle}
             onChange={(e) => setQuickTaskTitle(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleQuickTaskCreate()}
-            className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-xs focus:border-primary/50 outline-none placeholder-muted/50"
+            className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-1.5 text-xs focus:border-primary/50 outline-none placeholder-muted/50"
           />
           <button
             onClick={handleQuickTaskCreate}
             disabled={!quickTaskTitle.trim() || isSyncingTask}
-            className="px-3 bg-primary rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-light transition-colors"
+            className="px-2.5 bg-primary rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-light transition-colors"
           >
             {isSyncingTask ? (
               <span className="material-symbols-outlined text-sm text-white animate-spin">sync</span>
@@ -949,6 +976,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               <span className="material-symbols-outlined text-sm text-white">add</span>
             )}
           </button>
+          {isGoogleConnected && (
+            <div className="flex items-center" title="Synced with Google Tasks">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+            </div>
+          )}
         </div>
       </div>
 
