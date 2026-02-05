@@ -39,9 +39,22 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const [beatEnabled, setBeatEnabled] = useState(false);
   const [beatInterval, setBeatInterval] = useState(1); // 1, 2, or 3 seconds
   const [beatCount, setBeatCount] = useState(0);
+  const [beatSoundType, setBeatSoundType] = useState('soft'); // soft, tick, wood, chime, drop, pulse, digital, bowl
   const beatIntervalRef = useRef<any>(null);
   const beatAudioCtxRef = useRef<AudioContext | null>(null);
   const stateInitializedRef = useRef(false); // Track if we've done initial load of both timer and beat state
+
+  // Beat sound options
+  const beatSoundOptions = [
+    { id: 'soft', name: 'Soft', icon: 'waves' },
+    { id: 'tick', name: 'Tick', icon: 'timer' },
+    { id: 'wood', name: 'Wood', icon: 'forest' },
+    { id: 'chime', name: 'Chime', icon: 'notifications' },
+    { id: 'drop', name: 'Drop', icon: 'water_drop' },
+    { id: 'pulse', name: 'Pulse', icon: 'radio_button_checked' },
+    { id: 'digital', name: 'Digital', icon: 'memory' },
+    { id: 'bowl', name: 'Bowl', icon: 'self_improvement' },
+  ];
 
   // Quick task state
   const [quickTaskTitle, setQuickTaskTitle] = useState('');
@@ -141,8 +154,10 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       // Restore focus beat state from localStorage
       const savedBeatEnabled = localStorage.getItem('tempo_beatEnabled') === 'true';
       const savedBeatInterval = parseInt(localStorage.getItem('tempo_beatInterval') || '1', 10);
+      const savedBeatSoundType = localStorage.getItem('tempo_beatSoundType') || 'soft';
       setBeatEnabled(savedBeatEnabled);
       setBeatInterval(savedBeatInterval);
+      setBeatSoundType(savedBeatSoundType);
 
       // If beat was enabled, check with offscreen for current count
       if (savedBeatEnabled) {
@@ -226,7 +241,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     if (!stateInitializedRef.current) return;
     localStorage.setItem('tempo_beatEnabled', String(beatEnabled));
     localStorage.setItem('tempo_beatInterval', String(beatInterval));
-  }, [beatEnabled, beatInterval]);
+    localStorage.setItem('tempo_beatSoundType', beatSoundType);
+  }, [beatEnabled, beatInterval, beatSoundType]);
 
   // On mount: sync with offscreen beat state and start polling for count
   useEffect(() => {
@@ -248,6 +264,10 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             setBeatInterval(intervalSec);
             localStorage.setItem('tempo_beatInterval', String(intervalSec));
           }
+          if (response.soundType) {
+            setBeatSoundType(response.soundType);
+            localStorage.setItem('tempo_beatSoundType', response.soundType);
+          }
         } else {
           // Offscreen says beat is not running - check if we should restart it
           const savedBeatEnabled = localStorage.getItem('tempo_beatEnabled') === 'true';
@@ -255,9 +275,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           if (savedBeatEnabled && savedTimerActive) {
             // Beat was enabled and timer was running, but offscreen lost state - restart
             const savedInterval = parseInt(localStorage.getItem('tempo_beatInterval') || '1', 10);
+            const savedSoundType = localStorage.getItem('tempo_beatSoundType') || 'soft';
             w.chrome.runtime.sendMessage({
               action: 'focusBeat-start',
-              intervalSeconds: savedInterval
+              intervalSeconds: savedInterval,
+              soundType: savedSoundType
             });
             console.log('[Tempo] Restarted focus beat from UI persistence');
           }
@@ -294,7 +316,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           setBeatCount(0);
           w.chrome.runtime.sendMessage({
             action: 'focusBeat-start',
-            intervalSeconds: beatInterval
+            intervalSeconds: beatInterval,
+            soundType: beatSoundType
           }, (response: any) => {
             // After starting, get the actual count (in case it was already running)
             if (response?.count !== undefined) {
@@ -310,6 +333,21 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     }
   };
 
+  // Handle beat sound type change
+  const handleBeatSoundTypeChange = (newSoundType: string) => {
+    setBeatSoundType(newSoundType);
+    const w = window as any;
+    if (useOffscreen && w.chrome?.runtime?.sendMessage) {
+      // If beat is currently running, update the sound type
+      if (beatEnabled && isActive) {
+        w.chrome.runtime.sendMessage({
+          action: 'focusBeat-changeSoundType',
+          soundType: newSoundType
+        });
+      }
+    }
+  };
+
   // Handle beat interval change
   const handleBeatIntervalChange = (newInterval: number) => {
     setBeatInterval(newInterval);
@@ -318,7 +356,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       // Restart with new interval
       w.chrome.runtime.sendMessage({
         action: 'focusBeat-start',
-        intervalSeconds: newInterval
+        intervalSeconds: newInterval,
+        soundType: beatSoundType
       });
     }
   };
@@ -558,7 +597,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         setBeatCount(0);
         w.chrome.runtime.sendMessage({
           action: 'focusBeat-start',
-          intervalSeconds: beatInterval
+          intervalSeconds: beatInterval,
+          soundType: beatSoundType
         });
       }
 
@@ -697,11 +737,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                   w.chrome.windows.create({
                     url: w.chrome.runtime.getURL('mini-timer.html'),
                     type: 'popup',
-                    width: 200,
-                    height: 70,
+                    width: 220,
+                    height: 56,
                     top: top,
                     left: left,
-                    focused: false
+                    focused: true
                   });
                 } else {
                   window.open(
@@ -829,21 +869,41 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           </button>
         </div>
         {beatEnabled && (
-          <div className="flex items-center gap-2 mt-2.5">
-            <span className="text-[10px] text-muted shrink-0">Every</span>
-            <div className="relative">
-              <select
-                value={beatInterval}
-                onChange={(e) => handleBeatIntervalChange(Number(e.target.value))}
-                className="appearance-none bg-white/5 border border-white/10 text-xs font-bold text-white rounded-lg pl-3 pr-7 py-1.5 focus:outline-none focus:border-primary/50 cursor-pointer hover:bg-white/10 transition-colors"
-              >
-                {Array.from({ length: 60 }, (_, i) => i + 1).map(s => (
-                  <option key={s} value={s} className="bg-surface-dark text-white">{s}s</option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined text-[10px] text-muted absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span>
+          <div className="mt-2.5 space-y-2.5">
+            {/* Sound Type Selector */}
+            <div className="grid grid-cols-4 gap-1.5">
+              {beatSoundOptions.map((sound) => (
+                <button
+                  key={sound.id}
+                  onClick={() => handleBeatSoundTypeChange(sound.id)}
+                  className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition-all ${
+                    beatSoundType === sound.id
+                      ? 'bg-primary/20 border border-primary/40 text-primary'
+                      : 'bg-white/5 border border-transparent text-muted hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">{sound.icon}</span>
+                  <span className="text-[8px] font-semibold">{sound.name}</span>
+                </button>
+              ))}
             </div>
-            <span className="text-[10px] text-muted">sec</span>
+            {/* Interval Selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-muted shrink-0">Every</span>
+              <div className="relative">
+                <select
+                  value={beatInterval}
+                  onChange={(e) => handleBeatIntervalChange(Number(e.target.value))}
+                  className="appearance-none bg-white/5 border border-white/10 text-xs font-bold text-white rounded-lg pl-3 pr-7 py-1.5 focus:outline-none focus:border-primary/50 cursor-pointer hover:bg-white/10 transition-colors"
+                >
+                  {Array.from({ length: 60 }, (_, i) => i + 1).map(s => (
+                    <option key={s} value={s} className="bg-surface-dark text-white">{s}s</option>
+                  ))}
+                </select>
+                <span className="material-symbols-outlined text-[10px] text-muted absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span>
+              </div>
+              <span className="text-[10px] text-muted">sec</span>
+            </div>
           </div>
         )}
       </div>

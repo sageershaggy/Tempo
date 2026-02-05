@@ -13,6 +13,7 @@ let focusBeatInterval = null;
 let focusBeatEnabled = false;
 let focusBeatIntervalMs = 1000;
 let focusBeatCount = 0;
+let focusBeatSoundType = 'soft'; // default sound type
 
 // Binaural range frequency mappings
 const BINAURAL_RANGE_MAP = {
@@ -265,8 +266,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // Focus Beat commands
     case 'focusBeat-start':
-      startFocusBeat(message.intervalSeconds || 1);
+      startFocusBeat(message.intervalSeconds || 1, message.soundType || 'soft');
       sendResponse({ success: true, ...getFocusBeatStatus() });
+      break;
+
+    case 'focusBeat-changeSoundType':
+      focusBeatSoundType = message.soundType || 'soft';
+      // Update persisted state with new sound type
+      if (focusBeatEnabled && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(['focusBeatState'], (result) => {
+          if (result.focusBeatState) {
+            chrome.storage.local.set({
+              focusBeatState: { ...result.focusBeatState, soundType: focusBeatSoundType }
+            });
+          }
+        });
+      }
+      sendResponse({ success: true, soundType: focusBeatSoundType });
       break;
 
     case 'focusBeat-stop':
@@ -333,32 +349,160 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 let focusBeatStartTime = null;
 
+// Beat sound generators for different styles
+const beatSounds = {
+  // Soft sine wave - gentle and unobtrusive
+  soft: (ctx) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 220;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.15);
+  },
+
+  // Tick - crisp click sound like a metronome
+  tick: (ctx) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 1000;
+    osc.type = 'square';
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.03);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.03);
+  },
+
+  // Wood - woodblock-like percussive sound
+  wood: (ctx) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 600;
+    osc.type = 'triangle';
+    filter.type = 'bandpass';
+    filter.frequency.value = 800;
+    filter.Q.value = 2;
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.08);
+  },
+
+  // Chime - gentle bell-like tone
+  chime: (ctx) => {
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(ctx.destination);
+    osc1.frequency.value = 523.25; // C5
+    osc2.frequency.value = 659.25; // E5
+    osc1.type = 'sine';
+    osc2.type = 'sine';
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc1.start(ctx.currentTime);
+    osc2.start(ctx.currentTime);
+    osc1.stop(ctx.currentTime + 0.4);
+    osc2.stop(ctx.currentTime + 0.4);
+  },
+
+  // Drop - water drop sound
+  drop: (ctx) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.setValueAtTime(1200, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.1);
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.15);
+  },
+
+  // Pulse - deep bass pulse
+  pulse: (ctx) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 80;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.2);
+  },
+
+  // Digital - electronic blip
+  digital: (ctx) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(440, ctx.currentTime + 0.05);
+    osc.type = 'square';
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.1);
+  },
+
+  // Bowl - singing bowl style
+  bowl: (ctx) => {
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(ctx.destination);
+    osc1.frequency.value = 256; // C4
+    osc2.frequency.value = 512; // C5
+    osc1.type = 'sine';
+    osc2.type = 'sine';
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+    osc1.start(ctx.currentTime);
+    osc2.start(ctx.currentTime);
+    osc1.stop(ctx.currentTime + 0.8);
+    osc2.stop(ctx.currentTime + 0.8);
+  }
+};
+
 function playBeatSound() {
   const ctx = getContext();
   if (ctx.state === 'suspended') ctx.resume();
 
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.frequency.value = 220;
-  osc.type = 'sine';
-  gain.gain.setValueAtTime(0.4, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-  osc.start(ctx.currentTime);
-  osc.stop(ctx.currentTime + 0.15);
+  // Play the selected beat sound
+  const soundFn = beatSounds[focusBeatSoundType] || beatSounds.soft;
+  soundFn(ctx);
 
   // Update local count for immediate feedback (but relies on startTime for truth)
   focusBeatCount++;
 }
 
-function startFocusBeat(intervalSeconds) {
+function startFocusBeat(intervalSeconds, soundType = 'soft') {
   stopFocusBeat(false); // Stop loop, but don't clear storage yet
 
   focusBeatEnabled = true;
   focusBeatIntervalMs = intervalSeconds * 1000;
   focusBeatStartTime = Date.now();
   focusBeatCount = 0;
+  focusBeatSoundType = soundType;
 
   playBeatSound();
   focusBeatInterval = setInterval(playBeatSound, focusBeatIntervalMs);
@@ -370,7 +514,8 @@ function startFocusBeat(intervalSeconds) {
         focusBeatState: {
           enabled: true,
           interval: intervalSeconds,
-          startTime: focusBeatStartTime
+          startTime: focusBeatStartTime,
+          soundType: soundType
         }
       });
     } catch (e) {
@@ -378,7 +523,7 @@ function startFocusBeat(intervalSeconds) {
     }
   }
 
-  console.log('[Tempo] Focus Beat started, interval:', intervalSeconds, 's');
+  console.log('[Tempo] Focus Beat started, interval:', intervalSeconds, 's, sound:', soundType);
 }
 
 function stopFocusBeat(clearStorage = true) {
@@ -408,7 +553,7 @@ function getFocusBeatStatus() {
   if (focusBeatEnabled && focusBeatStartTime) {
     const elapsed = Date.now() - focusBeatStartTime;
     // Add 1 because count starts at 0 but the first beat plays at 0
-    // Actually, usually users want "number of beats played". 
+    // Actually, usually users want "number of beats played".
     // At t=0, 1 played. t=3, 2 played.
     // So floor(elapsed/interval) + 1
     count = Math.floor(elapsed / focusBeatIntervalMs) + 1;
@@ -417,7 +562,8 @@ function getFocusBeatStatus() {
   return {
     enabled: focusBeatEnabled,
     intervalMs: focusBeatIntervalMs,
-    count: count
+    count: count,
+    soundType: focusBeatSoundType
   };
 }
 
@@ -441,6 +587,7 @@ function restoreFocusBeatState() {
       focusBeatEnabled = true;
       focusBeatStartTime = state.startTime;
       focusBeatIntervalMs = state.interval * 1000;
+      focusBeatSoundType = state.soundType || 'soft';
 
       // Calculate where we are in the cycle
       const now = Date.now();
