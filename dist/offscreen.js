@@ -405,53 +405,214 @@ const beatSounds = {
     osc.stop(ctx.currentTime + 0.08);
   },
 
-  // Chime - gentle bell-like tone
+  // Chime - soft bell "ting" with natural harmonics and decay
   chime: (ctx) => {
-    const osc1 = ctx.createOscillator();
-    const osc2 = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc1.connect(gain);
-    osc2.connect(gain);
-    gain.connect(ctx.destination);
-    osc1.frequency.value = 523.25; // C5
-    osc2.frequency.value = 659.25; // E5
-    osc1.type = 'sine';
-    osc2.type = 'sine';
-    gain.gain.setValueAtTime(0.2, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-    osc1.start(ctx.currentTime);
-    osc2.start(ctx.currentTime);
-    osc1.stop(ctx.currentTime + 0.4);
-    osc2.stop(ctx.currentTime + 0.4);
+    const now = ctx.currentTime;
+
+    // Fundamental tone - the main bell sound
+    const fundamental = ctx.createOscillator();
+    const fundamentalGain = ctx.createGain();
+
+    fundamental.connect(fundamentalGain);
+    fundamentalGain.connect(ctx.destination);
+
+    fundamental.frequency.value = 1319; // E6 - high, delicate bell tone
+    fundamental.type = 'sine';
+
+    fundamentalGain.gain.setValueAtTime(0.25, now);
+    fundamentalGain.gain.exponentialRampToValueAtTime(0.08, now + 0.1);
+    fundamentalGain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+    fundamental.start(now);
+    fundamental.stop(now + 0.8);
+
+    // First harmonic - adds shimmer
+    const harmonic1 = ctx.createOscillator();
+    const harmonic1Gain = ctx.createGain();
+
+    harmonic1.connect(harmonic1Gain);
+    harmonic1Gain.connect(ctx.destination);
+
+    harmonic1.frequency.value = 2637; // E7 - octave above
+    harmonic1.type = 'sine';
+
+    harmonic1Gain.gain.setValueAtTime(0.12, now);
+    harmonic1Gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+    harmonic1.start(now);
+    harmonic1.stop(now + 0.5);
+
+    // Second harmonic - subtle sparkle
+    const harmonic2 = ctx.createOscillator();
+    const harmonic2Gain = ctx.createGain();
+
+    harmonic2.connect(harmonic2Gain);
+    harmonic2Gain.connect(ctx.destination);
+
+    harmonic2.frequency.value = 3951; // B7 - adds brightness
+    harmonic2.type = 'sine';
+
+    harmonic2Gain.gain.setValueAtTime(0.06, now);
+    harmonic2Gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+    harmonic2.start(now);
+    harmonic2.stop(now + 0.3);
+
+    // Slight attack noise for the "ting" onset
+    const attackNoise = ctx.createOscillator();
+    const attackGain = ctx.createGain();
+
+    attackNoise.connect(attackGain);
+    attackGain.connect(ctx.destination);
+
+    attackNoise.frequency.value = 4000;
+    attackNoise.type = 'sine';
+
+    attackGain.gain.setValueAtTime(0.15, now);
+    attackGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+
+    attackNoise.start(now);
+    attackNoise.stop(now + 0.02);
   },
 
-  // Drop - water drop sound
+  // Drop - realistic water drop sound with splash and resonance
   drop: (ctx) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.setValueAtTime(1200, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.1);
-    osc.type = 'sine';
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.15);
+    const now = ctx.currentTime;
+
+    // Main drop - initial impact with pitch bend (like water hitting surface)
+    const dropOsc = ctx.createOscillator();
+    const dropGain = ctx.createGain();
+    const dropFilter = ctx.createBiquadFilter();
+
+    dropOsc.connect(dropFilter);
+    dropFilter.connect(dropGain);
+    dropGain.connect(ctx.destination);
+
+    // Start high and drop quickly - mimics water drop hitting surface
+    dropOsc.frequency.setValueAtTime(2400, now);
+    dropOsc.frequency.exponentialRampToValueAtTime(800, now + 0.02);
+    dropOsc.frequency.exponentialRampToValueAtTime(400, now + 0.08);
+    dropOsc.type = 'sine';
+
+    dropFilter.type = 'lowpass';
+    dropFilter.frequency.setValueAtTime(3000, now);
+    dropFilter.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+
+    dropGain.gain.setValueAtTime(0.4, now);
+    dropGain.gain.exponentialRampToValueAtTime(0.15, now + 0.03);
+    dropGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+    dropOsc.start(now);
+    dropOsc.stop(now + 0.2);
+
+    // Resonance/ripple - the "bloop" echo after impact
+    const rippleOsc = ctx.createOscillator();
+    const rippleGain = ctx.createGain();
+
+    rippleOsc.connect(rippleGain);
+    rippleGain.connect(ctx.destination);
+
+    rippleOsc.frequency.setValueAtTime(600, now + 0.02);
+    rippleOsc.frequency.exponentialRampToValueAtTime(200, now + 0.25);
+    rippleOsc.type = 'sine';
+
+    rippleGain.gain.setValueAtTime(0, now);
+    rippleGain.gain.linearRampToValueAtTime(0.15, now + 0.03);
+    rippleGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+    rippleOsc.start(now + 0.02);
+    rippleOsc.stop(now + 0.3);
+
+    // Subtle bubble noise
+    const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < noiseBuffer.length; i++) {
+      noiseData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.02));
+    }
+    const noiseSource = ctx.createBufferSource();
+    const noiseGain = ctx.createGain();
+    const noiseFilter = ctx.createBiquadFilter();
+
+    noiseSource.buffer = noiseBuffer;
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = 1500;
+    noiseFilter.Q.value = 1;
+    noiseGain.gain.value = 0.08;
+
+    noiseSource.start(now);
   },
 
-  // Pulse - deep bass pulse
+  // Pulse - realistic heartbeat with lub-dub pattern
   pulse: (ctx) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 80;
-    osc.type = 'sine';
-    gain.gain.setValueAtTime(0.5, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.2);
+    const now = ctx.currentTime;
+
+    // "Lub" - first heart sound (S1) - lower, longer
+    const lub = ctx.createOscillator();
+    const lubGain = ctx.createGain();
+    const lubFilter = ctx.createBiquadFilter();
+
+    lub.connect(lubFilter);
+    lubFilter.connect(lubGain);
+    lubGain.connect(ctx.destination);
+
+    lub.frequency.setValueAtTime(60, now);
+    lub.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+    lub.type = 'sine';
+
+    lubFilter.type = 'lowpass';
+    lubFilter.frequency.value = 150;
+
+    lubGain.gain.setValueAtTime(0, now);
+    lubGain.gain.linearRampToValueAtTime(0.6, now + 0.02);
+    lubGain.gain.exponentialRampToValueAtTime(0.3, now + 0.08);
+    lubGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+    lub.start(now);
+    lub.stop(now + 0.15);
+
+    // Add subtle thump texture to lub
+    const lubThump = ctx.createOscillator();
+    const lubThumpGain = ctx.createGain();
+
+    lubThump.connect(lubThumpGain);
+    lubThumpGain.connect(ctx.destination);
+
+    lubThump.frequency.setValueAtTime(80, now);
+    lubThump.frequency.exponentialRampToValueAtTime(30, now + 0.05);
+    lubThump.type = 'sine';
+
+    lubThumpGain.gain.setValueAtTime(0.4, now);
+    lubThumpGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+    lubThump.start(now);
+    lubThump.stop(now + 0.08);
+
+    // "Dub" - second heart sound (S2) - higher, shorter, comes ~0.15s after lub
+    const dub = ctx.createOscillator();
+    const dubGain = ctx.createGain();
+    const dubFilter = ctx.createBiquadFilter();
+
+    dub.connect(dubFilter);
+    dubFilter.connect(dubGain);
+    dubGain.connect(ctx.destination);
+
+    dub.frequency.setValueAtTime(90, now + 0.15);
+    dub.frequency.exponentialRampToValueAtTime(50, now + 0.22);
+    dub.type = 'sine';
+
+    dubFilter.type = 'lowpass';
+    dubFilter.frequency.value = 200;
+
+    dubGain.gain.setValueAtTime(0, now + 0.15);
+    dubGain.gain.linearRampToValueAtTime(0.45, now + 0.17);
+    dubGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+    dub.start(now + 0.15);
+    dub.stop(now + 0.25);
   },
 
   // Digital - electronic blip

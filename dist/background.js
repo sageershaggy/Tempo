@@ -475,7 +475,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendToOffscreen({
       target: 'offscreen-audio',
       action: 'focusBeat-start',
-      intervalSeconds: request.intervalSeconds || 1
+      intervalSeconds: request.intervalSeconds || 1,
+      soundType: request.soundType || 'soft'
     }, sendResponse);
     return true;
   }
@@ -492,6 +493,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendToOffscreen({
       target: 'offscreen-audio',
       action: 'focusBeat-status'
+    }, sendResponse);
+    return true;
+  }
+
+  if (request.action === 'focusBeat-changeSoundType') {
+    sendToOffscreen({
+      target: 'offscreen-audio',
+      action: 'focusBeat-changeSoundType',
+      soundType: request.soundType || 'soft'
     }, sendResponse);
     return true;
   }
@@ -619,14 +629,44 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // --- Alarm page actions (start break/focus from alarm page) ---
   if (request.action === 'startBreakFromAlarm' || request.action === 'startFocusFromAlarm') {
-    // Store a flag that the popup should auto-start the timer when opened
-    chrome.storage.local.set({
-      autoStartFromAlarm: request.action === 'startBreakFromAlarm' ? 'break' : 'focus'
+    const isBreak = request.action === 'startBreakFromAlarm';
+
+    // Get user settings to determine duration
+    chrome.storage.sync.get(['settings'], (data) => {
+      const settings = data.settings || {};
+      let durationMinutes;
+
+      if (isBreak) {
+        // Use short break duration (default 5 minutes)
+        durationMinutes = settings.shortBreak || 5;
+      } else {
+        // Use focus duration (default 25 minutes)
+        durationMinutes = settings.focusDuration || 25;
+      }
+
+      const seconds = durationMinutes * 60;
+
+      // Start the timer directly from background script
+      timerTargetTime = Date.now() + seconds * 1000;
+      saveTimerState();
+
+      // Save duration and mode for the popup to sync with
+      chrome.storage.local.set({
+        timerDuration: durationMinutes,
+        timerMode: isBreak ? 'break' : 'focus',
+        timerInitialTime: seconds,
+        timerIsActive: true
+      });
+
+      // Start badge updates
+      chrome.alarms.create('badgeTick', { periodInMinutes: 0.5 });
+      updateTimerBadge();
+
+      console.log(`[Tempo] Started ${isBreak ? 'break' : 'focus'} timer from alarm page: ${durationMinutes} minutes`);
     });
-    // Open the popup (extension can't directly start timers without popup)
-    // The popup will read this flag and auto-start
+
     sendResponse({ success: true });
-    return;
+    return true; // Keep message channel open for async response
   }
 
   // --- Mini timer always on top ---
