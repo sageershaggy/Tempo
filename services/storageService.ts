@@ -177,7 +177,18 @@ export const updateStats = async (sessionMinutes: number): Promise<void> => {
   stats.weeklyData[today] = (stats.weeklyData[today] || 0) + sessionMinutes;
 
   console.log('[Tempo] Saving stats:', stats);
+
+  // Save to storage and wait for completion
   await storage.local.set({ stats });
+
+  // Also save to sync storage for cross-device access
+  try {
+    await storage.sync.set({ stats });
+  } catch (e) {
+    console.log('[Tempo] Sync storage save failed (not critical):', e);
+  }
+
+  console.log('[Tempo] Stats saved successfully');
 };
 
 // Pro Status

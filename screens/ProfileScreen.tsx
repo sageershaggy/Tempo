@@ -19,6 +19,7 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
   });
   const [editForm, setEditForm] = useState<UserProfile>(profile);
 
+  // Load data on mount and set up refresh interval
   useEffect(() => {
     const loadData = async () => {
       const statsData = await getStats();
@@ -37,6 +38,13 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
       }
     };
     loadData();
+
+    // Refresh stats periodically to catch updates from timer sessions
+    const refreshInterval = setInterval(() => {
+      getStats().then(statsData => setStats(statsData));
+    }, 2000);
+
+    return () => clearInterval(refreshInterval);
   }, []);
 
   const handleSaveProfile = () => {
