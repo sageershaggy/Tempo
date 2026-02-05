@@ -37,7 +37,9 @@ async function ensureOffscreenDocument() {
 
 // Safe message forwarding to offscreen document with lastError handling
 function sendToOffscreen(message, sendResponse) {
+  console.log('[Tempo] sendToOffscreen called with:', message.action);
   ensureOffscreenDocument().then(() => {
+    console.log('[Tempo] Offscreen document ready, sending message');
     // Allow time for offscreen document to initialize
     setTimeout(() => {
       try {
@@ -48,13 +50,16 @@ function sendToOffscreen(message, sendResponse) {
             setTimeout(() => {
               chrome.runtime.sendMessage(message, (retryResponse) => {
                 if (chrome.runtime.lastError) {
+                  console.error('[Tempo] Retry also failed:', chrome.runtime.lastError.message);
                   sendResponse({ success: false, error: chrome.runtime.lastError.message });
                 } else {
+                  console.log('[Tempo] Retry succeeded:', retryResponse);
                   sendResponse(retryResponse || { success: false });
                 }
               });
             }, 200);
           } else {
+            console.log('[Tempo] Message sent successfully:', response);
             sendResponse(response || { success: false });
           }
         });
@@ -118,32 +123,96 @@ function updateTimerBadge() {
 
   const remaining = Math.ceil((timerTargetTime - Date.now()) / 1000);
   if (remaining <= 0) {
-    // Timer finished
-    timerTargetTime = null;
-    saveTimerState();
-    chrome.alarms.clear('badgeTick');
-    chrome.action.setBadgeText({ text: '✓' });
-    chrome.action.setBadgeBackgroundColor({ color: '#22C55E' });
+    // Timer finished - get the original duration before clearing
+    // Try to get duration from storage
+    chrome.storage.local.get(['timerDuration'], async (data) => {
+      const duration = data.timerDuration || 25;
 
-    // Play completion sound via offscreen document
-    sendToOffscreen({
-      target: 'offscreen-audio',
-      action: 'playCompletionSound'
-    }, () => {});
+      timerTargetTime = null;
+      saveTimerState();
+      chrome.alarms.clear('badgeTick');
+      chrome.action.setBadgeText({ text: '✓' });
+      chrome.action.setBadgeBackgroundColor({ color: '#22C55E' });
 
-    // Show Chrome notification
-    chrome.notifications.create('timerComplete-' + Date.now(), {
-      type: 'basic',
-      iconUrl: 'icons/icon128_v3.png',
-      title: 'Focus Session Complete!',
-      message: 'Great work! Time for a break.',
-      priority: 2
+      // Stop focus beat and focus sounds if running
+      sendToOffscreen({
+        target: 'offscreen-audio',
+        action: 'focusBeat-stop'
+      }, () => {});
+      sendToOffscreen({
+        target: 'offscreen-audio',
+        action: 'stop'
+      }, () => {});
+
+      // IMPORTANT: Update stats in background when popup is closed!
+      // This ensures stats are recorded even if popup isn't open
+      try {
+        const statsData = await chrome.storage.local.get('stats');
+        const stats = statsData.stats || {
+          totalSessions: 0,
+          totalFocusMinutes: 0,
+          currentStreak: 0,
+          lastSessionDate: null,
+          weeklyData: {}
+        };
+
+        const today = new Date().toISOString().split('T')[0];
+
+        // Update streak
+        if (stats.lastSessionDate) {
+          const lastDate = new Date(stats.lastSessionDate);
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+
+          if (lastDate.toISOString().split('T')[0] === yesterday.toISOString().split('T')[0]) {
+            stats.currentStreak = (stats.currentStreak || 0) + 1;
+          } else if (stats.lastSessionDate !== today) {
+            stats.currentStreak = 1;
+          }
+        } else {
+          stats.currentStreak = 1;
+        }
+
+        stats.totalSessions = (stats.totalSessions || 0) + 1;
+        stats.totalFocusMinutes = (stats.totalFocusMinutes || 0) + duration;
+        stats.lastSessionDate = today;
+
+        if (!stats.weeklyData) stats.weeklyData = {};
+        stats.weeklyData[today] = (stats.weeklyData[today] || 0) + duration;
+
+        await chrome.storage.local.set({ stats });
+        // Also sync to sync storage
+        try {
+          await chrome.storage.sync.set({ stats });
+        } catch (e) {
+          console.log('[Tempo] Sync storage save failed:', e);
+        }
+
+        console.log('[Tempo] Stats updated from background:', stats);
+      } catch (e) {
+        console.error('[Tempo] Failed to update stats from background:', e);
+      }
+
+      // Open the alarm page - this is the main notification!
+      chrome.tabs.create({
+        url: `alarm.html?mode=focus&duration=${duration}`,
+        active: true
+      });
+
+      // Also show Chrome notification as backup
+      chrome.notifications.create('timerComplete-' + Date.now(), {
+        type: 'basic',
+        iconUrl: 'icons/icon128_v3.png',
+        title: 'Focus Session Complete!',
+        message: 'Great work! Time for a break.',
+        priority: 2
+      });
+
+      // Clear badge after 10 seconds
+      setTimeout(() => {
+        chrome.action.setBadgeText({ text: '' });
+      }, 10000);
     });
-
-    // Clear badge after 5 seconds
-    setTimeout(() => {
-      chrome.action.setBadgeText({ text: '' });
-    }, 5000);
     return;
   }
 
@@ -361,29 +430,45 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     saveTimerState();
     chrome.alarms.clear('badgeTick');
 
-    // Play completion sound via offscreen document
-    sendToOffscreen({
-      target: 'offscreen-audio',
-      action: 'playCompletionSound'
-    }, () => {});
+    // Get the mode and duration from the request (or use defaults)
+    const mode = request.mode || 'focus';
+    const duration = request.duration || 25;
 
-    // Show Chrome notification
+    // Open the alarm page in a new tab - this is the main notification!
+    chrome.tabs.create({
+      url: `alarm.html?mode=${mode}&duration=${duration}`,
+      active: true  // Bring to focus
+    });
+
+    // Also show a Chrome notification as backup (in case alarm page is blocked)
     chrome.notifications.create('timerComplete-' + Date.now(), {
       type: 'basic',
       iconUrl: 'icons/icon128_v3.png',
-      title: 'Focus Session Complete!',
-      message: 'Great work! Time for a break.',
+      title: mode === 'break' ? 'Break Complete!' : 'Focus Session Complete!',
+      message: mode === 'break' ? 'Ready for another focus session?' : 'Great work! Time for a break.',
       priority: 2
     });
-    chrome.action.setBadgeText({ text: '' });
+
+    // Set badge to checkmark
+    chrome.action.setBadgeText({ text: '✓' });
+    chrome.action.setBadgeBackgroundColor({ color: '#22C55E' });
+
+    // Clear badge after 10 seconds
+    setTimeout(() => {
+      chrome.action.setBadgeText({ text: '' });
+    }, 10000);
+
     sendResponse({ success: true });
     return;
   }
 
   if (request.action === 'startTimer') {
     const seconds = request.seconds || (request.minutes || 25) * 60;
+    const durationMinutes = Math.round(seconds / 60);
     timerTargetTime = Date.now() + seconds * 1000;
     saveTimerState();
+    // Save duration for stats recording when timer completes in background
+    chrome.storage.local.set({ timerDuration: durationMinutes });
     // Alarm fires every 30 seconds to update badge (Chrome MV3 min ~30s)
     chrome.alarms.create('badgeTick', { periodInMinutes: 0.5 });
     updateTimerBadge();
@@ -405,6 +490,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     chrome.alarms.clear('badgeTick');
     chrome.action.setBadgeText({ text: '' });
     sendResponse({ success: true });
+  }
+
+  // --- Alarm page actions (start break/focus from alarm page) ---
+  if (request.action === 'startBreakFromAlarm' || request.action === 'startFocusFromAlarm') {
+    // Store a flag that the popup should auto-start the timer when opened
+    chrome.storage.local.set({
+      autoStartFromAlarm: request.action === 'startBreakFromAlarm' ? 'break' : 'focus'
+    });
+    // Open the popup (extension can't directly start timers without popup)
+    // The popup will read this flag and auto-start
+    sendResponse({ success: true });
+    return;
   }
 
   // --- Mini timer always on top ---

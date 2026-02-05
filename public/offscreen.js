@@ -215,13 +215,26 @@ function setVolumeLevel(volume) {
 
 // Listen for messages from popup/background
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.target !== 'offscreen-audio') return;
+  console.log('[Tempo Offscreen] Received message:', message);
+  if (message.target !== 'offscreen-audio') {
+    console.log('[Tempo Offscreen] Ignoring - not targeted at offscreen-audio');
+    return;
+  }
+
+  console.log('[Tempo Offscreen] Processing action:', message.action);
 
   switch (message.action) {
     case 'play':
+      console.log('[Tempo Offscreen] Playing track:', message.trackId, 'volume:', message.volume);
       playTrack(message.trackId, message.volume || 0.5, message.range)
-        .then(() => sendResponse({ success: true, isPlaying: true, trackId: message.trackId }))
-        .catch(e => sendResponse({ success: false, error: e.message }));
+        .then(() => {
+          console.log('[Tempo Offscreen] Track started successfully');
+          sendResponse({ success: true, isPlaying: true, trackId: message.trackId });
+        })
+        .catch(e => {
+          console.error('[Tempo Offscreen] Play failed:', e);
+          sendResponse({ success: false, error: e.message });
+        });
       return true;
 
     case 'stop':
@@ -458,8 +471,8 @@ function playCompletionBeep() {
   const ctx = getContext();
   if (ctx.state === 'suspended') ctx.resume();
 
-  // Play a pleasant completion sound - 3 ascending tones
-  const playTone = (freq, startTime, duration) => {
+  // Play a pleasant completion sound - triumphant chime sequence
+  const playTone = (freq, startTime, duration, volume = 0.5) => {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -467,17 +480,18 @@ function playCompletionBeep() {
     osc.frequency.value = freq;
     osc.type = 'sine';
     gain.gain.setValueAtTime(0, startTime);
-    gain.gain.linearRampToValueAtTime(0.4, startTime + 0.02);
+    gain.gain.linearRampToValueAtTime(volume, startTime + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
     osc.start(startTime);
     osc.stop(startTime + duration);
   };
 
   const now = ctx.currentTime;
-  // Three ascending tones for a pleasant "ding-ding-ding" effect
-  playTone(523.25, now, 0.2);        // C5
-  playTone(659.25, now + 0.15, 0.2); // E5
-  playTone(783.99, now + 0.3, 0.4);  // G5 (longer)
+  // Triumphant ascending chime - louder and more distinct from beat sound
+  playTone(523.25, now, 0.25, 0.6);         // C5
+  playTone(659.25, now + 0.2, 0.25, 0.6);   // E5
+  playTone(783.99, now + 0.4, 0.5, 0.7);    // G5 (longer, louder)
+  playTone(1046.50, now + 0.7, 0.6, 0.5);   // C6 - high finish!
 
   console.log('[Tempo] Completion beep played');
 }
