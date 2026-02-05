@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Focus Session Complete! - Tempo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 50%, #16213e 100%);
+      color: white;
+      overflow: hidden;
+    }
+
+    /* Animated background circles */
+    .bg-circles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    .bg-circles .circle {
+      position: absolute;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(34, 197, 94, 0.15) 0%, transparent 70%);
+      animation: float 8s ease-in-out infinite;
+    }
+
+    .bg-circles .circle:nth-child(1) {
+      width: 600px;
+      height: 600px;
+      top: -200px;
+      right: -100px;
+      animation-delay: 0s;
+    }
+
+    .bg-circles .circle:nth-child(2) {
+      width: 400px;
+      height: 400px;
+      bottom: -100px;
+      left: -100px;
+      animation-delay: -2s;
+    }
+
+    .bg-circles .circle:nth-child(3) {
+      width: 300px;
+      height: 300px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      animation-delay: -4s;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0) scale(1); opacity: 0.5; }
+      50% { transform: translateY(-30px) scale(1.05); opacity: 0.8; }
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 40px;
+    }
+
+    /* Rate section (optional) */
+    .rate-section {
+      margin-bottom: 30px;
+      opacity: 0;
+      animation: fadeInDown 0.6s ease forwards;
+      animation-delay: 0.8s;
+    }
+
+    .rate-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 20px;
+      color: white;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .rate-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .stars {
+      display: flex;
+      gap: 2px;
+    }
+
+    .stars span {
+      color: #fbbf24;
+      font-size: 14px;
+    }
+
+    /* Main icon */
+    .icon-container {
+      position: relative;
+      width: 180px;
+      height: 180px;
+      margin: 0 auto 40px;
+      opacity: 0;
+      animation: scaleIn 0.5s ease forwards;
+      animation-delay: 0.2s;
+    }
+
+    .icon-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 4px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .icon-ring-progress {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 4px solid transparent;
+      border-top-color: #22c55e;
+      animation: spin 2s linear infinite;
+    }
+
+    .icon-inner {
+      position: absolute;
+      inset: 15px;
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 40px rgba(34, 197, 94, 0.4);
+    }
+
+    .icon-inner .material-symbols-outlined {
+      font-size: 64px;
+      color: white;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    @keyframes scaleIn {
+      from { transform: scale(0.5); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes fadeInDown {
+      from { transform: translateY(-20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    @keyframes fadeInUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* Title and message */
+    .title {
+      font-size: 32px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      opacity: 0;
+      animation: fadeInUp 0.5s ease forwards;
+      animation-delay: 0.4s;
+    }
+
+    .message {
+      font-size: 18px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 16px;
+      opacity: 0;
+      animation: fadeInUp 0.5s ease forwards;
+      animation-delay: 0.5s;
+    }
+
+    .session-info {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 40px;
+      opacity: 0;
+      animation: fadeInUp 0.5s ease forwards;
+      animation-delay: 0.6s;
+    }
+
+    .session-info strong {
+      color: #22c55e;
+      font-weight: 600;
+    }
+
+    /* Buttons */
+    .buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      opacity: 0;
+      animation: fadeInUp 0.5s ease forwards;
+      animation-delay: 0.7s;
+    }
+
+    .btn {
+      padding: 16px 40px;
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn .material-symbols-outlined {
+      font-size: 20px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+      color: white;
+      box-shadow: 0 4px 20px rgba(34, 197, 94, 0.4);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 30px rgba(34, 197, 94, 0.5);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    /* Footer link */
+    .footer-link {
+      margin-top: 30px;
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.4);
+      opacity: 0;
+      animation: fadeInUp 0.5s ease forwards;
+      animation-delay: 0.9s;
+    }
+
+    .footer-link a {
+      color: rgba(255, 255, 255, 0.6);
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .footer-link a:hover {
+      color: white;
+      text-decoration: underline;
+    }
+
+    /* Break mode styles */
+    body.break-mode {
+      background: linear-gradient(135deg, #0f0f0f 0%, #1e1b4b 50%, #312e81 100%);
+    }
+
+    body.break-mode .bg-circles .circle {
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+    }
+
+    body.break-mode .icon-ring-progress {
+      border-top-color: #6366f1;
+    }
+
+    body.break-mode .icon-inner {
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      box-shadow: 0 10px 40px rgba(99, 102, 241, 0.4);
+    }
+
+    body.break-mode .session-info strong {
+      color: #818cf8;
+    }
+
+    body.break-mode .btn-primary {
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+    }
+
+    body.break-mode .btn-primary:hover {
+      box-shadow: 0 6px 30px rgba(99, 102, 241, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <!-- Animated background -->
+  <div class="bg-circles">
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+  </div>
+
+  <div class="container">
+    <!-- Rate Us (optional) -->
+    <div class="rate-section">
+      <button class="rate-btn" id="rateBtn">
+        <span>Rate Us</span>
+        <div class="stars">
+          <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+        </div>
+      </button>
+    </div>
+
+    <!-- Main Icon -->
+    <div class="icon-container">
+      <div class="icon-ring"></div>
+      <div class="icon-ring-progress"></div>
+      <div class="icon-inner">
+        <span class="material-symbols-outlined" id="mainIcon">celebration</span>
+      </div>
+    </div>
+
+    <!-- Title and Message -->
+    <h1 class="title" id="title">Focus Session Complete!</h1>
+    <p class="message" id="message">Great work! You've earned a break.</p>
+    <p class="session-info" id="sessionInfo">You completed <strong>25 minutes</strong> of focused work</p>
+
+    <!-- Action Buttons -->
+    <div class="buttons">
+      <button class="btn btn-secondary" id="closeBtn">
+        <span class="material-symbols-outlined">close</span>
+        Close
+      </button>
+      <button class="btn btn-primary" id="startBtn">
+        <span class="material-symbols-outlined" id="startIcon">coffee</span>
+        <span id="startText">Start Break</span>
+      </button>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer-link">
+      <a id="backLink">and get back to my last tab</a>
+    </div>
+  </div>
+
+  <script>
+    // Get mode from URL params
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode') || 'focus'; // 'focus' or 'break'
+    const duration = params.get('duration') || '25';
+
+    // Elements
+    const body = document.body;
+    const title = document.getElementById('title');
+    const message = document.getElementById('message');
+    const sessionInfo = document.getElementById('sessionInfo');
+    const mainIcon = document.getElementById('mainIcon');
+    const startBtn = document.getElementById('startBtn');
+    const startIcon = document.getElementById('startIcon');
+    const startText = document.getElementById('startText');
+    const closeBtn = document.getElementById('closeBtn');
+    const backLink = document.getElementById('backLink');
+    const rateBtn = document.getElementById('rateBtn');
+
+    // Configure based on mode
+    if (mode === 'break') {
+      // Break completed - ready for focus
+      body.classList.add('break-mode');
+      title.textContent = 'Break Complete!';
+      message.textContent = 'Ready for another focus session?';
+      sessionInfo.innerHTML = `Your <strong>${duration} minute</strong> break is over`;
+      mainIcon.textContent = 'rocket_launch';
+      startIcon.textContent = 'play_arrow';
+      startText.textContent = 'Start Focus';
+    } else {
+      // Focus completed - ready for break
+      title.textContent = 'Focus Session Complete!';
+      message.textContent = 'Great work! You\'ve earned a break.';
+      sessionInfo.innerHTML = `You completed <strong>${duration} minutes</strong> of focused work`;
+      mainIcon.textContent = 'celebration';
+      startIcon.textContent = 'coffee';
+      startText.textContent = 'Start Break';
+    }
+
+    // Play completion sound
+    function playSound() {
+      try {
+        const ctx = new AudioContext();
+        const playTone = (freq, startTime, dur, vol = 0.5) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = freq;
+          osc.type = 'sine';
+          gain.gain.setValueAtTime(0, startTime);
+          gain.gain.linearRampToValueAtTime(vol, startTime + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
+          osc.start(startTime);
+          osc.stop(startTime + dur);
+        };
+        const now = ctx.currentTime;
+        // Triumphant chime
+        playTone(523.25, now, 0.25, 0.5);
+        playTone(659.25, now + 0.2, 0.25, 0.5);
+        playTone(783.99, now + 0.4, 0.5, 0.6);
+        playTone(1046.50, now + 0.7, 0.6, 0.4);
+      } catch (e) {
+        console.log('Audio not available');
+      }
+    }
+
+    // Play sound on load
+    setTimeout(playSound, 300);
+
+    // Button handlers
+    closeBtn.addEventListener('click', () => {
+      // Just close this tab
+      window.close();
+    });
+
+    startBtn.addEventListener('click', () => {
+      // Tell the extension to start the next session
+      if (chrome?.runtime?.sendMessage) {
+        const action = mode === 'break' ? 'startFocusFromAlarm' : 'startBreakFromAlarm';
+        chrome.runtime.sendMessage({ action }, () => {
+          window.close();
+        });
+      } else {
+        window.close();
+      }
+    });
+
+    backLink.addEventListener('click', () => {
+      window.close();
+    });
+
+    rateBtn.addEventListener('click', () => {
+      // Open Chrome Web Store rating page (update URL when published)
+      window.open('https://chrome.google.com/webstore/detail/YOUR_EXTENSION_ID/reviews', '_blank');
+    });
+
+    // Auto-close after 5 minutes of inactivity
+    setTimeout(() => {
+      window.close();
+    }, 5 * 60 * 1000);
+  </script>
+</body>
+</html>

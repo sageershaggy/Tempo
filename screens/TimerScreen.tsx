@@ -446,8 +446,14 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         const sessionMinutes = Math.max(1, Math.round(initialTime / 60));
         updateStats(sessionMinutes).catch(err => console.error('Failed to update stats:', err));
 
-        if (audioState.isPlaying && audioState.autoPlay) {
-          setAudioState(prev => ({ ...prev, isPlaying: false }));
+        // ALWAYS stop focus sounds when session completes (not just if autoPlay)
+        if (audioState.isPlaying) {
+          if (useOffscreen) {
+            stopOffscreen();
+          } else {
+            stopSound();
+          }
+          setAudioState(prev => ({ ...prev, isPlaying: false, activeTrackId: null }));
         }
 
         // Show in-app completion notification
@@ -457,13 +463,20 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         try {
           const w = window as any;
           if (w.chrome?.runtime?.sendMessage) {
-            w.chrome.runtime.sendMessage({ action: 'timerComplete' });
-            w.chrome.runtime.sendMessage({ action: 'stopTimer' });
-            // Also stop focus beat if it was running
+            // FIRST stop focus beat before sending timerComplete (to avoid extra beat sounds)
             if (beatEnabled) {
               w.chrome.runtime.sendMessage({ action: 'focusBeat-stop' });
+              setBeatEnabled(false); // Also disable the beat toggle
               setBeatCount(0);
+              localStorage.setItem('tempo_beatEnabled', 'false');
             }
+            // Then send timer complete which opens the alarm page
+            w.chrome.runtime.sendMessage({
+              action: 'timerComplete',
+              mode: 'focus',
+              duration: Math.round(initialTime / 60)
+            });
+            w.chrome.runtime.sendMessage({ action: 'stopTimer' });
           }
         } catch (e) {
           // Not in extension context
@@ -490,11 +503,15 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         // Break completed - transition back to focus mode
         setShowCompletionNotification(true);
 
-        // Notify user break is done
+        // Notify user break is done - opens alarm page
         try {
           const w = window as any;
           if (w.chrome?.runtime?.sendMessage) {
-            w.chrome.runtime.sendMessage({ action: 'timerComplete' });
+            w.chrome.runtime.sendMessage({
+              action: 'timerComplete',
+              mode: 'break',
+              duration: Math.round(initialTime / 60)
+            });
             w.chrome.runtime.sendMessage({ action: 'stopTimer' });
           }
         } catch (e) { }
