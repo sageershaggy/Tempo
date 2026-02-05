@@ -38,13 +38,22 @@ async function ensureOffscreenDocument() {
 // Safe message forwarding to offscreen document with lastError handling
 function sendToOffscreen(message, sendResponse) {
   ensureOffscreenDocument().then(() => {
-    // Small delay to ensure offscreen is ready to receive messages
+    // Allow time for offscreen document to initialize
     setTimeout(() => {
       try {
         chrome.runtime.sendMessage(message, (response) => {
           if (chrome.runtime.lastError) {
             console.warn('[Tempo] Offscreen message failed:', chrome.runtime.lastError.message);
-            sendResponse({ success: false, error: chrome.runtime.lastError.message });
+            // Retry once after a longer delay
+            setTimeout(() => {
+              chrome.runtime.sendMessage(message, (retryResponse) => {
+                if (chrome.runtime.lastError) {
+                  sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                } else {
+                  sendResponse(retryResponse || { success: false });
+                }
+              });
+            }, 200);
           } else {
             sendResponse(response || { success: false });
           }
@@ -53,7 +62,7 @@ function sendToOffscreen(message, sendResponse) {
         console.error('[Tempo] sendToOffscreen error:', e);
         sendResponse({ success: false, error: e.message });
       }
-    }, 50);
+    }, 100);
   }).catch(e => {
     console.error('[Tempo] ensureOffscreenDocument error:', e);
     sendResponse({ success: false, error: e.message });

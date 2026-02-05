@@ -43,10 +43,71 @@ html, body {
   overflow: hidden;
 }
 
+/* Dark mode (default) */
+html.dark body,
 body {
   background-color: #120B19;
   color: white;
   -webkit-tap-highlight-color: transparent;
+}
+
+html.dark {
+  --color-background-dark: #120B19;
+  --color-surface-dark: #1E1428;
+  --color-surface-light: #2D2438;
+  --color-muted: #9CA3AF;
+}
+
+/* Light mode */
+html:not(.dark) body {
+  background-color: #F5F5F7;
+  color: #1a1a1a;
+}
+
+html:not(.dark) {
+  --color-background-dark: #F5F5F7;
+  --color-surface-dark: #FFFFFF;
+  --color-surface-light: #E8E8ED;
+  --color-muted: #6B7280;
+}
+
+html:not(.dark) .bg-background-dark {
+  background-color: #F5F5F7 !important;
+}
+
+html:not(.dark) .bg-surface-dark {
+  background-color: #FFFFFF !important;
+}
+
+html:not(.dark) .bg-surface-light {
+  background-color: #E8E8ED !important;
+}
+
+html:not(.dark) .text-white {
+  color: #1a1a1a !important;
+}
+
+html:not(.dark) .text-muted {
+  color: #6B7280 !important;
+}
+
+html:not(.dark) .border-white\/5,
+html:not(.dark) .border-white\/10 {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+html:not(.dark) .bg-white\/5,
+html:not(.dark) .bg-white\/10 {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+html:not(.dark) .bg-black\/20 {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+html:not(.dark) .hover\:bg-white\/5:hover,
+html:not(.dark) .hover\:bg-white\/10:hover {
+  background-color: rgba(0, 0, 0, 0.1) !important;
 }
 
 #root {

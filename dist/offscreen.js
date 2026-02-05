@@ -17,28 +17,28 @@ let focusBeatCount = 0;
 // Binaural range frequency mappings
 const BINAURAL_RANGE_MAP = {
   '1': {
-    Low:  { baseFreq: 200, beatFreq: 6 },
-    Mid:  { baseFreq: 200, beatFreq: 10 },
+    Low: { baseFreq: 200, beatFreq: 6 },
+    Mid: { baseFreq: 200, beatFreq: 10 },
     High: { baseFreq: 200, beatFreq: 40 },
   },
   '2': {
-    Low:  { baseFreq: 200, beatFreq: 4 },
-    Mid:  { baseFreq: 200, beatFreq: 10 },
+    Low: { baseFreq: 200, beatFreq: 4 },
+    Mid: { baseFreq: 200, beatFreq: 10 },
     High: { baseFreq: 200, beatFreq: 14 },
   },
   '3': {
-    Low:  { baseFreq: 200, beatFreq: 3 },
-    Mid:  { baseFreq: 200, beatFreq: 10 },
+    Low: { baseFreq: 200, beatFreq: 3 },
+    Mid: { baseFreq: 200, beatFreq: 10 },
     High: { baseFreq: 200, beatFreq: 30 },
   },
   '16': {
-    Low:  { baseFreq: 200, beatFreq: 2 },
-    Mid:  { baseFreq: 200, beatFreq: 6 },
+    Low: { baseFreq: 200, beatFreq: 2 },
+    Mid: { baseFreq: 200, beatFreq: 6 },
     High: { baseFreq: 200, beatFreq: 12 },
   },
   '17': {
-    Low:  { baseFreq: 200, beatFreq: 1 },
-    Mid:  { baseFreq: 200, beatFreq: 4 },
+    Low: { baseFreq: 200, beatFreq: 1 },
+    Mid: { baseFreq: 200, beatFreq: 4 },
     High: { baseFreq: 200, beatFreq: 8 },
   },
 };
@@ -68,17 +68,17 @@ function createNoiseBuffer(ctx, type) {
       data[i] *= 3.5;
     }
   } else if (type === 'pink') {
-    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
     for (let i = 0; i < bufferSize; i++) {
       const w = Math.random() * 2 - 1;
-      b0=0.99886*b0+w*0.0555179;
-      b1=0.99332*b1+w*0.0750759;
-      b2=0.96900*b2+w*0.1538520;
-      b3=0.86650*b3+w*0.3104856;
-      b4=0.55000*b4+w*0.5329522;
-      b5=-0.7616*b5-w*0.0168980;
-      data[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11;
-      b6=w*0.115926;
+      b0 = 0.99886 * b0 + w * 0.0555179;
+      b1 = 0.99332 * b1 + w * 0.0750759;
+      b2 = 0.96900 * b2 + w * 0.1538520;
+      b3 = 0.86650 * b3 + w * 0.3104856;
+      b4 = 0.55000 * b4 + w * 0.5329522;
+      b5 = -0.7616 * b5 - w * 0.0168980;
+      data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11;
+      b6 = w * 0.115926;
     }
   }
 
@@ -144,11 +144,11 @@ function stopSound() {
     try {
       if (node instanceof OscillatorNode) node.stop();
       if (node instanceof AudioBufferSourceNode) node.stop();
-    } catch (e) {}
+    } catch (e) { }
   });
   activeNodes = [];
   if (activeGain) {
-    try { activeGain.disconnect(); } catch (e) {}
+    try { activeGain.disconnect(); } catch (e) { }
     activeGain = null;
   }
   isPlaying = false;
@@ -262,11 +262,40 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case 'focusBeat-status':
-      sendResponse(getFocusBeatStatus());
+      if (focusBeatEnabled) {
+        sendResponse(getFocusBeatStatus());
+      } else {
+        // Check storage in case we are currently restoring or just loaded
+        chrome.storage.local.get(['focusBeatState'], (result) => {
+          const state = result.focusBeatState;
+          if (state && state.enabled) {
+            // Logic to estimate count same as getFocusBeatStatus
+            const now = Date.now();
+            const elapsed = now - state.startTime;
+            const count = Math.floor(elapsed / (state.interval * 1000)) + 1;
+
+            sendResponse({
+              enabled: true,
+              intervalMs: state.interval * 1000,
+              count: count
+            });
+            // Ensure restore is triggered if not already
+            if (!focusBeatInterval) restoreFocusBeatState();
+          } else {
+            sendResponse({ enabled: false, count: 0 });
+          }
+        });
+        return true; // Keep channel open for async response
+      }
       break;
 
     case 'playCompletionSound':
       playCompletionBeep();
+      sendResponse({ success: true });
+      break;
+
+    case 'playReminderSound':
+      playReminderBeep();
       sendResponse({ success: true });
       break;
   }
@@ -275,6 +304,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // ============================================================================
 // FOCUS BEAT - Persistent metronome that works when popup is closed
 // ============================================================================
+
+// ============================================================================
+// FOCUS BEAT - Persistent metronome that works when popup is closed
+// ============================================================================
+
+let focusBeatStartTime = null;
 
 function playBeatSound() {
   const ctx = getContext();
@@ -290,36 +325,104 @@ function playBeatSound() {
   gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
   osc.start(ctx.currentTime);
   osc.stop(ctx.currentTime + 0.15);
+
+  // Update local count for immediate feedback (but relies on startTime for truth)
   focusBeatCount++;
 }
 
 function startFocusBeat(intervalSeconds) {
-  stopFocusBeat();
+  stopFocusBeat(false); // Stop loop, but don't clear storage yet
+
   focusBeatEnabled = true;
   focusBeatIntervalMs = intervalSeconds * 1000;
+  focusBeatStartTime = Date.now();
   focusBeatCount = 0;
+
   playBeatSound();
   focusBeatInterval = setInterval(playBeatSound, focusBeatIntervalMs);
+
+  // Persist state
+  try {
+    chrome.storage.local.set({
+      focusBeatState: {
+        enabled: true,
+        interval: intervalSeconds,
+        startTime: focusBeatStartTime
+      }
+    });
+  } catch (e) {
+    console.error('Failed to save focus beat state', e);
+  }
+
   console.log('[Tempo] Focus Beat started, interval:', intervalSeconds, 's');
 }
 
-function stopFocusBeat() {
+function stopFocusBeat(clearStorage = true) {
   if (focusBeatInterval) {
     clearInterval(focusBeatInterval);
     focusBeatInterval = null;
   }
   focusBeatEnabled = false;
   focusBeatCount = 0;
+  focusBeatStartTime = null;
+
+  if (clearStorage) {
+    chrome.storage.local.remove('focusBeatState');
+  }
+
   console.log('[Tempo] Focus Beat stopped');
 }
 
 function getFocusBeatStatus() {
+  let count = focusBeatCount;
+
+  // If we have a start time, calculate the true count to ensure continuity
+  if (focusBeatEnabled && focusBeatStartTime) {
+    const elapsed = Date.now() - focusBeatStartTime;
+    // Add 1 because count starts at 0 but the first beat plays at 0
+    // Actually, usually users want "number of beats played". 
+    // At t=0, 1 played. t=3, 2 played.
+    // So floor(elapsed/interval) + 1
+    count = Math.floor(elapsed / focusBeatIntervalMs) + 1;
+  }
+
   return {
     enabled: focusBeatEnabled,
     intervalMs: focusBeatIntervalMs,
-    count: focusBeatCount
+    count: count
   };
 }
+
+// Restore state from storage on load
+function restoreFocusBeatState() {
+  chrome.storage.local.get(['focusBeatState'], (result) => {
+    const state = result.focusBeatState;
+    if (state && state.enabled) {
+      console.log('[Tempo] Restoring Persisted Focus Beat...', state);
+      focusBeatEnabled = true;
+      focusBeatStartTime = state.startTime;
+      focusBeatIntervalMs = state.interval * 1000;
+
+      // Calculate where we are in the cycle
+      const now = Date.now();
+      const elapsed = now - state.startTime;
+      const nextBeatDelay = focusBeatIntervalMs - (elapsed % focusBeatIntervalMs);
+
+      // Calculate current count
+      focusBeatCount = Math.floor(elapsed / focusBeatIntervalMs);
+
+      // Schedule next beat
+      setTimeout(() => {
+        if (!focusBeatEnabled) return; // Abort if stopped in meantime
+        playBeatSound();
+        focusBeatInterval = setInterval(playBeatSound, focusBeatIntervalMs);
+      }, nextBeatDelay);
+    }
+  });
+}
+
+// Attempt restore immediately on load
+restoreFocusBeatState();
 
 // ============================================================================
 // COMPLETION BEEP - Plays when timer completes
@@ -351,6 +454,37 @@ function playCompletionBeep() {
   playTone(783.99, now + 0.3, 0.4);  // G5 (longer)
 
   console.log('[Tempo] Completion beep played');
+}
+
+// ============================================================================
+// REMINDER BEEP - Plays for task due date reminders
+// ============================================================================
+
+function playReminderBeep() {
+  const ctx = getContext();
+  if (ctx.state === 'suspended') ctx.resume();
+
+  // Play an alert sound - two quick beeps
+  const playTone = (freq, startTime, duration) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = freq;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(0.3, startTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    osc.start(startTime);
+    osc.stop(startTime + duration);
+  };
+
+  const now = ctx.currentTime;
+  // Two alert beeps
+  playTone(880, now, 0.15);       // A5
+  playTone(880, now + 0.2, 0.15); // A5 again
+
+  console.log('[Tempo] Reminder beep played');
 }
 
 console.log('[Tempo] Offscreen audio engine loaded');

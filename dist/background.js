@@ -38,13 +38,22 @@ async function ensureOffscreenDocument() {
 // Safe message forwarding to offscreen document with lastError handling
 function sendToOffscreen(message, sendResponse) {
   ensureOffscreenDocument().then(() => {
-    // Small delay to ensure offscreen is ready to receive messages
+    // Allow time for offscreen document to initialize
     setTimeout(() => {
       try {
         chrome.runtime.sendMessage(message, (response) => {
           if (chrome.runtime.lastError) {
             console.warn('[Tempo] Offscreen message failed:', chrome.runtime.lastError.message);
-            sendResponse({ success: false, error: chrome.runtime.lastError.message });
+            // Retry once after a longer delay
+            setTimeout(() => {
+              chrome.runtime.sendMessage(message, (retryResponse) => {
+                if (chrome.runtime.lastError) {
+                  sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                } else {
+                  sendResponse(retryResponse || { success: false });
+                }
+              });
+            }, 200);
           } else {
             sendResponse(response || { success: false });
           }
@@ -53,7 +62,7 @@ function sendToOffscreen(message, sendResponse) {
         console.error('[Tempo] sendToOffscreen error:', e);
         sendResponse({ success: false, error: e.message });
       }
-    }, 50);
+    }, 100);
   }).catch(e => {
     console.error('[Tempo] ensureOffscreenDocument error:', e);
     sendResponse({ success: false, error: e.message });
@@ -149,6 +158,117 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'badgeTick') {
     updateTimerBadge();
   }
+  if (alarm.name === 'taskReminderCheck') {
+    checkTaskReminders();
+  }
+});
+
+// ============================================================================
+// TASK REMINDERS - Check for due tasks and show notifications
+// ============================================================================
+
+async function checkTaskReminders() {
+  try {
+    const data = await chrome.storage.local.get(['tasks']);
+    const tasks = data.tasks || [];
+    const now = new Date();
+    const fifteenMinutesFromNow = new Date(now.getTime() + 15 * 60 * 1000);
+
+    // Get shown reminders from storage
+    const reminderData = await chrome.storage.local.get(['shownReminders']);
+    const shownReminders = reminderData.shownReminders || {};
+
+    for (const task of tasks) {
+      if (task.completed || !task.dueDate || !task.reminderEnabled) continue;
+
+      // Check if snoozed
+      if (task.snoozedUntil && new Date(task.snoozedUntil) > now) continue;
+
+      const dueDate = new Date(task.dueDate);
+      const reminderKey = `${task.id}_${task.dueDate}`;
+
+      // Show reminder if task is due within 15 minutes or already overdue
+      if (dueDate <= fifteenMinutesFromNow && !shownReminders[reminderKey]) {
+        const isOverdue = dueDate < now;
+
+        // Play notification sound
+        sendToOffscreen({
+          target: 'offscreen-audio',
+          action: 'playReminderSound'
+        }, () => {});
+
+        // Show Chrome notification
+        chrome.notifications.create('taskReminder-' + task.id + '-' + Date.now(), {
+          type: 'basic',
+          iconUrl: 'icons/icon128_v3.png',
+          title: isOverdue ? 'Task Overdue!' : 'Task Due Soon',
+          message: task.title,
+          priority: 2,
+          buttons: [
+            { title: 'Snooze 15m' },
+            { title: 'Mark Complete' }
+          ],
+          requireInteraction: true
+        });
+
+        // Mark as shown
+        shownReminders[reminderKey] = Date.now();
+        await chrome.storage.local.set({ shownReminders });
+      }
+    }
+
+    // Clean up old reminder entries (older than 24 hours)
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const cleanedReminders = {};
+    for (const [key, timestamp] of Object.entries(shownReminders)) {
+      if (timestamp > oneDayAgo) {
+        cleanedReminders[key] = timestamp;
+      }
+    }
+    if (Object.keys(cleanedReminders).length !== Object.keys(shownReminders).length) {
+      await chrome.storage.local.set({ shownReminders: cleanedReminders });
+    }
+  } catch (e) {
+    console.error('[Tempo] Task reminder check failed:', e);
+  }
+}
+
+// Handle notification button clicks
+chrome.notifications.onButtonClicked.addListener(async (notificationId, buttonIndex) => {
+  if (!notificationId.startsWith('taskReminder-')) return;
+
+  // Extract task ID from notification ID (format: taskReminder-{taskId}-{timestamp})
+  const parts = notificationId.split('-');
+  const taskId = parts[1];
+
+  try {
+    const data = await chrome.storage.local.get(['tasks']);
+    let tasks = data.tasks || [];
+
+    if (buttonIndex === 0) {
+      // Snooze 15 minutes
+      const snoozeUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      tasks = tasks.map(t => t.id === taskId ? { ...t, snoozedUntil: snoozeUntil } : t);
+
+      // Clear the shown reminder so it can show again after snooze
+      const reminderData = await chrome.storage.local.get(['shownReminders']);
+      const shownReminders = reminderData.shownReminders || {};
+      const task = tasks.find(t => t.id === taskId);
+      if (task?.dueDate) {
+        delete shownReminders[`${taskId}_${task.dueDate}`];
+        await chrome.storage.local.set({ shownReminders });
+      }
+    } else if (buttonIndex === 1) {
+      // Mark complete
+      tasks = tasks.map(t => t.id === taskId ? { ...t, completed: true, updatedAt: Date.now() } : t);
+    }
+
+    await chrome.storage.local.set({ tasks });
+  } catch (e) {
+    console.error('[Tempo] Failed to handle notification action:', e);
+  }
+
+  chrome.notifications.clear(notificationId);
 });
 
 // ============================================================================
@@ -363,6 +483,9 @@ chrome.runtime.onInstalled.addListener((details) => {
       }
     });
   }
+
+  // Set up task reminder check alarm (every 1 minute)
+  chrome.alarms.create('taskReminderCheck', { periodInMinutes: 1 });
 
   ensureOffscreenDocument();
 });

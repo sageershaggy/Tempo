@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
-import { getStats, UserStats, exportUserData } from '../services/storageService';
+import { getStats, UserStats, exportUserDataAsCSV } from '../services/storageService';
 import { configManager } from '../config';
 
 export const StatsScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
@@ -14,6 +14,13 @@ export const StatsScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
       setStats(data);
     };
     loadStats();
+
+    // Refresh stats periodically to catch updates from timer sessions
+    const refreshInterval = setInterval(() => {
+      getStats().then(data => setStats(data));
+    }, 2000);
+
+    return () => clearInterval(refreshInterval);
   }, []);
 
   // Get current week's date range
@@ -117,12 +124,13 @@ export const StatsScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
                       onClick={async () => {
                         setShowMenu(false);
                         try {
-                          const data = await exportUserData();
-                          const blob = new Blob([data], { type: 'application/json' });
+                          const data = await exportUserDataAsCSV();
+                          // Add BOM for Excel to recognize UTF-8
+                          const blob = new Blob(['\uFEFF' + data], { type: 'text/csv;charset=utf-8;' });
                           const url = URL.createObjectURL(blob);
                           const a = document.createElement('a');
                           a.href = url;
-                          a.download = `tempo-report-${new Date().toISOString().split('T')[0]}.json`;
+                          a.download = `tempo-report-${new Date().toISOString().split('T')[0]}.csv`;
                           a.click();
                           URL.revokeObjectURL(url);
                         } catch (e) {
@@ -132,7 +140,7 @@ export const StatsScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
                       className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/5 transition-colors"
                     >
                       <span className="material-symbols-outlined text-base text-muted">download</span>
-                      Export Report
+                      Export Report (Excel)
                     </button>
                     <button
                       onClick={() => {

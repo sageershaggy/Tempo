@@ -445,12 +445,14 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                     onMouseDown={(e) => e.stopPropagation()}
                                                 >
                                                     <label className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${overdue && !task.completed
-                                                        ? 'border-red-500/50 text-red-500 bg-red-500/10'
+                                                        ? 'border-red-500 text-red-500 bg-red-500/20 animate-pulse'
                                                         : 'border-white/10 text-muted hover:text-white bg-white/5 hover:bg-white/10'
                                                         }`}>
-                                                        <span className="material-symbols-outlined text-[16px]">calendar_month</span>
-                                                        <span className={`text-xs font-bold whitespace-nowrap ${!task.dueDate && 'text-muted/70'}`}>
-                                                            {formatDateDisplay(task.dueDate)}
+                                                        <span className={`material-symbols-outlined text-[16px] ${overdue && !task.completed ? 'text-red-500' : ''}`}>
+                                                            {overdue && !task.completed ? 'warning' : 'calendar_month'}
+                                                        </span>
+                                                        <span className={`text-xs font-bold whitespace-nowrap ${!task.dueDate ? 'text-muted/70' : overdue && !task.completed ? 'text-red-500' : ''}`}>
+                                                            {formatDateDisplay(task.dueDate)}{overdue && !task.completed ? ' (OVERDUE)' : ''}
                                                         </span>
                                                         <input
                                                             type="datetime-local"
