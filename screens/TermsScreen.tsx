@@ -99,7 +99,8 @@ export const TermsScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
           <h3 className="text-sm font-bold text-primary">9. Contact</h3>
           <div className="bg-surface-dark rounded-xl p-4 border border-white/5 text-sm text-muted leading-relaxed">
             <p>For questions about these Terms:</p>
-            <p className="text-white mt-2">legal@tempofocus.app</p>
+            <p className="text-white mt-1">Innovista Digital Fz LLC</p>
+            <p className="text-white">contact@innovistadigi.com</p>
           </div>
         </section>
 
