@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Screen, GlobalProps } from '../types';
 import { configManager, AudioTrackConfig } from '../config';
 import { STORAGE_KEYS, formatTimer, UI_DIMENSIONS, extractYouTubeId } from '../config/constants';
-import { getSettings, updateStats } from '../services/storageService';
+import { getSettings } from '../services/storageService';
 import { playSound, stopSound, setVolume as setSoundVolume, isBuiltInTrack } from '../services/soundGenerator';
 import { playOffscreen, stopOffscreen, setOffscreenVolume, getOffscreenStatus, isOffscreenAvailable } from '../services/audioBridge';
 import { googleTasksService } from '../services/googleTasks';
@@ -488,9 +488,10 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           setIsActive(true);
 
           // Notify background that timer is running (in case it forgot/reloaded)
+          // Mark as restore so background doesn't overwrite timerDuration with remaining time
           try {
             if (w.chrome?.runtime?.sendMessage) {
-              w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: diff });
+              w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: diff, isRestore: true });
             }
           } catch (e) { }
 
@@ -548,10 +549,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
 
       if (timerMode === 'focus') {
-        // Focus session completed - record stats and transition to break
-        // Ensure at least 1 minute is recorded for completed sessions (rounded up)
-        const sessionMinutes = Math.max(1, Math.round(initialTime / 60));
-        updateStats(sessionMinutes).catch(err => console.error('Failed to update stats:', err));
+        // Focus session completed - stats are recorded by background.js (single source of truth)
+        // to avoid race conditions and double-counting
 
         // ALWAYS stop focus sounds when session completes (not just if autoPlay)
         if (audioState.isPlaying) {
@@ -656,7 +655,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       // Update extension badge with timer
       try {
         if (w.chrome?.runtime?.sendMessage) {
-          w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: timeLeft });
+          w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: timeLeft, mode: timerMode });
         }
       } catch (e) { }
 
@@ -1288,7 +1287,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                   try {
                     const w = window as any;
                     if (w.chrome?.runtime?.sendMessage) {
-                      w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: timeLeft });
+                      w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: timeLeft, mode: timerMode });
                     }
                   } catch (e) { }
                 }}
