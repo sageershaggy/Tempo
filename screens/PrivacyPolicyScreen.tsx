@@ -79,7 +79,8 @@ export const PrivacyPolicyScreen: React.FC<{ setScreen: (s: Screen) => void }> =
           <h3 className="text-sm font-bold text-primary">6. Contact Us</h3>
           <div className="bg-surface-dark rounded-xl p-4 border border-white/5 text-sm text-muted leading-relaxed">
             <p>For any privacy-related questions or concerns:</p>
-            <p className="text-white mt-2">privacy@tempofocus.app</p>
+            <p className="text-white mt-1">Innovista Digital Fz LLC</p>
+            <p className="text-white">contact@innovistadigi.com</p>
           </div>
         </section>
 
