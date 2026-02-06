@@ -13,7 +13,7 @@ export const PrivacyPolicyScreen: React.FC<{ setScreen: (s: Screen) => void }> =
       </div>
 
       <div className="p-6 space-y-6">
-        <p className="text-xs text-muted">Last updated: January 2026</p>
+        <p className="text-xs text-muted">Last updated: February 2026</p>
 
         <section className="space-y-3">
           <h3 className="text-sm font-bold text-primary">1. Information We Collect</h3>
