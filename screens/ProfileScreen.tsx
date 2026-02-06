@@ -61,7 +61,8 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `tempo-data-${new Date().toISOString().split('T')[0]}.csv`;
+      // Fix: Use local date for filename
+      a.download = `tempo-data-${new Date().toLocaleDateString('en-CA')}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {

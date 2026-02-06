@@ -149,15 +149,18 @@ export const getStats = async (): Promise<UserStats> => {
 export const updateStats = async (sessionMinutes: number): Promise<void> => {
   console.log('[Tempo] updateStats called with', sessionMinutes, 'minutes');
   const stats = await getStats();
-  const today = new Date().toISOString().split('T')[0];
+  // Fix: Use local date string (YYYY-MM-DD) instead of UTC to avoidtimezone issues
+  // This ensures sessions late at night count for the "user's today"
+  const today = new Date().toLocaleDateString('en-CA'); 
 
   // Update streak
   if (stats.lastSessionDate) {
     const lastDate = new Date(stats.lastSessionDate);
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toLocaleDateString('en-CA');
 
-    if (lastDate.toISOString().split('T')[0] === yesterday.toISOString().split('T')[0]) {
+    if (stats.lastSessionDate === yesterdayStr) {
       stats.currentStreak += 1;
     } else if (stats.lastSessionDate !== today) {
       stats.currentStreak = 1;

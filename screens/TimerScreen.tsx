@@ -939,11 +939,10 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                   key={sound.id}
                   onClick={() => handleBeatSoundTypeChange(sound.id)}
                   title={sound.name}
-                  className={`flex-1 flex items-center justify-center p-1.5 rounded-lg transition-all ${
-                    beatSoundType === sound.id
+                  className={`flex-1 flex items-center justify-center p-1.5 rounded-lg transition-all ${beatSoundType === sound.id
                       ? 'bg-primary/20 border border-primary/40 text-primary'
                       : 'bg-white/5 border border-transparent text-muted hover:bg-white/10 hover:text-white'
-                  }`}
+                    }`}
                 >
                   <span className="material-symbols-outlined text-sm">{sound.icon}</span>
                 </button>
@@ -1001,7 +1000,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       </div>
 
       {/* Current Task Card */}
-      <div className="mt-3 w-full rounded-xl bg-surface-dark/80 border border-white/5 hover:border-white/10 transition-all">
+      <div className="mt-3 w-full rounded-xl bg-white dark:bg-surface-dark/80 border border-black/5 dark:border-white/5 hover:border-black/10 dark:hover:border-white/10 transition-all shadow-sm dark:shadow-none">
         <div className="flex items-center p-3">
           {/* Complete task button */}
           {currentTask && (
@@ -1011,15 +1010,15 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 setTasks(prev => prev.map(t => t.id === currentTask.id ? { ...t, completed: true, updatedAt: Date.now() } : t));
                 setCurrentTask(null);
               }}
-              className="w-6 h-6 rounded-full border-2 border-muted hover:border-green-400 hover:bg-green-400/10 flex items-center justify-center shrink-0 mr-3 transition-colors group"
+              className="w-6 h-6 rounded-full border-2 border-gray-400 dark:border-muted hover:border-green-500 hover:bg-green-500/10 flex items-center justify-center shrink-0 mr-3 transition-colors group"
               title="Complete task"
             >
-              <span className="material-symbols-outlined text-[12px] text-transparent group-hover:text-green-400 transition-colors">check</span>
+              <span className="material-symbols-outlined text-[12px] text-transparent group-hover:text-green-500 transition-colors">check</span>
             </button>
           )}
           <div className="flex-1 min-w-0 mr-3 cursor-pointer" onClick={() => setShowTaskSelector(true)}>
-            <p className="text-[9px] font-semibold text-muted uppercase tracking-wider mb-0.5">Current Task</p>
-            <h3 className="text-white text-xs font-bold truncate">{currentTask?.title || 'No task selected'}</h3>
+            <p className="text-[9px] font-semibold text-gray-500 dark:text-muted uppercase tracking-wider mb-0.5">Current Task</p>
+            <h3 className="text-gray-900 dark:text-white text-xs font-bold truncate">{currentTask?.title || 'No task selected'}</h3>
             {currentTask?.dueDate && (
               <div className="flex items-center gap-1 mt-1 text-secondary">
                 <span className="material-symbols-outlined text-[10px]">event</span>
@@ -1030,8 +1029,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               </div>
             )}
           </div>
-          <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 cursor-pointer" onClick={() => setShowTaskSelector(true)}>
-            <span className="material-symbols-outlined text-xs text-muted">expand_more</span>
+          <div className="w-6 h-6 rounded-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 flex items-center justify-center shrink-0 cursor-pointer" onClick={() => setShowTaskSelector(true)}>
+            <span className="material-symbols-outlined text-xs text-gray-500 dark:text-muted">expand_more</span>
           </div>
         </div>
       </div>
