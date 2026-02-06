@@ -196,10 +196,10 @@ function updateTimerBadge() {
 
   const remaining = Math.ceil((timerTargetTime - Date.now()) / 1000);
   if (remaining <= 0) {
-    // Timer finished - get the original duration before clearing
-    // Try to get duration from storage
-    chrome.storage.local.get(['timerDuration'], async (data) => {
+    // Timer finished - get the original duration and mode before clearing
+    chrome.storage.local.get(['timerDuration', 'timerMode'], async (data) => {
       const duration = data.timerDuration || 25;
+      const mode = data.timerMode || 'focus';
 
       timerTargetTime = null;
       saveTimerState();
@@ -217,67 +217,69 @@ function updateTimerBadge() {
         action: 'stop'
       }, () => {});
 
-      // IMPORTANT: Update stats in background when popup is closed!
-      // This ensures stats are recorded even if popup isn't open
-      try {
-        const statsData = await chrome.storage.local.get('stats');
-        const stats = statsData.stats || {
-          totalSessions: 0,
-          totalFocusMinutes: 0,
-          currentStreak: 0,
-          lastSessionDate: null,
-          weeklyData: {}
-        };
+      // Only update stats for focus sessions (not breaks)
+      if (mode === 'focus') {
+        try {
+          const statsData = await chrome.storage.local.get('stats');
+          const stats = statsData.stats || {
+            totalSessions: 0,
+            totalFocusMinutes: 0,
+            currentStreak: 0,
+            lastSessionDate: null,
+            weeklyData: {}
+          };
 
-        const today = new Date().toISOString().split('T')[0];
+          const today = new Date().toLocaleDateString('en-CA');
 
-        // Update streak
-        if (stats.lastSessionDate) {
-          const lastDate = new Date(stats.lastSessionDate);
-          const yesterday = new Date();
-          yesterday.setDate(yesterday.getDate() - 1);
+          // Update streak
+          if (stats.lastSessionDate) {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toLocaleDateString('en-CA');
 
-          if (lastDate.toISOString().split('T')[0] === yesterday.toISOString().split('T')[0]) {
-            stats.currentStreak = (stats.currentStreak || 0) + 1;
-          } else if (stats.lastSessionDate !== today) {
+            if (stats.lastSessionDate === yesterdayStr) {
+              stats.currentStreak = (stats.currentStreak || 0) + 1;
+            } else if (stats.lastSessionDate !== today) {
+              stats.currentStreak = 1;
+            }
+          } else {
             stats.currentStreak = 1;
           }
-        } else {
-          stats.currentStreak = 1;
-        }
 
-        stats.totalSessions = (stats.totalSessions || 0) + 1;
-        stats.totalFocusMinutes = (stats.totalFocusMinutes || 0) + duration;
-        stats.lastSessionDate = today;
+          stats.totalSessions = (stats.totalSessions || 0) + 1;
+          stats.totalFocusMinutes = (stats.totalFocusMinutes || 0) + duration;
+          stats.lastSessionDate = today;
 
-        if (!stats.weeklyData) stats.weeklyData = {};
-        stats.weeklyData[today] = (stats.weeklyData[today] || 0) + duration;
+          if (!stats.weeklyData) stats.weeklyData = {};
+          stats.weeklyData[today] = (stats.weeklyData[today] || 0) + duration;
 
-        await chrome.storage.local.set({ stats });
-        // Also sync to sync storage
-        try {
-          await chrome.storage.sync.set({ stats });
+          await chrome.storage.local.set({ stats });
+          // Also sync to sync storage
+          try {
+            await chrome.storage.sync.set({ stats });
+          } catch (e) {
+            console.log('[Tempo] Sync storage save failed:', e);
+          }
+
+          console.log('[Tempo] Stats updated from background:', stats);
         } catch (e) {
-          console.log('[Tempo] Sync storage save failed:', e);
+          console.error('[Tempo] Failed to update stats from background:', e);
         }
-
-        console.log('[Tempo] Stats updated from background:', stats);
-      } catch (e) {
-        console.error('[Tempo] Failed to update stats from background:', e);
       }
 
-      // Open the alarm page - this is the main notification!
+      // Open the alarm page
       chrome.tabs.create({
-        url: `alarm.html?mode=focus&duration=${duration}`,
+        url: `alarm.html?mode=${mode}&duration=${duration}`,
         active: true
       });
 
       // Also show Chrome notification as backup
+      const isFocus = mode === 'focus';
       chrome.notifications.create('timerComplete-' + Date.now(), {
         type: 'basic',
         iconUrl: 'icons/icon128_v3.png',
-        title: 'Focus Session Complete!',
-        message: 'Great work! Time for a break.',
+        title: isFocus ? 'Focus Session Complete!' : 'Break Complete!',
+        message: isFocus ? 'Great work! Time for a break.' : 'Ready for another focus session?',
         priority: 2
       });
 
@@ -517,7 +519,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const mode = request.mode || 'focus';
     const duration = request.duration || 25;
 
-    // IMPORTANT: Update stats when timer completes (for focus sessions only)
+    // Update stats for focus sessions (this path runs when popup detects completion)
+    // The badge tick handler covers the case when popup is closed
+    // They're mutually exclusive because we clear timerTargetTime above
     if (mode === 'focus') {
       (async () => {
         try {
@@ -530,15 +534,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             weeklyData: {}
           };
 
-          const today = new Date().toISOString().split('T')[0];
+          const today = new Date().toLocaleDateString('en-CA');
 
-          // Update streak
           if (stats.lastSessionDate) {
-            const lastDate = new Date(stats.lastSessionDate);
             const yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toLocaleDateString('en-CA');
 
-            if (lastDate.toISOString().split('T')[0] === yesterday.toISOString().split('T')[0]) {
+            if (stats.lastSessionDate === yesterdayStr) {
               stats.currentStreak = (stats.currentStreak || 0) + 1;
             } else if (stats.lastSessionDate !== today) {
               stats.currentStreak = 1;
@@ -555,7 +558,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           stats.weeklyData[today] = (stats.weeklyData[today] || 0) + duration;
 
           await chrome.storage.local.set({ stats });
-          // Also sync to sync storage
           try {
             await chrome.storage.sync.set({ stats });
           } catch (e) {
@@ -602,8 +604,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const durationMinutes = Math.round(seconds / 60);
     timerTargetTime = Date.now() + seconds * 1000;
     saveTimerState();
-    // Save duration for stats recording when timer completes in background
-    chrome.storage.local.set({ timerDuration: durationMinutes });
+    // Only save timerDuration for fresh starts (not restores from popup reopening)
+    // When popup restores a timer, it sends remaining seconds which would overwrite
+    // the original duration (e.g., 1 min remaining on a 25 min session)
+    if (!request.isRestore) {
+      const saveData = { timerDuration: durationMinutes };
+      if (request.mode) saveData.timerMode = request.mode;
+      chrome.storage.local.set(saveData);
+    }
     // Alarm fires every 30 seconds to update badge (Chrome MV3 min ~30s)
     chrome.alarms.create('badgeTick', { periodInMinutes: 0.5 });
     updateTimerBadge();

@@ -94,7 +94,7 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
     if (!stats?.weeklyData) return 0;
 
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = today.toLocaleDateString('en-CA');
 
     if (period === 'daily') {
       // Just today's minutes
@@ -105,7 +105,7 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
       for (let i = 0; i < 7; i++) {
         const date = new Date(today);
         date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = date.toLocaleDateString('en-CA');
         total += stats.weeklyData[dateStr] || 0;
       }
       return total;
@@ -115,7 +115,7 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
       for (let i = 0; i < 30; i++) {
         const date = new Date(today);
         date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = date.toLocaleDateString('en-CA');
         total += stats.weeklyData[dateStr] || 0;
       }
       return total;
