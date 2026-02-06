@@ -74,7 +74,9 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'TU';
   };
 
-  const totalHours = Math.floor((stats?.totalFocusMinutes || 0) / 60);
+  const totalMinutes = stats?.totalFocusMinutes || 0;
+  const displayValue = totalMinutes < 60 ? totalMinutes : (totalMinutes / 60).toFixed(1);
+  const displayLabel = totalMinutes < 60 ? 'Minutes' : 'Hours';
 
   const storageUsed = ((stats?.totalSessions || 0) * 0.1).toFixed(1);
   const storagePercent = Math.min((stats?.totalSessions || 0) * 0.5, 100);
@@ -127,8 +129,8 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
             <p className="text-[9px] text-muted uppercase tracking-wider font-semibold">Sessions</p>
           </div>
           <div className="bg-surface-dark rounded-xl p-3 border border-white/5 text-center">
-            <p className="text-xl font-black text-secondary leading-none mb-1">{totalHours}</p>
-            <p className="text-[9px] text-muted uppercase tracking-wider font-semibold">Hours</p>
+            <p className="text-xl font-black text-secondary leading-none mb-1">{displayValue}</p>
+            <p className="text-[9px] text-muted uppercase tracking-wider font-semibold">{displayLabel}</p>
           </div>
           <div className="bg-surface-dark rounded-xl p-3 border border-white/5 text-center">
             <p className="text-xl font-black text-amber-400 leading-none mb-1">{stats?.currentStreak || 0}</p>
