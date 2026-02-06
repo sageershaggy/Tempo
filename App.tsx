@@ -168,11 +168,19 @@ const App: React.FC = () => {
             icon: isOverdue ? 'warning' : 'schedule',
             actions: [
               {
-                label: 'Snooze 15m',
-                onClick: () => handleSnoozeTask(task.id, 15),
+                label: '1h',
+                onClick: () => handleSnoozeTask(task.id, 60),
               },
               {
-                label: 'View Task',
+                label: '1d',
+                onClick: () => handleSnoozeTask(task.id, 1440),
+              },
+              {
+                label: '2d',
+                onClick: () => handleSnoozeTask(task.id, 2880),
+              },
+              {
+                label: 'View',
                 onClick: () => setCurrentScreen(Screen.TASKS),
                 primary: true,
               },
@@ -186,9 +194,17 @@ const App: React.FC = () => {
   // Handle snoozing a task
   const handleSnoozeTask = useCallback((taskId: string, minutes: number) => {
     const snoozeUntil = new Date(Date.now() + minutes * 60 * 1000).toISOString();
-    setTasks(prev => prev.map(t =>
-      t.id === taskId ? { ...t, snoozedUntil: snoozeUntil } : t
-    ));
+
+    // Update state and IMMEDIATE SAVE to storage to prevent data loss on popup close
+    setTasks(prev => {
+      const newTasks = prev.map(t =>
+        t.id === taskId ? { ...t, snoozedUntil: snoozeUntil } : t
+      );
+      // Fire and forget save
+      saveTasks(newTasks).catch(err => console.error('Failed to save snoozed task:', err));
+      return newTasks;
+    });
+
     // Clear the reminder key so it can show again after snooze
     const task = tasks.find(t => t.id === taskId);
     if (task?.dueDate) {

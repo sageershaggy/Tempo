@@ -127,11 +127,17 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
   // Get initial time from a template
   const getTimeForTemplate = (templateId: string): number => {
+    if (templateId === 'custom') {
+      return userFocusDuration * 60;
+    }
     const tmpl = templates.find(t => t.id === templateId);
     return tmpl ? tmpl.focusMinutes * 60 : config.defaults.settings.focusDuration * 60;
   };
 
   const getBreakForTemplate = (templateId: string): number => {
+    if (templateId === 'custom') {
+      return userBreakDuration * 60;
+    }
     const tmpl = templates.find(t => t.id === templateId);
     return tmpl ? tmpl.breakMinutes * 60 : config.defaults.settings.shortBreak * 60;
   };
@@ -844,7 +850,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             onClick={() => setActiveTemplateId(tmpl.id)}
             className={`flex-1 py-1.5 rounded-md text-[11px] font-semibold transition-all ${activeTemplateId === tmpl.id ? 'bg-primary text-white shadow-md shadow-primary/25' : 'text-muted hover:text-white/70'}`}
           >
-            {tmpl.focusMinutes}/{tmpl.breakMinutes}
+            {tmpl.id === 'custom' ? `${userFocusDuration}/${userBreakDuration}` : tmpl.label}
           </button>
         ))}
       </div>
@@ -852,7 +858,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       {/* Timer Circle */}
       <div className="flex flex-col items-center justify-center py-2">
         <div className="relative flex items-center justify-center w-52 h-52 mb-4">
-          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+          <svg className="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
             <circle className="stroke-surface-light" cx="50" cy="50" fill="transparent" r="44" strokeWidth="4" />
             <circle
               className={`transition-all duration-1000 ease-linear ${timerMode === 'focus' ? 'stroke-primary' : 'stroke-green-500'}`}
@@ -940,8 +946,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                   onClick={() => handleBeatSoundTypeChange(sound.id)}
                   title={sound.name}
                   className={`flex-1 flex items-center justify-center p-1.5 rounded-lg transition-all ${beatSoundType === sound.id
-                      ? 'bg-primary/20 border border-primary/40 text-primary'
-                      : 'bg-white/5 border border-transparent text-muted hover:bg-white/10 hover:text-white'
+                    ? 'bg-primary/20 border border-primary/40 text-primary'
+                    : 'bg-white/5 border border-transparent text-muted hover:bg-white/10 hover:text-white'
                     }`}
                 >
                   <span className="material-symbols-outlined text-sm">{sound.icon}</span>
