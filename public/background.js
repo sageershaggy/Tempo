@@ -277,7 +277,7 @@ function updateTimerBadge() {
       const isFocus = mode === 'focus';
       chrome.notifications.create('timerComplete-' + Date.now(), {
         type: 'basic',
-        iconUrl: 'icons/icon128_v3.png',
+        iconUrl: 'icons/icon128_v2.png',
         title: isFocus ? 'Focus Session Complete!' : 'Break Complete!',
         message: isFocus ? 'Great work! Time for a break.' : 'Ready for another focus session?',
         priority: 2
@@ -344,7 +344,7 @@ async function checkTaskReminders() {
         // Show Chrome notification
         chrome.notifications.create('taskReminder-' + task.id + '-' + Date.now(), {
           type: 'basic',
-          iconUrl: 'icons/icon128_v3.png',
+          iconUrl: 'icons/icon128_v2.png',
           title: isOverdue ? 'Task Overdue!' : 'Task Due Soon',
           message: task.title,
           priority: 2,
@@ -580,7 +580,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Also show a Chrome notification as backup (in case alarm page is blocked)
     chrome.notifications.create('timerComplete-' + Date.now(), {
       type: 'basic',
-      iconUrl: 'icons/icon128_v3.png',
+      iconUrl: 'icons/icon128_v2.png',
       title: mode === 'break' ? 'Break Complete!' : 'Focus Session Complete!',
       message: mode === 'break' ? 'Ready for another focus session?' : 'Great work! Time for a break.',
       priority: 2
