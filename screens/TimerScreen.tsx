@@ -592,7 +592,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification('Focus Session Complete!', {
             body: 'Great work! Time for a break.',
-            icon: '/icons/icon128_v3.png',
+            icon: '/icons/icon128_v2.png',
           });
         } else if ('Notification' in window && Notification.permission !== 'denied') {
           Notification.requestPermission();
@@ -625,7 +625,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification('Break Complete!', {
             body: 'Ready for another focus session?',
-            icon: '/icons/icon128_v3.png',
+            icon: '/icons/icon128_v2.png',
           });
         }
 
