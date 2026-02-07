@@ -636,6 +636,28 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
           </div>
         </section>
 
+        {/* Health & Wellness */}
+        <section>
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Health & Wellness</h3>
+          <div
+            className="bg-gradient-to-r from-green-500/10 to-emerald-500/5 rounded-xl border border-green-500/10 p-4 cursor-pointer hover:from-green-500/15 transition-all"
+            onClick={() => setScreen(Screen.HEALTH)}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-green-500/15 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-green-400">favorite</span>
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Health Reminders</p>
+                  <p className="text-[10px] text-muted">Screen breaks, water, stretching & more</p>
+                </div>
+              </div>
+              <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
+            </div>
+          </div>
+        </section>
+
         {/* Data & System */}
         <section>
           <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">System</h3>

@@ -20,9 +20,11 @@ import { CalendarScreen } from './screens/CalendarScreen';
 import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen';
 import { TermsScreen } from './screens/TermsScreen';
 import { IntegrationsScreen } from './screens/IntegrationsScreen';
+import { HealthScreen } from './screens/HealthScreen';
 import { configManager } from './config';
 import { STORAGE_KEYS, UI_DIMENSIONS, EXTERNAL_URLS } from './config/constants';
-import { getTasks, saveTasks, getSettings } from './services/storageService';
+import { getTasks, saveTasks, getSettings, getHealthSettings } from './services/storageService';
+import { HealthSettings } from './types';
 
 // Apply theme CSS variables to the document
 const applyTheme = (themeId: string) => {
@@ -62,6 +64,7 @@ const SCREEN_ROUTES: Record<string, Screen> = {
   audio: Screen.AUDIO,
   milestones: Screen.MILESTONES,
   calendar: Screen.CALENDAR,
+  health: Screen.HEALTH,
 };
 
 const App: React.FC = () => {
@@ -253,6 +256,57 @@ const App: React.FC = () => {
     }
   }, [showNotification]);
 
+  // Health reminder system
+  useEffect(() => {
+    const healthTimers: Record<string, ReturnType<typeof setInterval>> = {};
+    let cancelled = false;
+
+    const HEALTH_REMINDERS = [
+      { enabledKey: 'screenBreakEnabled' as const, intervalKey: 'screenBreakInterval' as const, title: 'Screen Break', message: 'Take a moment to look away from your screen and rest your eyes.', icon: 'visibility_off' },
+      { enabledKey: 'waterReminderEnabled' as const, intervalKey: 'waterReminderInterval' as const, title: 'Drink Water', message: 'Stay hydrated! Grab a glass of water.', icon: 'water_drop' },
+      { enabledKey: 'stretchReminderEnabled' as const, intervalKey: 'stretchReminderInterval' as const, title: 'Time to Stretch', message: 'Stand up and stretch your body for a minute.', icon: 'self_improvement' },
+      { enabledKey: 'eyeRestEnabled' as const, intervalKey: 'eyeRestInterval' as const, title: 'Eye Rest (20-20-20)', message: 'Look at something 20 feet away for 20 seconds.', icon: 'remove_red_eye' },
+      { enabledKey: 'posturCheckEnabled' as const, intervalKey: 'postureCheckInterval' as const, title: 'Posture Check', message: 'Sit up straight, relax your shoulders.', icon: 'accessibility_new' },
+    ];
+
+    const setupHealthReminders = async () => {
+      const healthSettings = await getHealthSettings();
+      if (!healthSettings.enabled || cancelled) return;
+
+      HEALTH_REMINDERS.forEach(reminder => {
+        if (healthSettings[reminder.enabledKey]) {
+          const intervalMs = (healthSettings[reminder.intervalKey] as number) * 60 * 1000;
+          healthTimers[reminder.enabledKey] = setInterval(() => {
+            showNotification({
+              type: 'reminder',
+              title: reminder.title,
+              message: reminder.message,
+              icon: reminder.icon,
+              actions: [
+                {
+                  label: 'Done',
+                  onClick: () => {},
+                  primary: true,
+                },
+                {
+                  label: 'Snooze 10m',
+                  onClick: () => {},
+                },
+              ],
+            });
+          }, intervalMs);
+        }
+      });
+    };
+
+    setupHealthReminders();
+
+    return () => {
+      cancelled = true;
+      Object.values(healthTimers).forEach(timer => clearInterval(timer));
+    };
+  }, [showNotification]);
+
   const renderScreen = () => {
     const props = {
       setScreen: setCurrentScreen,
@@ -299,6 +353,8 @@ const App: React.FC = () => {
         return <TermsScreen setScreen={setCurrentScreen} />;
       case Screen.INTEGRATIONS:
         return <IntegrationsScreen {...props} />;
+      case Screen.HEALTH:
+        return <HealthScreen {...props} />;
       default:
         return <TimerScreen {...props} />;
     }

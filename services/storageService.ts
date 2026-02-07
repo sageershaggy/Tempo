@@ -3,6 +3,7 @@ declare var chrome: any;
 
 import { configManager } from '../config';
 import { TIME } from '../config/constants';
+import { HealthSettings, HealthLog } from '../types';
 
 export interface UserSettings {
   focusDuration: number;
@@ -305,6 +306,46 @@ export const exportUserData = async (): Promise<string> => {
   const tasks = await getTasks();
 
   return JSON.stringify({ settings, stats, tasks, exportedAt: new Date().toISOString() }, null, 2);
+};
+
+// Health Settings
+const defaultHealthSettings: HealthSettings = {
+  enabled: true,
+  screenBreakEnabled: true,
+  screenBreakInterval: 30,
+  waterReminderEnabled: true,
+  waterReminderInterval: 45,
+  stretchReminderEnabled: false,
+  stretchReminderInterval: 60,
+  eyeRestEnabled: true,
+  eyeRestInterval: 20,
+  posturCheckEnabled: false,
+  postureCheckInterval: 30,
+};
+
+export const getHealthSettings = async (): Promise<HealthSettings> => {
+  const data = await storage.sync.get('healthSettings');
+  return { ...defaultHealthSettings, ...(data.healthSettings || {}) };
+};
+
+export const saveHealthSettings = async (settings: Partial<HealthSettings>): Promise<void> => {
+  const current = await getHealthSettings();
+  await storage.sync.set({ healthSettings: { ...current, ...settings } });
+};
+
+// Health Log
+export const getHealthLog = async (): Promise<HealthLog[]> => {
+  const data = await storage.local.get('healthLog');
+  return data.healthLog || [];
+};
+
+export const addHealthLog = async (entry: HealthLog): Promise<void> => {
+  const log = await getHealthLog();
+  // Keep last 7 days of logs
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const filtered = log.filter(l => l.completedAt > sevenDaysAgo);
+  filtered.push(entry);
+  await storage.local.set({ healthLog: filtered });
 };
 
 // Export user data as CSV for Excel

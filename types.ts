@@ -17,7 +17,8 @@ ADMIN = 'ADMIN',
   CALENDAR = 'CALENDAR',
   PRIVACY_POLICY = 'PRIVACY_POLICY',
   TERMS = 'TERMS',
-  INTEGRATIONS = 'INTEGRATIONS'
+  INTEGRATIONS = 'INTEGRATIONS',
+  HEALTH = 'HEALTH'
 }
 
 export interface Subtask {
@@ -64,6 +65,27 @@ export interface AudioState {
   autoPlay: boolean;
   // Granular settings per track ID
   trackSettings: Record<string, { volume: number; hz?: string }>;
+}
+
+export interface HealthSettings {
+  enabled: boolean;
+  screenBreakEnabled: boolean;
+  screenBreakInterval: number; // minutes between reminders
+  waterReminderEnabled: boolean;
+  waterReminderInterval: number; // minutes between reminders
+  stretchReminderEnabled: boolean;
+  stretchReminderInterval: number; // minutes between reminders
+  eyeRestEnabled: boolean; // 20-20-20 rule
+  eyeRestInterval: number; // minutes
+  posturCheckEnabled: boolean;
+  postureCheckInterval: number; // minutes
+}
+
+export interface HealthLog {
+  id: string;
+  type: 'screen_break' | 'water' | 'stretch' | 'eye_rest' | 'posture';
+  completedAt: number; // timestamp
+  date: string; // YYYY-MM-DD
 }
 
 export interface GlobalProps {
