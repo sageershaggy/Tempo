@@ -41,6 +41,10 @@ export const STORAGE_KEYS = {
 
   // Audio
   AUDIO_STATE: 'tempo_audioState',
+
+  // Health
+  HEALTH_SETTINGS: 'tempo_healthSettings',
+  HEALTH_LOG: 'tempo_healthLog',
 } as const;
 
 // Type for storage keys
@@ -155,6 +159,7 @@ ADMIN: 'ADMIN',
   PRIVACY_POLICY: 'PRIVACY_POLICY',
   TERMS: 'TERMS',
   INTEGRATIONS: 'INTEGRATIONS',
+  HEALTH: 'HEALTH',
 } as const;
 
 export type ScreenId = typeof SCREENS[keyof typeof SCREENS];
