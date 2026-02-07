@@ -17,13 +17,10 @@ export const SplashScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ set
       <div className="flex-1"></div>
       
       <div className="relative z-10 flex flex-col items-center animate-slide-up">
-        <div className="w-32 h-32 mb-8 bg-surface-light rounded-3xl shadow-[0_0_40px_-10px_rgba(127,19,236,0.5)] flex items-center justify-center border border-white/5">
-            <span className="material-symbols-outlined text-primary text-6xl">hourglass_empty</span>
-            <div className="absolute -bottom-2 -right-2 bg-secondary rounded-full p-2 border-4 border-background-dark">
-                <span className="material-symbols-outlined text-white text-xl">check</span>
-            </div>
+        <div className="w-32 h-32 mb-8 rounded-3xl shadow-[0_0_40px_-10px_rgba(127,19,236,0.5)] flex items-center justify-center overflow-hidden">
+            <img src="./icons/icon128_v4.png" alt="Tempo Focus" className="w-full h-full" />
         </div>
-        <h1 className="text-4xl font-extrabold tracking-tight mb-2">Tempo</h1>
+        <h1 className="text-4xl font-extrabold tracking-tight mb-2">Tempo Focus</h1>
         <p className="text-primary text-lg font-medium tracking-wide">Focus. Track. Achieve.</p>
       </div>
 

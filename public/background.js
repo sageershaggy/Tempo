@@ -277,7 +277,7 @@ function updateTimerBadge() {
       const isFocus = mode === 'focus';
       chrome.notifications.create('timerComplete-' + Date.now(), {
         type: 'basic',
-        iconUrl: 'icons/icon128_v2.png',
+        iconUrl: 'icons/icon128_v4.png',
         title: isFocus ? 'Focus Session Complete!' : 'Break Complete!',
         message: isFocus ? 'Great work! Time for a break.' : 'Ready for another focus session?',
         priority: 2
@@ -344,7 +344,7 @@ async function checkTaskReminders() {
         // Show Chrome notification
         chrome.notifications.create('taskReminder-' + task.id + '-' + Date.now(), {
           type: 'basic',
-          iconUrl: 'icons/icon128_v2.png',
+          iconUrl: 'icons/icon128_v4.png',
           title: isOverdue ? 'Task Overdue!' : 'Task Due Soon',
           message: task.title,
           priority: 2,
@@ -580,7 +580,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Also show a Chrome notification as backup (in case alarm page is blocked)
     chrome.notifications.create('timerComplete-' + Date.now(), {
       type: 'basic',
-      iconUrl: 'icons/icon128_v2.png',
+      iconUrl: 'icons/icon128_v4.png',
       title: mode === 'break' ? 'Break Complete!' : 'Focus Session Complete!',
       message: mode === 'break' ? 'Ready for another focus session?' : 'Great work! Time for a break.',
       priority: 2
@@ -645,8 +645,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       let durationMinutes;
 
       if (isBreak) {
-        // Use short break duration (default 5 minutes)
-        durationMinutes = settings.shortBreak || 5;
+        // Check if this should be a long break based on session count
+        const longBreakInterval = settings.longBreakInterval || 4;
+        const longBreakDuration = settings.longBreak || 15;
+        const shortBreakDuration = settings.shortBreak || 5;
+
+        // Read session count from request or default to short break
+        const sessionCount = request.sessionCount || 0;
+        const isLongBreak = longBreakInterval > 0 && sessionCount > 0 && sessionCount % longBreakInterval === 0;
+        durationMinutes = isLongBreak ? longBreakDuration : shortBreakDuration;
       } else {
         // Use focus duration (default 25 minutes)
         durationMinutes = settings.focusDuration || 25;

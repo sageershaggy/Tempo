@@ -1,12 +1,21 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Screen, Task, Subtask, GlobalProps } from '../types';
+import { Screen, Task, Subtask, Milestone, GlobalProps } from '../types';
 import { suggestSubtasks, analyzeTaskPriority } from '../services/geminiService';
 import { configManager } from '../config';
 import { googleTasksService } from '../services/googleTasks';
+import { STORAGE_KEYS } from '../config/constants';
 
 export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks }) => {
-    // Get milestones from config
-    const milestones = configManager.getConfig().social.mockMilestones;
+    // Load real milestones from localStorage
+    const milestones = useMemo<Milestone[]>(() => {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEYS.USER_MILESTONES);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {
+            console.error('Failed to load milestones:', e);
+        }
+        return [];
+    }, [tasks]); // Re-read when tasks change to pick up any milestone changes
     const [searchQuery, setSearchQuery] = useState('');
     const [filter, setFilter] = useState<string>('All');
     const [sort, setSort] = useState<'Manual' | 'Date' | 'Priority' | 'Title'>('Manual');
@@ -483,11 +492,11 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                     <select
                                                         value={task.category || ''}
                                                         onChange={(e) => handleUpdateTask(task.id, { category: e.target.value })}
-                                                        className="appearance-none bg-white/5 border border-white/10 text-[10px] font-bold text-muted hover:text-white rounded-lg pl-3 pr-6 py-1.5 focus:outline-none focus:border-primary/50 transition-colors cursor-pointer w-full"
+                                                        className="appearance-none bg-[#1a1a2e] border border-white/10 text-[10px] font-bold text-muted hover:text-white rounded-lg pl-3 pr-6 py-1.5 focus:outline-none focus:border-primary/50 transition-colors cursor-pointer w-full [color-scheme:dark]"
                                                     >
-                                                        <option value="">No Category</option>
+                                                        <option value="" className="bg-[#1a1a2e] text-white">No Category</option>
                                                         {categories.map(c => (
-                                                            <option key={c} value={c} className="bg-surface-dark text-white">{c}</option>
+                                                            <option key={c} value={c} className="bg-[#1a1a2e] text-white">{c}</option>
                                                         ))}
                                                     </select>
                                                     <span className="material-symbols-outlined text-[12px] text-muted absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span>
@@ -524,11 +533,11 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                             <select
                                                                 value={task.milestoneId || ''}
                                                                 onChange={(e) => handleUpdateTask(task.id, { milestoneId: e.target.value })}
-                                                                className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white focus:border-primary/50 focus:outline-none appearance-none cursor-pointer hover:bg-white/10 transition-colors"
+                                                                className="w-full bg-[#1a1a2e] border border-white/10 rounded px-3 py-2 text-xs text-white focus:border-primary/50 focus:outline-none appearance-none cursor-pointer hover:bg-white/10 transition-colors [color-scheme:dark]"
                                                             >
-                                                                <option value="">No Milestone</option>
+                                                                <option value="" className="bg-[#1a1a2e] text-white">No Milestone</option>
                                                                 {milestones.map(m => (
-                                                                    <option key={m.id} value={m.id}>{m.title}</option>
+                                                                    <option key={m.id} value={m.id} className="bg-[#1a1a2e] text-white">{m.title}</option>
                                                                 ))}
                                                             </select>
                                                             <span className="material-symbols-outlined absolute right-2 top-2 text-xs text-muted pointer-events-none">expand_more</span>
@@ -540,11 +549,11 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                             <select
                                                                 value={task.priority}
                                                                 onChange={(e) => handleUpdateTask(task.id, { priority: e.target.value as any })}
-                                                                className="flex-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white focus:border-primary/50 focus:outline-none cursor-pointer hover:bg-white/10 transition-colors"
+                                                                className="flex-1 bg-[#1a1a2e] border border-white/10 rounded px-3 py-2 text-xs text-white focus:border-primary/50 focus:outline-none cursor-pointer hover:bg-white/10 transition-colors [color-scheme:dark]"
                                                             >
-                                                                <option value="High">High</option>
-                                                                <option value="Medium">Medium</option>
-                                                                <option value="Low">Low</option>
+                                                                <option value="High" className="bg-[#1a1a2e] text-white">High</option>
+                                                                <option value="Medium" className="bg-[#1a1a2e] text-white">Medium</option>
+                                                                <option value="Low" className="bg-[#1a1a2e] text-white">Low</option>
                                                             </select>
                                                             <button
                                                                 onClick={() => handleAnalyzePriority(task)}

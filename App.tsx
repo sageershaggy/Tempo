@@ -288,7 +288,7 @@ const App: React.FC = () => {
       case Screen.AUDIO:
         return <AudioScreen {...props} />;
       case Screen.MILESTONES:
-        return <MilestonesScreen setScreen={setCurrentScreen} />;
+        return <MilestonesScreen setScreen={setCurrentScreen} tasks={tasks} />;
       case Screen.ADMIN:
         return <AdminScreen setScreen={setCurrentScreen} />;
       case Screen.CALENDAR:

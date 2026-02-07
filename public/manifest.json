@@ -4,16 +4,16 @@
   "description": "A smart focus timer to track deep work, boost productivity, and manage tasks efficiently.",
   "version": "1.0.1",
   "icons": {
-    "16": "icons/icon16_v2.png",
-    "48": "icons/icon48_v2.png",
-    "128": "icons/icon128_v2.png"
+    "16": "icons/icon16_v4.png",
+    "48": "icons/icon48_v4.png",
+    "128": "icons/icon128_v4.png"
   },
   "action": {
     "default_popup": "index.html",
     "default_icon": {
-      "16": "icons/icon16_v2.png",
-      "48": "icons/icon48_v2.png",
-      "128": "icons/icon128_v2.png"
+      "16": "icons/icon16_v4.png",
+      "48": "icons/icon48_v4.png",
+      "128": "icons/icon128_v4.png"
     },
     "default_title": "Tempo Focus"
   },
@@ -41,6 +41,6 @@
     "type": "module"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src https://www.youtube.com https://youtube.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
   }
 }
