@@ -20,6 +20,12 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   // User settings for custom mode
   const [userFocusDuration, setUserFocusDuration] = useState(config.defaults.settings.focusDuration);
   const [userBreakDuration, setUserBreakDuration] = useState(config.defaults.settings.shortBreak);
+  const [longBreakDuration, setLongBreakDuration] = useState(config.defaults.settings.longBreak);
+  const [longBreakInterval, setLongBreakInterval] = useState(config.defaults.settings.longBreakInterval);
+  const [sessionCount, setSessionCount] = useState(() => {
+    const saved = localStorage.getItem('tempo_sessionCount');
+    return saved ? parseInt(saved, 10) : 0;
+  });
   const [tickingEnabled, setTickingEnabled] = useState(false);
   const [tickSpeed, setTickSpeed] = useState(60);
   const tickIntervalRef = useRef<any>(null);
@@ -154,6 +160,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       const settings = await getSettings();
       setUserFocusDuration(settings.focusDuration);
       setUserBreakDuration(settings.shortBreak);
+      setLongBreakDuration(settings.longBreak);
+      setLongBreakInterval(settings.longBreakInterval || config.defaults.settings.longBreakInterval);
       setTickingEnabled(settings.tickingEnabled);
       setTickSpeed(settings.tickingSpeed);
 
@@ -592,14 +600,22 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification('Focus Session Complete!', {
             body: 'Great work! Time for a break.',
-            icon: '/icons/icon128_v2.png',
+            icon: '/icons/icon128_v4.png',
           });
         } else if ('Notification' in window && Notification.permission !== 'denied') {
           Notification.requestPermission();
         }
 
+        // Increment session count and determine break type
+        const newSessionCount = sessionCount + 1;
+        setSessionCount(newSessionCount);
+        localStorage.setItem('tempo_sessionCount', String(newSessionCount));
+
+        // Determine if this should be a long break
+        const isLongBreak = longBreakInterval > 0 && newSessionCount % longBreakInterval === 0;
+        const breakTime = isLongBreak ? longBreakDuration * 60 : getBreakForTemplate(activeTemplateId);
+
         // Automatically set up break timer - use setTimeout to ensure state updates properly
-        const breakTime = getBreakForTemplate(activeTemplateId);
         setTimeout(() => {
           setTimerMode('break');
           setInitialTime(breakTime);
@@ -625,7 +641,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification('Break Complete!', {
             body: 'Ready for another focus session?',
-            icon: '/icons/icon128_v2.png',
+            icon: '/icons/icon128_v4.png',
           });
         }
 
@@ -655,7 +671,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       // Update extension badge with timer
       try {
         if (w.chrome?.runtime?.sendMessage) {
-          w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: timeLeft, mode: timerMode });
+          // If timeLeft < initialTime, this is a resume after pause - don't overwrite the original duration
+          const isPauseResume = timeLeft < initialTime;
+          w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: timeLeft, mode: timerMode, isRestore: isPauseResume });
         }
       } catch (e) { }
 
@@ -785,7 +803,10 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       {/* Header */}
       <div className="flex justify-between items-center mb-2">
         <div>
-          <h1 className="text-base font-bold tracking-tight leading-tight">Tempo</h1>
+          <div className="flex items-center gap-1.5">
+            <img src="./icons/icon16_v4.png" alt="" className="w-4 h-4" />
+            <h1 className="text-base font-bold tracking-tight leading-tight">Tempo Focus</h1>
+          </div>
           <p className="text-[9px] font-bold text-primary uppercase tracking-widest">
             {templates.find(t => t.id === activeTemplateId)?.description || 'Focus Session'}
           </p>

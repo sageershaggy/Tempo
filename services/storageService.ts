@@ -8,6 +8,7 @@ export interface UserSettings {
   focusDuration: number;
   shortBreak: number;
   longBreak: number;
+  longBreakInterval: number;
   autoStartBreaks: boolean;
   autoStartPomos: boolean;
   notifications: boolean;
@@ -115,6 +116,7 @@ export const getSettings = async (): Promise<UserSettings> => {
     focusDuration: config.defaults.settings.focusDuration,
     shortBreak: config.defaults.settings.shortBreak,
     longBreak: config.defaults.settings.longBreak,
+    longBreakInterval: config.defaults.settings.longBreakInterval,
     autoStartBreaks: config.defaults.settings.autoStartBreaks,
     autoStartPomos: config.defaults.settings.autoStartPomos,
     notifications: config.defaults.settings.notifications,

@@ -48,10 +48,10 @@ export const LoginScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
 
       <div className="w-full max-w-sm bg-surface-dark border border-white/5 p-8 rounded-2xl shadow-2xl relative z-10 animate-fade-in">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-surface-light rounded-2xl flex items-center justify-center mb-4 border border-white/5 shadow-inner">
-            <span className="material-symbols-outlined text-3xl text-primary">hourglass_top</span>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 overflow-hidden">
+            <img src="./icons/icon128_v4.png" alt="Tempo Focus" className="w-full h-full" />
           </div>
-          <h1 className="text-2xl font-bold mb-2">Welcome to Tempo</h1>
+          <h1 className="text-2xl font-bold mb-2">Welcome to Tempo Focus</h1>
           <p className="text-muted text-sm text-center">Sync your focus across Chrome and mobile.</p>
         </div>
 

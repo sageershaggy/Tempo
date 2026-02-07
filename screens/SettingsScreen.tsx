@@ -418,9 +418,9 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                   <p className="text-[10px] text-muted">Sessions before long break</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <button className="w-7 h-7 rounded bg-surface-light flex items-center justify-center hover:bg-white/10" onClick={() => setLongBreakInterval(Math.max(LIMITS.MIN_LONG_BREAK_INTERVAL, longBreakInterval - 1))}>-</button>
+                  <button className="w-7 h-7 rounded bg-surface-light flex items-center justify-center hover:bg-white/10" onClick={() => { const val = Math.max(LIMITS.MIN_LONG_BREAK_INTERVAL, longBreakInterval - 1); setLongBreakInterval(val); handleSettingChange('longBreakInterval', val); }}>-</button>
                   <span className="text-sm font-bold">{longBreakInterval}</span>
-                  <button className="w-7 h-7 rounded bg-surface-light flex items-center justify-center hover:bg-white/10" onClick={() => setLongBreakInterval(Math.min(LIMITS.MAX_LONG_BREAK_INTERVAL, longBreakInterval + 1))}>+</button>
+                  <button className="w-7 h-7 rounded bg-surface-light flex items-center justify-center hover:bg-white/10" onClick={() => { const val = Math.min(LIMITS.MAX_LONG_BREAK_INTERVAL, longBreakInterval + 1); setLongBreakInterval(val); handleSettingChange('longBreakInterval', val); }}>+</button>
                 </div>
               </div>
             </div>

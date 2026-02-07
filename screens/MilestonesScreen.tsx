@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Screen, Milestone } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Screen, Milestone, Task } from '../types';
 import { STORAGE_KEYS, generateId } from '../config/constants';
 
 const MILESTONE_COLORS = [
@@ -28,12 +28,46 @@ const saveMilestones = (milestones: Milestone[]): void => {
     localStorage.setItem(STORAGE_KEYS.USER_MILESTONES, JSON.stringify(milestones));
 };
 
-export const MilestonesScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
+interface MilestonesScreenProps {
+    setScreen: (s: Screen) => void;
+    tasks?: Task[];
+}
+
+export const MilestonesScreen: React.FC<MilestonesScreenProps> = ({ setScreen, tasks = [] }) => {
     const [milestones, setMilestones] = useState<Milestone[]>(loadMilestones);
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [newTitle, setNewTitle] = useState('');
     const [newDueDate, setNewDueDate] = useState('');
     const [newColor, setNewColor] = useState('bg-primary');
+
+    // Calculate progress for each milestone based on linked tasks
+    const milestoneProgress = useMemo(() => {
+        const progressMap: Record<string, { total: number; completed: number; progress: number }> = {};
+        milestones.forEach(m => {
+            const linkedTasks = tasks.filter(t => t.milestoneId === m.id);
+            const total = linkedTasks.length;
+            const completed = linkedTasks.filter(t => t.completed).length;
+            const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+            progressMap[m.id] = { total, completed, progress };
+        });
+        return progressMap;
+    }, [milestones, tasks]);
+
+    // Update milestone progress values and save when tasks change
+    useEffect(() => {
+        let changed = false;
+        const updated = milestones.map(m => {
+            const calc = milestoneProgress[m.id];
+            if (calc && m.progress !== calc.progress) {
+                changed = true;
+                return { ...m, progress: calc.progress };
+            }
+            return m;
+        });
+        if (changed) {
+            setMilestones(updated);
+        }
+    }, [milestoneProgress]);
 
     // Save milestones when they change
     useEffect(() => {
@@ -70,59 +104,77 @@ export const MilestonesScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({
             </div>
 
             <div className="p-6 space-y-6">
-                {milestones.map((milestone) => (
-                    <div key={milestone.id} className="relative group">
-                        {/* Timeline Line */}
-                        <div className="absolute left-6 top-10 bottom-[-24px] w-0.5 bg-white/10 group-last:hidden"></div>
+                {milestones.map((milestone) => {
+                    const calc = milestoneProgress[milestone.id] || { total: 0, completed: 0, progress: 0 };
+                    const remaining = calc.total - calc.completed;
 
-                        <div className="flex gap-4">
-                            {/* Icon/Status */}
-                            <div className={`w-12 h-12 rounded-full shrink-0 flex items-center justify-center border-4 border-background-dark z-10 ${milestone.progress === 100 ? 'bg-green-500 text-black' : 'bg-surface-light text-muted'}`}>
-                                {milestone.progress === 100 ? (
-                                    <span className="material-symbols-outlined text-xl font-bold">check</span>
-                                ) : (
-                                    <span className="text-xs font-bold">{milestone.progress}%</span>
-                                )}
-                            </div>
+                    return (
+                        <div key={milestone.id} className="relative group">
+                            {/* Timeline Line */}
+                            <div className="absolute left-6 top-10 bottom-[-24px] w-0.5 bg-white/10 group-last:hidden"></div>
 
-                            {/* Card */}
-                            <div className="flex-1 bg-surface-dark rounded-xl p-4 border border-white/5 hover:border-white/10 transition-colors">
-                                <div className="flex justify-between items-start mb-2">
-                                    <h3 className="font-bold text-base">{milestone.title}</h3>
+                            <div className="flex gap-4">
+                                {/* Icon/Status */}
+                                <div className={`w-12 h-12 rounded-full shrink-0 flex items-center justify-center border-4 border-background-dark z-10 ${calc.progress === 100 ? 'bg-green-500 text-black' : 'bg-surface-light text-muted'}`}>
+                                    {calc.progress === 100 ? (
+                                        <span className="material-symbols-outlined text-xl font-bold">check</span>
+                                    ) : (
+                                        <span className="text-xs font-bold">{calc.progress}%</span>
+                                    )}
+                                </div>
+
+                                {/* Card */}
+                                <div className="flex-1 bg-surface-dark rounded-xl p-4 border border-white/5 hover:border-white/10 transition-colors">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h3 className="font-bold text-base">{milestone.title}</h3>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-bold text-muted bg-white/5 px-2 py-0.5 rounded">
+                                                {new Date(milestone.dueDate).toLocaleDateString()}
+                                            </span>
+                                            <button
+                                                onClick={() => handleDeleteMilestone(milestone.id)}
+                                                className="w-6 h-6 rounded-full hover:bg-red-500/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <span className="material-symbols-outlined text-[14px] text-red-400">close</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="w-full bg-black/40 h-2 rounded-full mb-3 overflow-hidden">
+                                        <div
+                                            className={`h-full rounded-full ${milestone.color} transition-all duration-1000`}
+                                            style={{ width: `${calc.progress}%` }}
+                                        ></div>
+                                    </div>
+
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-bold text-muted bg-white/5 px-2 py-0.5 rounded">
-                                            {new Date(milestone.dueDate).toLocaleDateString()}
-                                        </span>
-                                        <button
-                                            onClick={() => handleDeleteMilestone(milestone.id)}
-                                            className="w-6 h-6 rounded-full hover:bg-red-500/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <span className="material-symbols-outlined text-[14px] text-red-400">close</span>
-                                        </button>
+                                        {calc.total > 0 ? (
+                                            <>
+                                                <div className="flex -space-x-2">
+                                                    {Array.from({ length: Math.min(calc.completed, 3) }).map((_, i) => (
+                                                        <div key={i} className="w-6 h-6 rounded-full bg-green-500/20 border border-background-dark flex items-center justify-center text-[8px] text-green-400">
+                                                            <span className="material-symbols-outlined text-[10px]">check_circle</span>
+                                                        </div>
+                                                    ))}
+                                                    {remaining > 0 && Array.from({ length: Math.min(remaining, 3 - Math.min(calc.completed, 3)) }).map((_, i) => (
+                                                        <div key={`r-${i}`} className="w-6 h-6 rounded-full bg-surface-light border border-background-dark flex items-center justify-center text-[8px] text-muted">
+                                                            <span className="material-symbols-outlined text-[10px]">radio_button_unchecked</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <span className="text-xs text-muted font-medium ml-1">
+                                                    {calc.completed}/{calc.total} tasks {remaining > 0 ? `(${remaining} remaining)` : 'complete'}
+                                                </span>
+                                            </>
+                                        ) : (
+                                            <span className="text-xs text-muted font-medium">No tasks linked yet</span>
+                                        )}
                                     </div>
-                                </div>
-
-                                <div className="w-full bg-black/40 h-2 rounded-full mb-3 overflow-hidden">
-                                    <div
-                                        className={`h-full rounded-full ${milestone.color} transition-all duration-1000`}
-                                        style={{ width: `${milestone.progress}%` }}
-                                    ></div>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    <div className="flex -space-x-2">
-                                        {[1,2,3].map(i => (
-                                            <div key={i} className="w-6 h-6 rounded-full bg-surface-light border border-background-dark flex items-center justify-center text-[8px] text-muted">
-                                                <span className="material-symbols-outlined text-[10px]">check_circle</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <span className="text-xs text-muted font-medium ml-1">+ 2 tasks remaining</span>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
 
                 {/* Create New Prompt */}
                 <div
