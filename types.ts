@@ -67,9 +67,15 @@ export interface AudioState {
   trackSettings: Record<string, { volume: number; hz?: string }>;
 }
 
-export interface HealthSettings {
+export interface HealthTypeConfig {
   enabled: boolean;
-  reminderInterval: 15 | 30 | 45 | 60; // minutes between reminders
+  reminderCount: number; // how many reminders per day the user wants
+  intervalMinutes: 15 | 30 | 45 | 60; // minutes between each reminder
+}
+
+export interface HealthSettings {
+  enabled: boolean; // master toggle
+  types: Record<string, HealthTypeConfig>;
 }
 
 export interface HealthLog {

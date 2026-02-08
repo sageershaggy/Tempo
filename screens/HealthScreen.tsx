@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Screen, GlobalProps, HealthSettings, HealthLog } from '../types';
+import { Screen, GlobalProps, HealthSettings, HealthLog, HealthTypeConfig } from '../types';
 import { getHealthSettings, saveHealthSettings, getHealthLog, addHealthLog } from '../services/storageService';
 
 const HEALTH_TYPES = [
@@ -11,19 +11,20 @@ const HEALTH_TYPES = [
 ];
 
 const INTERVAL_OPTIONS: { value: 15 | 30 | 45 | 60; label: string }[] = [
-  { value: 15, label: '15 min' },
-  { value: 30, label: '30 min' },
-  { value: 45, label: '45 min' },
-  { value: 60, label: '1 hour' },
+  { value: 15, label: '15m' },
+  { value: 30, label: '30m' },
+  { value: 45, label: '45m' },
+  { value: 60, label: '1h' },
 ];
 
 export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
   const [settings, setSettings] = useState<HealthSettings>({
     enabled: true,
-    reminderInterval: 30,
+    types: {},
   });
   const [healthLog, setHealthLog] = useState<HealthLog[]>([]);
   const [todayStats, setTodayStats] = useState<Record<string, number>>({});
+  const [expandedType, setExpandedType] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -46,16 +47,26 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
     setTodayStats(counts);
   }, [healthLog]);
 
-  const handleToggle = async (value: boolean) => {
+  const handleMasterToggle = async (value: boolean) => {
     const updated = { ...settings, enabled: value };
     setSettings(updated);
     await saveHealthSettings({ enabled: value });
   };
 
-  const handleIntervalChange = async (value: 15 | 30 | 45 | 60) => {
-    const updated = { ...settings, reminderInterval: value };
+  const handleTypeToggle = async (typeId: string, value: boolean) => {
+    const currentType = settings.types[typeId] || { enabled: true, reminderCount: 3, intervalMinutes: 30 };
+    const updatedTypes = { ...settings.types, [typeId]: { ...currentType, enabled: value } };
+    const updated = { ...settings, types: updatedTypes };
     setSettings(updated);
-    await saveHealthSettings({ reminderInterval: value });
+    await saveHealthSettings({ types: updatedTypes });
+  };
+
+  const handleTypeConfig = async (typeId: string, key: keyof HealthTypeConfig, value: number | boolean) => {
+    const currentType = settings.types[typeId] || { enabled: true, reminderCount: 3, intervalMinutes: 30 };
+    const updatedTypes = { ...settings.types, [typeId]: { ...currentType, [key]: value } };
+    const updated = { ...settings, types: updatedTypes };
+    setSettings(updated);
+    await saveHealthSettings({ types: updatedTypes });
   };
 
   const handleLogActivity = async (type: HealthLog['type']) => {
@@ -107,6 +118,126 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
           <span className="material-symbols-outlined text-sm text-yellow-400">celebration</span>
           <p className="text-[11px] font-semibold text-yellow-300/80">Free during launch period</p>
         </div>
+
+        {/* Master Toggle */}
+        <section>
+          <div
+            className="bg-surface-dark rounded-xl border border-white/5 p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+            onClick={() => handleMasterToggle(!settings.enabled)}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-green-400">favorite</span>
+              </div>
+              <div>
+                <p className="text-sm font-bold">Health Reminders</p>
+                <p className="text-[10px] text-muted">Enable all health reminders</p>
+              </div>
+            </div>
+            <div className={`w-10 h-6 rounded-full relative transition-colors ${settings.enabled ? 'bg-green-500' : 'bg-surface-light'}`}>
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.enabled ? 'left-5' : 'left-1'}`}></div>
+            </div>
+          </div>
+        </section>
+
+        {/* Per-Type Reminder Config */}
+        {settings.enabled && (
+          <section>
+            <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Reminder Configuration</h3>
+            <div className="bg-surface-dark rounded-xl border border-white/5 overflow-hidden divide-y divide-white/5">
+              {HEALTH_TYPES.map(ht => {
+                const typeConfig = settings.types[ht.id] || { enabled: true, reminderCount: 3, intervalMinutes: 30 };
+                const isExpanded = expandedType === ht.id;
+                return (
+                  <div key={ht.id}>
+                    {/* Type Row */}
+                    <div
+                      className="p-3.5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+                      onClick={() => setExpandedType(isExpanded ? null : ht.id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-lg ${ht.bg} flex items-center justify-center`}>
+                          <span className={`material-symbols-outlined text-sm ${ht.color}`}>{ht.icon}</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold">{ht.label}</p>
+                          <p className="text-[10px] text-muted">
+                            {typeConfig.enabled
+                              ? `${typeConfig.reminderCount} reminders, every ${typeConfig.intervalMinutes}m`
+                              : 'Disabled'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`w-9 h-5.5 rounded-full relative transition-colors ${typeConfig.enabled ? 'bg-green-500' : 'bg-surface-light'}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTypeToggle(ht.id, !typeConfig.enabled);
+                          }}
+                          style={{ width: '36px', height: '22px' }}
+                        >
+                          <div className={`absolute top-[3px] w-4 h-4 bg-white rounded-full transition-all ${typeConfig.enabled ? 'left-[16px]' : 'left-[3px]'}`}></div>
+                        </div>
+                        <span className={`material-symbols-outlined text-sm text-muted transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                          expand_more
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Expanded Config */}
+                    {isExpanded && typeConfig.enabled && (
+                      <div className="px-4 pb-4 pt-1 bg-black/10 space-y-3">
+                        {/* Reminder Count */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-semibold text-muted">Reminders per session</p>
+                            <span className="text-xs font-bold text-primary">{typeConfig.reminderCount}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleTypeConfig(ht.id, 'reminderCount', Math.max(1, typeConfig.reminderCount - 1))}
+                              className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-sm font-bold"
+                            >-</button>
+                            <div className="flex-1 h-1.5 bg-surface-light rounded-full relative overflow-hidden">
+                              <div
+                                className="h-full bg-primary rounded-full transition-all"
+                                style={{ width: `${(typeConfig.reminderCount / 10) * 100}%` }}
+                              />
+                            </div>
+                            <button
+                              onClick={() => handleTypeConfig(ht.id, 'reminderCount', Math.min(10, typeConfig.reminderCount + 1))}
+                              className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-sm font-bold"
+                            >+</button>
+                          </div>
+                        </div>
+
+                        {/* Interval */}
+                        <div>
+                          <p className="text-xs font-semibold text-muted mb-2">Interval</p>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {INTERVAL_OPTIONS.map(opt => (
+                              <button
+                                key={opt.value}
+                                onClick={() => handleTypeConfig(ht.id, 'intervalMinutes', opt.value)}
+                                className={`py-2 rounded-lg text-[11px] font-bold transition-all border ${typeConfig.intervalMinutes === opt.value
+                                  ? 'bg-primary/20 border-primary text-white'
+                                  : 'bg-white/5 border-white/10 text-muted hover:border-white/20'
+                                  }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Today's Summary Card */}
         <section>
@@ -171,57 +302,6 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                 <span key={day.date} className="flex-1 text-center text-[9px] font-semibold text-muted">{day.label}</span>
               ))}
             </div>
-          </div>
-        </section>
-
-        {/* Settings — Single Toggle + Interval */}
-        <section>
-          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Reminder Settings</h3>
-          <div className="bg-surface-dark rounded-xl border border-white/5 overflow-hidden divide-y divide-white/5">
-
-            {/* Master Toggle */}
-            <div
-              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
-              onClick={() => handleToggle(!settings.enabled)}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-green-400">favorite</span>
-                </div>
-                <div>
-                  <p className="text-sm font-bold">Health Reminders</p>
-                  <p className="text-[10px] text-muted">Get popup reminders to stay healthy</p>
-                </div>
-              </div>
-              <div className={`w-10 h-6 rounded-full relative transition-colors ${settings.enabled ? 'bg-green-500' : 'bg-surface-light'}`}>
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.enabled ? 'left-5' : 'left-1'}`}></div>
-              </div>
-            </div>
-
-            {/* Interval Picker */}
-            {settings.enabled && (
-              <div className="p-4">
-                <p className="text-sm font-bold mb-1">Reminder Frequency</p>
-                <p className="text-[10px] text-muted mb-3">How often should we remind you?</p>
-                <div className="grid grid-cols-4 gap-2">
-                  {INTERVAL_OPTIONS.map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={() => handleIntervalChange(opt.value)}
-                      className={`py-2.5 rounded-xl text-xs font-bold transition-all border ${settings.reminderInterval === opt.value
-                        ? 'bg-primary/20 border-primary text-white'
-                        : 'bg-white/5 border-white/10 text-muted hover:border-white/20 hover:text-white'
-                        }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[10px] text-muted/60 mt-2 text-center">
-                  Cycles through: screen break, water, stretch, eye rest & posture
-                </p>
-              </div>
-            )}
           </div>
         </section>
 

@@ -255,46 +255,59 @@ const App: React.FC = () => {
     }
   }, [showNotification]);
 
-  // Health reminder system — cycles through wellness tips on a single interval
+  // Health reminder system — independent timer per health type
   useEffect(() => {
-    let healthTimer: ReturnType<typeof setInterval> | null = null;
+    const healthTimers: ReturnType<typeof setInterval>[] = [];
     let cancelled = false;
 
-    const HEALTH_TIPS = [
-      { title: 'Screen Break', message: 'Take a moment to look away from your screen and rest your eyes.', icon: 'visibility_off' },
-      { title: 'Drink Water', message: 'Stay hydrated! Grab a glass of water.', icon: 'water_drop' },
-      { title: 'Time to Stretch', message: 'Stand up and stretch your body for a minute.', icon: 'self_improvement' },
-      { title: 'Eye Rest (20-20-20)', message: 'Look at something 20 feet away for 20 seconds.', icon: 'remove_red_eye' },
-      { title: 'Posture Check', message: 'Sit up straight, relax your shoulders.', icon: 'accessibility_new' },
-    ];
-    let tipIndex = 0;
+    const HEALTH_TIPS: Record<string, { title: string; message: string; icon: string }> = {
+      screen_break: { title: 'Screen Break', message: 'Take a moment to look away from your screen and rest your eyes.', icon: 'visibility_off' },
+      water: { title: 'Drink Water', message: 'Stay hydrated! Grab a glass of water.', icon: 'water_drop' },
+      stretch: { title: 'Time to Stretch', message: 'Stand up and stretch your body for a minute.', icon: 'self_improvement' },
+      eye_rest: { title: 'Eye Rest (20-20-20)', message: 'Look at something 20 feet away for 20 seconds.', icon: 'remove_red_eye' },
+      posture: { title: 'Posture Check', message: 'Sit up straight, relax your shoulders.', icon: 'accessibility_new' },
+    };
 
     const setupHealthReminders = async () => {
       const healthSettings = await getHealthSettings();
       if (!healthSettings.enabled || cancelled) return;
 
-      const intervalMs = healthSettings.reminderInterval * 60 * 1000;
-      healthTimer = setInterval(() => {
-        const tip = HEALTH_TIPS[tipIndex % HEALTH_TIPS.length];
-        tipIndex++;
-        showNotification({
-          type: 'reminder',
-          title: tip.title,
-          message: tip.message,
-          icon: tip.icon,
-          actions: [
-            { label: 'Done', onClick: () => {}, primary: true },
-            { label: 'Dismiss', onClick: () => {} },
-          ],
-        });
-      }, intervalMs);
+      // Create an independent interval for each enabled health type
+      Object.entries(healthSettings.types).forEach(([typeId, typeConfig]) => {
+        if (!typeConfig.enabled || typeConfig.reminderCount <= 0) return;
+
+        let remindersShown = 0;
+        const intervalMs = typeConfig.intervalMinutes * 60 * 1000;
+        const tip = HEALTH_TIPS[typeId];
+        if (!tip) return;
+
+        const timer = setInterval(() => {
+          if (remindersShown >= typeConfig.reminderCount) {
+            clearInterval(timer);
+            return;
+          }
+          remindersShown++;
+          showNotification({
+            type: 'reminder',
+            title: tip.title,
+            message: `${tip.message} (${remindersShown}/${typeConfig.reminderCount})`,
+            icon: tip.icon,
+            actions: [
+              { label: 'Done', onClick: () => {}, primary: true },
+              { label: 'Dismiss', onClick: () => {} },
+            ],
+          });
+        }, intervalMs);
+
+        healthTimers.push(timer);
+      });
     };
 
     setupHealthReminders();
 
     return () => {
       cancelled = true;
-      if (healthTimer) clearInterval(healthTimer);
+      healthTimers.forEach(timer => clearInterval(timer));
     };
   }, [showNotification]);
 
