@@ -311,16 +311,7 @@ export const exportUserData = async (): Promise<string> => {
 // Health Settings
 const defaultHealthSettings: HealthSettings = {
   enabled: true,
-  screenBreakEnabled: true,
-  screenBreakInterval: 30,
-  waterReminderEnabled: true,
-  waterReminderInterval: 45,
-  stretchReminderEnabled: false,
-  stretchReminderInterval: 60,
-  eyeRestEnabled: true,
-  eyeRestInterval: 20,
-  posturCheckEnabled: false,
-  postureCheckInterval: 30,
+  reminderInterval: 30,
 };
 
 export const getHealthSettings = async (): Promise<HealthSettings> => {

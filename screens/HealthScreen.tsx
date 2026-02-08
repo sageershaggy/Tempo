@@ -3,26 +3,24 @@ import { Screen, GlobalProps, HealthSettings, HealthLog } from '../types';
 import { getHealthSettings, saveHealthSettings, getHealthLog, addHealthLog } from '../services/storageService';
 
 const HEALTH_TYPES = [
-  { id: 'screen_break' as const, label: 'Screen Break', icon: 'visibility_off', color: 'text-blue-400', bg: 'bg-blue-500/10', desc: 'Look away from screen, rest your eyes' },
-  { id: 'water' as const, label: 'Drink Water', icon: 'water_drop', color: 'text-cyan-400', bg: 'bg-cyan-500/10', desc: 'Stay hydrated for better focus' },
-  { id: 'stretch' as const, label: 'Stretch', icon: 'self_improvement', color: 'text-green-400', bg: 'bg-green-500/10', desc: 'Stand up and stretch your body' },
-  { id: 'eye_rest' as const, label: 'Eye Rest (20-20-20)', icon: 'remove_red_eye', color: 'text-purple-400', bg: 'bg-purple-500/10', desc: 'Look 20ft away for 20 seconds every 20min' },
-  { id: 'posture' as const, label: 'Posture Check', icon: 'accessibility_new', color: 'text-orange-400', bg: 'bg-orange-500/10', desc: 'Sit up straight, shoulders back' },
+  { id: 'screen_break' as const, label: 'Screen Break', icon: 'visibility_off', color: 'text-blue-400', bg: 'bg-blue-500/10', desc: 'Look away from screen' },
+  { id: 'water' as const, label: 'Drink Water', icon: 'water_drop', color: 'text-cyan-400', bg: 'bg-cyan-500/10', desc: 'Stay hydrated' },
+  { id: 'stretch' as const, label: 'Stretch', icon: 'self_improvement', color: 'text-green-400', bg: 'bg-green-500/10', desc: 'Stand up and move' },
+  { id: 'eye_rest' as const, label: 'Eye Rest', icon: 'remove_red_eye', color: 'text-purple-400', bg: 'bg-purple-500/10', desc: '20-20-20 rule' },
+  { id: 'posture' as const, label: 'Posture', icon: 'accessibility_new', color: 'text-orange-400', bg: 'bg-orange-500/10', desc: 'Sit up straight' },
+];
+
+const INTERVAL_OPTIONS: { value: 15 | 30 | 45 | 60; label: string }[] = [
+  { value: 15, label: '15 min' },
+  { value: 30, label: '30 min' },
+  { value: 45, label: '45 min' },
+  { value: 60, label: '1 hour' },
 ];
 
 export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
   const [settings, setSettings] = useState<HealthSettings>({
     enabled: true,
-    screenBreakEnabled: true,
-    screenBreakInterval: 30,
-    waterReminderEnabled: true,
-    waterReminderInterval: 45,
-    stretchReminderEnabled: false,
-    stretchReminderInterval: 60,
-    eyeRestEnabled: true,
-    eyeRestInterval: 20,
-    posturCheckEnabled: false,
-    postureCheckInterval: 30,
+    reminderInterval: 30,
   });
   const [healthLog, setHealthLog] = useState<HealthLog[]>([]);
   const [todayStats, setTodayStats] = useState<Record<string, number>>({});
@@ -48,16 +46,16 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
     setTodayStats(counts);
   }, [healthLog]);
 
-  const handleToggle = async (key: keyof HealthSettings, value: boolean) => {
-    const updated = { ...settings, [key]: value };
+  const handleToggle = async (value: boolean) => {
+    const updated = { ...settings, enabled: value };
     setSettings(updated);
-    await saveHealthSettings({ [key]: value });
+    await saveHealthSettings({ enabled: value });
   };
 
-  const handleIntervalChange = async (key: keyof HealthSettings, value: number) => {
-    const updated = { ...settings, [key]: value };
+  const handleIntervalChange = async (value: 15 | 30 | 45 | 60) => {
+    const updated = { ...settings, reminderInterval: value };
     setSettings(updated);
-    await saveHealthSettings({ [key]: value });
+    await saveHealthSettings({ reminderInterval: value });
   };
 
   const handleLogActivity = async (type: HealthLog['type']) => {
@@ -73,33 +71,20 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
 
   // Get last 7 days data for the weekly chart
   const getWeeklyData = () => {
-    const days: { date: string; label: string; counts: Record<string, number> }[] = [];
+    const days: { date: string; label: string; total: number }[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toLocaleDateString('en-CA');
       const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' });
-      const dayLogs = healthLog.filter(l => l.date === dateStr);
-      const counts: Record<string, number> = {};
-      dayLogs.forEach(l => {
-        counts[l.type] = (counts[l.type] || 0) + 1;
-      });
-      days.push({ date: dateStr, label: dayLabel, counts });
+      const total = healthLog.filter(l => l.date === dateStr).length;
+      days.push({ date: dateStr, label: dayLabel, total });
     }
     return days;
   };
 
   const weeklyData = getWeeklyData();
   const totalToday = Object.values(todayStats).reduce((a: number, b: number) => a + b, 0);
-
-  // Setting mapping for each health type
-  const settingsMap: { type: HealthLog['type']; enabledKey: keyof HealthSettings; intervalKey: keyof HealthSettings }[] = [
-    { type: 'screen_break', enabledKey: 'screenBreakEnabled', intervalKey: 'screenBreakInterval' },
-    { type: 'water', enabledKey: 'waterReminderEnabled', intervalKey: 'waterReminderInterval' },
-    { type: 'stretch', enabledKey: 'stretchReminderEnabled', intervalKey: 'stretchReminderInterval' },
-    { type: 'eye_rest', enabledKey: 'eyeRestEnabled', intervalKey: 'eyeRestInterval' },
-    { type: 'posture', enabledKey: 'posturCheckEnabled', intervalKey: 'postureCheckInterval' },
-  ];
 
   return (
     <div className="h-full flex flex-col bg-background-dark pb-24 overflow-y-auto no-scrollbar">
@@ -108,11 +93,20 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
         <button onClick={() => setScreen(Screen.SETTINGS)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors">
           <span className="material-symbols-outlined text-muted">arrow_back</span>
         </button>
-        <h2 className="text-lg font-bold">Health & Wellness</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-bold">Health & Wellness</h2>
+          <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">Pro</span>
+        </div>
         <div className="w-10"></div>
       </div>
 
       <div className="p-6 space-y-6">
+
+        {/* Free during launch banner */}
+        <div className="bg-gradient-to-r from-yellow-500/10 to-amber-500/5 rounded-xl border border-yellow-500/10 px-4 py-2.5 flex items-center gap-2">
+          <span className="material-symbols-outlined text-sm text-yellow-400">celebration</span>
+          <p className="text-[11px] font-semibold text-yellow-300/80">Free during launch period</p>
+        </div>
 
         {/* Today's Summary Card */}
         <section>
@@ -158,15 +152,14 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
           <div className="bg-surface-dark rounded-xl border border-white/5 p-4">
             <div className="flex items-end justify-between gap-1 h-24 mb-2">
               {weeklyData.map((day) => {
-                const total = Object.values(day.counts).reduce((a: number, b: number) => a + b, 0);
                 const maxHeight = 80;
-                const height = total > 0 ? Math.max(8, Math.min(maxHeight, total * 12)) : 4;
+                const height = day.total > 0 ? Math.max(8, Math.min(maxHeight, day.total * 12)) : 4;
                 const isToday = day.date === new Date().toLocaleDateString('en-CA');
                 return (
                   <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-[9px] font-bold text-muted tabular-nums">{total || ''}</span>
+                    <span className="text-[9px] font-bold text-muted tabular-nums">{day.total || ''}</span>
                     <div
-                      className={`w-full rounded-t-md transition-all ${isToday ? 'bg-green-500' : total > 0 ? 'bg-green-500/40' : 'bg-white/5'}`}
+                      className={`w-full rounded-t-md transition-all ${isToday ? 'bg-green-500' : day.total > 0 ? 'bg-green-500/40' : 'bg-white/5'}`}
                       style={{ height: `${height}px` }}
                     />
                   </div>
@@ -181,12 +174,15 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
           </div>
         </section>
 
-        {/* Master Toggle */}
+        {/* Settings — Single Toggle + Interval */}
         <section>
-          <div className="bg-surface-dark rounded-xl border border-white/5 p-4">
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Reminder Settings</h3>
+          <div className="bg-surface-dark rounded-xl border border-white/5 overflow-hidden divide-y divide-white/5">
+
+            {/* Master Toggle */}
             <div
-              className="flex items-center justify-between cursor-pointer"
-              onClick={() => handleToggle('enabled', !settings.enabled)}
+              className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+              onClick={() => handleToggle(!settings.enabled)}
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
@@ -194,68 +190,40 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                 </div>
                 <div>
                   <p className="text-sm font-bold">Health Reminders</p>
-                  <p className="text-[10px] text-muted">Get notified to take healthy breaks</p>
+                  <p className="text-[10px] text-muted">Get popup reminders to stay healthy</p>
                 </div>
               </div>
               <div className={`w-10 h-6 rounded-full relative transition-colors ${settings.enabled ? 'bg-green-500' : 'bg-surface-light'}`}>
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.enabled ? 'left-5' : 'left-1'}`}></div>
               </div>
             </div>
+
+            {/* Interval Picker */}
+            {settings.enabled && (
+              <div className="p-4">
+                <p className="text-sm font-bold mb-1">Reminder Frequency</p>
+                <p className="text-[10px] text-muted mb-3">How often should we remind you?</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {INTERVAL_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => handleIntervalChange(opt.value)}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all border ${settings.reminderInterval === opt.value
+                        ? 'bg-primary/20 border-primary text-white'
+                        : 'bg-white/5 border-white/10 text-muted hover:border-white/20 hover:text-white'
+                        }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted/60 mt-2 text-center">
+                  Cycles through: screen break, water, stretch, eye rest & posture
+                </p>
+              </div>
+            )}
           </div>
         </section>
-
-        {/* Individual Reminder Settings */}
-        {settings.enabled && (
-          <section>
-            <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Reminder Settings</h3>
-            <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
-              {HEALTH_TYPES.map((ht) => {
-                const mapping = settingsMap.find(s => s.type === ht.id)!;
-                const isEnabled = settings[mapping.enabledKey] as boolean;
-                const interval = settings[mapping.intervalKey] as number;
-                return (
-                  <div key={ht.id} className="p-4">
-                    <div
-                      className="flex items-center justify-between cursor-pointer"
-                      onClick={() => handleToggle(mapping.enabledKey, !isEnabled)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-lg ${ht.bg} flex items-center justify-center`}>
-                          <span className={`material-symbols-outlined text-[18px] ${ht.color}`}>{ht.icon}</span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold">{ht.label}</p>
-                          <p className="text-[10px] text-muted">{ht.desc}</p>
-                        </div>
-                      </div>
-                      <div className={`w-10 h-6 rounded-full relative transition-colors ${isEnabled ? 'bg-primary' : 'bg-surface-light'}`}>
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isEnabled ? 'left-5' : 'left-1'}`}></div>
-                      </div>
-                    </div>
-
-                    {isEnabled && (
-                      <div className="mt-3 ml-12 flex items-center gap-3">
-                        <span className="text-[10px] text-muted shrink-0">Every</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            className="w-7 h-7 rounded bg-surface-light flex items-center justify-center hover:bg-white/10 text-xs font-bold"
-                            onClick={() => handleIntervalChange(mapping.intervalKey, Math.max(5, interval - 5))}
-                          >-</button>
-                          <span className="text-sm font-bold w-8 text-center tabular-nums">{interval}</span>
-                          <button
-                            className="w-7 h-7 rounded bg-surface-light flex items-center justify-center hover:bg-white/10 text-xs font-bold"
-                            onClick={() => handleIntervalChange(mapping.intervalKey, Math.min(120, interval + 5))}
-                          >+</button>
-                        </div>
-                        <span className="text-[10px] text-muted">min</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
 
         {/* Today's Log Timeline */}
         <section>
