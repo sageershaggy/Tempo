@@ -3,7 +3,7 @@ declare var chrome: any;
 
 import { configManager } from '../config';
 import { TIME } from '../config/constants';
-import { HealthSettings, HealthLog } from '../types';
+import { HealthSettings, HealthTypeConfig, HealthLog } from '../types';
 
 export interface UserSettings {
   focusDuration: number;
@@ -309,9 +309,21 @@ export const exportUserData = async (): Promise<string> => {
 };
 
 // Health Settings
+const defaultHealthTypeConfig: HealthTypeConfig = {
+  enabled: true,
+  reminderCount: 3,
+  intervalMinutes: 30,
+};
+
 const defaultHealthSettings: HealthSettings = {
   enabled: true,
-  reminderInterval: 30,
+  types: {
+    screen_break: { ...defaultHealthTypeConfig },
+    water: { ...defaultHealthTypeConfig },
+    stretch: { ...defaultHealthTypeConfig },
+    eye_rest: { ...defaultHealthTypeConfig },
+    posture: { ...defaultHealthTypeConfig },
+  },
 };
 
 export const getHealthSettings = async (): Promise<HealthSettings> => {
