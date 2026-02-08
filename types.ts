@@ -69,16 +69,7 @@ export interface AudioState {
 
 export interface HealthSettings {
   enabled: boolean;
-  screenBreakEnabled: boolean;
-  screenBreakInterval: number; // minutes between reminders
-  waterReminderEnabled: boolean;
-  waterReminderInterval: number; // minutes between reminders
-  stretchReminderEnabled: boolean;
-  stretchReminderInterval: number; // minutes between reminders
-  eyeRestEnabled: boolean; // 20-20-20 rule
-  eyeRestInterval: number; // minutes
-  posturCheckEnabled: boolean;
-  postureCheckInterval: number; // minutes
+  reminderInterval: 15 | 30 | 45 | 60; // minutes between reminders
 }
 
 export interface HealthLog {
