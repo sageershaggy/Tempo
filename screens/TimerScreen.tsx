@@ -148,11 +148,19 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     return tmpl ? tmpl.breakMinutes * 60 : config.defaults.settings.shortBreak * 60;
   };
 
-  const [activeTemplateId, setActiveTemplateId] = useState(templates[0]?.id || 'classic');
-  const [timeLeft, setTimeLeft] = useState(getTimeForTemplate(templates[0]?.id || 'classic'));
+  // Restore template from localStorage if saved
+  const savedTemplateId = localStorage.getItem(STORAGE_KEYS.TIMER_MODE);
+  const restoredTemplateId = (savedTemplateId && templates.find(t => t.id === savedTemplateId)) ? savedTemplateId : (templates[0]?.id || 'classic');
+
+  const [activeTemplateId, setActiveTemplateId] = useState(restoredTemplateId);
+  const [timeLeft, setTimeLeft] = useState(getTimeForTemplate(restoredTemplateId));
   const [isActive, setIsActive] = useState(false);
-  const [initialTime, setInitialTime] = useState(getTimeForTemplate(templates[0]?.id || 'classic'));
-  const [timerMode, setTimerMode] = useState<'focus' | 'break'>('focus'); // Track if we're in focus or break mode
+  const [initialTime, setInitialTime] = useState(getTimeForTemplate(restoredTemplateId));
+  // Restore timer mode (focus/break) from localStorage
+  const savedTimerMode = localStorage.getItem('tempo_timer_mode') as 'focus' | 'break' | null;
+  const [timerMode, setTimerMode] = useState<'focus' | 'break'>(savedTimerMode === 'break' ? 'break' : 'focus');
+  // Track whether initial timer state has been loaded (prevents template change from clobbering active timer)
+  const timerRestoredRef = useRef(false);
 
   // Load user settings for ticking and restore focus beat state
   useEffect(() => {
@@ -422,13 +430,22 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     }
   }, [isActive, beatEnabled]);
 
-  // Update timer when template changes
+  // Update timer when template changes — but skip on first mount if we're restoring a timer
+  const templateChangeCountRef = useRef(0);
   useEffect(() => {
+    templateChangeCountRef.current++;
+    // Skip the first render — the loadTimerState effect handles restoring saved state
+    if (templateChangeCountRef.current <= 1) return;
     setIsActive(false);
+    timerRestoredRef.current = false;
     setTimerMode('focus'); // Reset to focus mode when template changes
     const newTime = getTimeForTemplate(activeTemplateId);
     setInitialTime(newTime);
     setTimeLeft(newTime);
+    localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
+    localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+    localStorage.setItem('tempo_timer_mode', 'focus');
+    localStorage.removeItem('tempo_timer_initialTime');
   }, [activeTemplateId]);
 
   // Load timer state on mount
@@ -437,6 +454,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       const savedTarget = localStorage.getItem(STORAGE_KEYS.TIMER_TARGET);
       const savedTemplateId = localStorage.getItem(STORAGE_KEYS.TIMER_MODE);
       const savedIsActive = localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true';
+      const savedTimerModeVal = localStorage.getItem('tempo_timer_mode') as 'focus' | 'break' | null;
+      const savedInitialTime = localStorage.getItem('tempo_timer_initialTime');
 
       // Also check chrome.storage.local for timer started from alarm page
       const w = window as any;
@@ -466,11 +485,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           setInitialTime(initialSeconds);
           setTimeLeft(diff);
           setIsActive(true);
+          timerRestoredRef.current = true;
 
           // Sync localStorage with chrome storage
           localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(targetTime));
           localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'true');
           localStorage.setItem('tempo_timer_mode', mode);
+          localStorage.setItem('tempo_timer_initialTime', String(initialSeconds));
 
           // Clear the sync flag so we don't re-read it
           w.chrome.storage.local.remove(['timerIsActive']);
@@ -483,7 +504,10 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
       // Fall back to localStorage state
       if (savedTemplateId && templates.find(t => t.id === savedTemplateId)) {
-        setActiveTemplateId(savedTemplateId);
+        // Don't call setActiveTemplateId if it's the same — avoids triggering the reset effect
+        if (savedTemplateId !== activeTemplateId) {
+          setActiveTemplateId(savedTemplateId);
+        }
       }
 
       if (savedIsActive && savedTarget) {
@@ -492,22 +516,54 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         const diff = Math.ceil((targetTime - now) / 1000);
 
         if (diff > 0) {
+          // Restore timer mode and initial time
+          if (savedTimerModeVal) {
+            setTimerMode(savedTimerModeVal);
+          }
+          if (savedInitialTime) {
+            setInitialTime(parseInt(savedInitialTime, 10));
+          }
           setTimeLeft(diff);
           setIsActive(true);
+          timerRestoredRef.current = true;
 
           // Notify background that timer is running (in case it forgot/reloaded)
           // Mark as restore so background doesn't overwrite timerDuration with remaining time
           try {
             if (w.chrome?.runtime?.sendMessage) {
-              w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: diff, isRestore: true });
+              w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: diff, mode: savedTimerModeVal || 'focus', isRestore: true });
             }
           } catch (e) { }
 
         } else {
-          setTimeLeft(0);
+          // Timer expired while popup was closed — show the next ready state (not 0:00)
           setIsActive(false);
           localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
           localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+
+          // If we were in focus, the background already handled completion,
+          // so show the break-ready state. If we were in break, show focus-ready.
+          if (savedTimerModeVal === 'focus') {
+            const breakTime = getBreakForTemplate(activeTemplateId);
+            setTimerMode('break');
+            setInitialTime(breakTime);
+            setTimeLeft(breakTime);
+            localStorage.setItem('tempo_timer_mode', 'break');
+            localStorage.setItem('tempo_timer_initialTime', String(breakTime));
+          } else if (savedTimerModeVal === 'break') {
+            const focusTime = getTimeForTemplate(activeTemplateId);
+            setTimerMode('focus');
+            setInitialTime(focusTime);
+            setTimeLeft(focusTime);
+            localStorage.setItem('tempo_timer_mode', 'focus');
+            localStorage.setItem('tempo_timer_initialTime', String(focusTime));
+          } else {
+            // Unknown mode — default to focus
+            const focusTime = getTimeForTemplate(activeTemplateId);
+            setTimerMode('focus');
+            setInitialTime(focusTime);
+            setTimeLeft(focusTime);
+          }
         }
       }
     };
@@ -531,10 +587,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     }
   }, []);
 
-  // Persist timer mode for mini timer to read
+  // Persist timer mode and initial time for mini timer and popup restore
   useEffect(() => {
     localStorage.setItem('tempo_timer_mode', timerMode);
-  }, [timerMode]);
+    localStorage.setItem('tempo_timer_initialTime', String(initialTime));
+  }, [timerMode, initialTime]);
 
   // Timer Tick & Persistence
   useEffect(() => {
@@ -620,6 +677,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           setTimerMode('break');
           setInitialTime(breakTime);
           setTimeLeft(breakTime);
+          // Persist so popup reopen shows break ready (not 0:00)
+          localStorage.setItem('tempo_timer_mode', 'break');
+          localStorage.setItem('tempo_timer_initialTime', String(breakTime));
         }, 0);
       } else {
         // Break completed - transition back to focus mode
@@ -650,6 +710,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         setTimerMode('focus');
         setInitialTime(focusTime);
         setTimeLeft(focusTime);
+        // Persist so popup reopen shows focus ready (not 0:00)
+        localStorage.setItem('tempo_timer_mode', 'focus');
+        localStorage.setItem('tempo_timer_initialTime', String(focusTime));
       }
     }
     return () => clearInterval(interval);
@@ -660,6 +723,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     setIsActive(newActive);
     localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, String(newActive));
     localStorage.setItem(STORAGE_KEYS.TIMER_MODE, activeTemplateId);
+    // Persist timerMode and initialTime so they survive popup close/reopen
+    localStorage.setItem('tempo_timer_mode', timerMode);
+    localStorage.setItem('tempo_timer_initialTime', String(initialTime));
 
     const w = window as any;
     const isExtension = useOffscreen && w.chrome?.runtime?.sendMessage;
@@ -923,6 +989,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 setTimeLeft(newTime);
                 localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
                 localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+                localStorage.setItem('tempo_timer_mode', 'focus');
+                localStorage.setItem('tempo_timer_initialTime', String(newTime));
                 try {
                   const w = window as any;
                   if (w.chrome?.runtime?.sendMessage) {
@@ -1305,6 +1373,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                   const target = Date.now() + (timeLeft * 1000);
                   localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(target));
                   localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'true');
+                  localStorage.setItem(STORAGE_KEYS.TIMER_MODE, activeTemplateId);
+                  localStorage.setItem('tempo_timer_mode', timerMode);
+                  localStorage.setItem('tempo_timer_initialTime', String(initialTime));
                   try {
                     const w = window as any;
                     if (w.chrome?.runtime?.sendMessage) {
