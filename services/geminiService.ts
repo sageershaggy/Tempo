@@ -1,7 +1,12 @@
 import { GoogleGenAI } from "@google/genai";
 
-const apiKey = import.meta.env?.VITE_GEMINI_API_KEY || '';
-const genAI = apiKey ? new GoogleGenAI({ apiKey }) : null;
+const apiKey = import.meta.env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || '';
+let genAI: GoogleGenAI | null = null;
+try {
+  genAI = apiKey ? new GoogleGenAI({ apiKey }) : null;
+} catch (e) {
+  console.error('[Tempo] Failed to initialize Gemini AI:', e);
+}
 
 export const enhanceTaskDescription = async (rawInput: string): Promise<string> => {
   if (!genAI) {

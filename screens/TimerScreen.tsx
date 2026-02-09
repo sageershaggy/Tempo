@@ -193,6 +193,19 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         }
       }
 
+      // Sync session count from chrome.storage.local (background may have updated it)
+      const w = window as any;
+      if (w.chrome?.storage?.local) {
+        try {
+          w.chrome.storage.local.get(['sessionCount'], (data: any) => {
+            if (data.sessionCount !== undefined) {
+              setSessionCount(data.sessionCount);
+              localStorage.setItem('tempo_sessionCount', String(data.sessionCount));
+            }
+          });
+        } catch (e) { }
+      }
+
       // Check Google Tasks connection
       setIsGoogleConnected(googleTasksService.isConnected());
 
@@ -667,6 +680,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         const newSessionCount = sessionCount + 1;
         setSessionCount(newSessionCount);
         localStorage.setItem('tempo_sessionCount', String(newSessionCount));
+        // Sync session count to chrome.storage.local for background/alarm page access
+        try {
+          const w = window as any;
+          if (w.chrome?.storage?.local) {
+            w.chrome.storage.local.set({ sessionCount: newSessionCount });
+          }
+        } catch (e) { }
 
         // Determine if this should be a long break
         const isLongBreak = longBreakInterval > 0 && newSessionCount % longBreakInterval === 0;
@@ -847,6 +867,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     const videoId = extractYouTubeId(youtubeUrl);
     if (videoId) {
       if (useOffscreen) { stopOffscreen(); } else { stopSound(); }
+      // Use offscreen document for persistent YouTube playback (survives popup close)
+      const w = window as any;
+      if (useOffscreen && w.chrome?.runtime?.sendMessage) {
+        w.chrome.runtime.sendMessage({ action: 'youtube-play', videoId }, () => {});
+      }
       setAudioState(prev => ({
         ...prev,
         isPlaying: true,
@@ -1339,6 +1364,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             <span className="text-[10px] font-semibold text-white/70 flex-1">YouTube Audio Playing</span>
             <button
               onClick={() => {
+                // Stop YouTube in offscreen document
+                const w = window as any;
+                if (useOffscreen && w.chrome?.runtime?.sendMessage) {
+                  w.chrome.runtime.sendMessage({ action: 'youtube-stop' }, () => {});
+                }
                 setAudioState(prev => ({ ...prev, isPlaying: false, youtubeId: null }));
               }}
               className="w-5 h-5 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10"

@@ -401,13 +401,14 @@ const App: React.FC = () => {
 
         {/* Persistent Audio Player (Hidden/Background) */}
         {audioState.youtubeId && (
-          <div className={`fixed top-0 left-0 w-1 h-1 opacity-0 pointer-events-none overflow-hidden`}>
+          <div className="fixed -top-[300px] -left-[300px] pointer-events-none" style={{ width: 320, height: 240 }}>
             <iframe
-              width="200"
-              height="200"
-              src={`${EXTERNAL_URLS.YOUTUBE_EMBED}/${audioState.youtubeId}?autoplay=${audioState.isPlaying ? 1 : 0}&loop=1&playlist=${audioState.youtubeId}&enablejsapi=1`}
+              width="320"
+              height="240"
+              src={`${EXTERNAL_URLS.YOUTUBE_EMBED}/${audioState.youtubeId}?autoplay=${audioState.isPlaying ? 1 : 0}&loop=1&playlist=${audioState.youtubeId}&enablejsapi=1&mute=0`}
               title="Background Audio"
-              allow="autoplay"
+              allow="autoplay; encrypted-media"
+              referrerPolicy="no-referrer-when-downgrade"
             ></iframe>
           </div>
         )}

@@ -1,6 +1,7 @@
 // Tempo Focus - Background Service Worker
 
 let offscreenCreated = false;
+let statsRecordedForCurrentSession = false; // Prevent double-counting stats
 
 // Create offscreen document for persistent audio playback
 async function ensureOffscreenDocument() {
@@ -218,7 +219,16 @@ function updateTimerBadge() {
       }, () => {});
 
       // Only update stats for focus sessions (not breaks)
-      if (mode === 'focus') {
+      // Guard against double-counting if timerComplete message also fires
+      if (mode === 'focus' && !statsRecordedForCurrentSession) {
+        statsRecordedForCurrentSession = true;
+
+        // Increment session count for long break tracking
+        const sessionData = await chrome.storage.local.get('sessionCount');
+        const newSessionCount = (sessionData.sessionCount || 0) + 1;
+        await chrome.storage.local.set({ sessionCount: newSessionCount });
+        console.log('[Tempo] Session count incremented to', newSessionCount, '(badge handler)');
+
         try {
           const statsData = await chrome.storage.local.get('stats');
           const stats = statsData.stats || {
@@ -261,7 +271,7 @@ function updateTimerBadge() {
             console.log('[Tempo] Sync storage save failed:', e);
           }
 
-          console.log('[Tempo] Stats updated from background:', stats);
+          console.log('[Tempo] Stats updated from background badge handler:', stats);
         } catch (e) {
           console.error('[Tempo] Failed to update stats from background:', e);
         }
@@ -472,6 +482,32 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  // --- YouTube commands ---
+  if (request.action === 'youtube-play') {
+    sendToOffscreen({
+      target: 'offscreen-audio',
+      action: 'youtube-play',
+      videoId: request.videoId
+    }, sendResponse);
+    return true;
+  }
+
+  if (request.action === 'youtube-stop') {
+    sendToOffscreen({
+      target: 'offscreen-audio',
+      action: 'youtube-stop'
+    }, sendResponse);
+    return true;
+  }
+
+  if (request.action === 'youtube-status') {
+    sendToOffscreen({
+      target: 'offscreen-audio',
+      action: 'youtube-status'
+    }, sendResponse);
+    return true;
+  }
+
   // --- Focus Beat commands ---
   if (request.action === 'focusBeat-start') {
     sendToOffscreen({
@@ -520,13 +556,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const duration = request.duration || 25;
 
     // Update stats for focus sessions (this path runs when popup detects completion)
-    // The badge tick handler covers the case when popup is closed
-    // They're mutually exclusive because we clear timerTargetTime above
-    if (mode === 'focus') {
+    // Guard against double-counting if badge handler also fires
+    if (mode === 'focus' && !statsRecordedForCurrentSession) {
+      statsRecordedForCurrentSession = true;
       (async () => {
         try {
-          const statsData = await chrome.storage.local.get('stats');
-          const stats = statsData.stats || {
+          // Increment session count for long break tracking
+          const sessionData = await chrome.storage.local.get(['sessionCount']);
+          const newSessionCount = (sessionData.sessionCount || 0) + 1;
+          await chrome.storage.local.set({ sessionCount: newSessionCount });
+          console.log('[Tempo] Session count incremented to', newSessionCount, '(timerComplete handler)');
+
+          // Use timerDuration from storage as the authoritative duration
+          // (request.duration from popup may use initialTime which could be stale)
+          const storageData = await chrome.storage.local.get(['stats', 'timerDuration']);
+          const authorativeDuration = storageData.timerDuration || duration;
+          const stats = storageData.stats || {
             totalSessions: 0,
             totalFocusMinutes: 0,
             currentStreak: 0,
@@ -551,11 +596,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           }
 
           stats.totalSessions = (stats.totalSessions || 0) + 1;
-          stats.totalFocusMinutes = (stats.totalFocusMinutes || 0) + duration;
+          stats.totalFocusMinutes = (stats.totalFocusMinutes || 0) + authorativeDuration;
           stats.lastSessionDate = today;
 
           if (!stats.weeklyData) stats.weeklyData = {};
-          stats.weeklyData[today] = (stats.weeklyData[today] || 0) + duration;
+          stats.weeklyData[today] = (stats.weeklyData[today] || 0) + authorativeDuration;
 
           await chrome.storage.local.set({ stats });
           try {
@@ -564,7 +609,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             console.log('[Tempo] Sync storage save failed:', e);
           }
 
-          console.log('[Tempo] Stats updated from timerComplete:', stats);
+          console.log('[Tempo] Stats updated from timerComplete:', stats, 'duration:', authorativeDuration);
         } catch (e) {
           console.error('[Tempo] Failed to update stats from timerComplete:', e);
         }
@@ -603,6 +648,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const seconds = request.seconds || (request.minutes || 25) * 60;
     const durationMinutes = Math.round(seconds / 60);
     timerTargetTime = Date.now() + seconds * 1000;
+    statsRecordedForCurrentSession = false; // Reset for new session
     saveTimerState();
     // Only save timerDuration for fresh starts (not restores from popup reopening)
     // When popup restores a timer, it sends remaining seconds which would overwrite
@@ -639,8 +685,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'startBreakFromAlarm' || request.action === 'startFocusFromAlarm') {
     const isBreak = request.action === 'startBreakFromAlarm';
 
-    // Get user settings to determine duration
-    chrome.storage.sync.get(['settings'], (data) => {
+    // Get user settings and session count to determine duration
+    chrome.storage.sync.get(['settings'], async (data) => {
       const settings = data.settings || {};
       let durationMinutes;
 
@@ -650,10 +696,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const longBreakDuration = settings.longBreak || 15;
         const shortBreakDuration = settings.shortBreak || 5;
 
-        // Read session count from request or default to short break
-        const sessionCount = request.sessionCount || 0;
+        // Read session count from chrome.storage.local (authoritative source)
+        const sessionData = await chrome.storage.local.get(['sessionCount']);
+        const sessionCount = sessionData.sessionCount || 0;
         const isLongBreak = longBreakInterval > 0 && sessionCount > 0 && sessionCount % longBreakInterval === 0;
         durationMinutes = isLongBreak ? longBreakDuration : shortBreakDuration;
+        console.log('[Tempo] Break from alarm: sessionCount=', sessionCount, 'isLongBreak=', isLongBreak, 'duration=', durationMinutes);
       } else {
         // Use focus duration (default 25 minutes)
         durationMinutes = settings.focusDuration || 25;

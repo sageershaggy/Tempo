@@ -26,7 +26,8 @@
   ],
   "host_permissions": [
     "https://checkout.stripe.com/*",
-    "https://tasks.googleapis.com/*"
+    "https://tasks.googleapis.com/*",
+    "https://generativelanguage.googleapis.com/*"
   ],
   "oauth2": {
     "client_id": "747255011734-l7k517kfa2908all500m6cmcs4iq1ugp.apps.googleusercontent.com",

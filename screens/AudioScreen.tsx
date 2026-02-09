@@ -71,6 +71,12 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const handleYoutubePlay = () => {
       const videoId = extractYouTubeId(youtubeInput);
       if (videoId) {
+          if (useOffscreen) { stopOffscreen(); } else { stopSound(); }
+          // Use offscreen document for persistent YouTube playback
+          const w = window as any;
+          if (useOffscreen && w.chrome?.runtime?.sendMessage) {
+            w.chrome.runtime.sendMessage({ action: 'youtube-play', videoId }, () => {});
+          }
           setAudioState(prev => ({
               ...prev,
               isPlaying: true,
