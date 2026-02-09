@@ -890,7 +890,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const displayTracks = showAllSounds ? filteredTracks : filteredTracks.slice(0, 6);
 
   return (
-    <div className="h-full flex flex-col px-5 pt-2 pb-20 overflow-y-auto no-scrollbar">
+    <div className="h-full flex flex-col px-5 pt-2 pb-28 overflow-y-auto no-scrollbar">
       {/* Header */}
       <div className="flex justify-between items-center mb-2">
         <div>
