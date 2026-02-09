@@ -135,6 +135,15 @@ html:not(.dark) .text-white\/5 {
   color: #D1D5DB !important;
 }
 
+/* Date/time input color scheme - adapts calendar icon to theme */
+html.dark .datetime-input {
+  color-scheme: dark;
+}
+
+html:not(.dark) .datetime-input {
+  color-scheme: light;
+}
+
 /* Light mode - input and select fields */
 html:not(.dark) input,
 html:not(.dark) select,

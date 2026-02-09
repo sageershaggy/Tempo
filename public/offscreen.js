@@ -334,6 +334,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       break;
 
+    case 'youtube-play':
+      playYouTube(message.videoId);
+      sendResponse({ success: true, videoId: message.videoId });
+      break;
+
+    case 'youtube-stop':
+      stopYouTube();
+      sendResponse({ success: true });
+      break;
+
+    case 'youtube-status':
+      sendResponse(getYouTubeStatus());
+      break;
+
     case 'playCompletionSound':
       playCompletionBeep();
       sendResponse({ success: true });
@@ -849,6 +863,47 @@ function playReminderBeep() {
   playTone(880, now + 0.2, 0.15); // A5 again
 
   console.log('[Tempo] Reminder beep played');
+}
+
+// ============================================================================
+// YOUTUBE PLAYBACK - Persistent YouTube audio via offscreen iframe
+// ============================================================================
+
+let youtubeIframe = null;
+let youtubeVideoId = null;
+
+function playYouTube(videoId) {
+  stopYouTube();
+  youtubeVideoId = videoId;
+
+  const container = document.getElementById('youtube-container');
+  if (!container) return;
+
+  youtubeIframe = document.createElement('iframe');
+  youtubeIframe.width = '320';
+  youtubeIframe.height = '240';
+  youtubeIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&enablejsapi=1&mute=0`;
+  youtubeIframe.allow = 'autoplay; encrypted-media';
+  youtubeIframe.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
+  container.appendChild(youtubeIframe);
+
+  console.log('[Tempo] YouTube playback started:', videoId);
+}
+
+function stopYouTube() {
+  if (youtubeIframe) {
+    youtubeIframe.remove();
+    youtubeIframe = null;
+  }
+  youtubeVideoId = null;
+  console.log('[Tempo] YouTube playback stopped');
+}
+
+function getYouTubeStatus() {
+  return {
+    isPlaying: !!youtubeIframe,
+    videoId: youtubeVideoId
+  };
 }
 
 console.log('[Tempo] Offscreen audio engine loaded');

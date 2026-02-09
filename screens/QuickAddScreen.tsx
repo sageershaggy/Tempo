@@ -128,7 +128,7 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
                 type="datetime-local"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="w-full bg-surface-dark border border-white/10 rounded-lg px-3.5 py-3 text-sm font-semibold text-white focus:border-primary focus:outline-none cursor-pointer [color-scheme:dark]"
+                className="w-full bg-surface-dark border border-white/10 rounded-lg px-3.5 py-3 text-sm font-semibold text-white focus:border-primary focus:outline-none cursor-pointer datetime-input"
               />
               {dueDate && (
                 <button
