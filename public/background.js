@@ -567,6 +567,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           await chrome.storage.local.set({ sessionCount: newSessionCount });
           console.log('[Tempo] Session count incremented to', newSessionCount, '(timerComplete handler)');
 
+          // Compute break info and notify popup
+          const settingsData = await chrome.storage.sync.get(['settings']);
+          const settings = settingsData.settings || {};
+          const longBreakInterval = settings.longBreakInterval || 4;
+          const longBreakDuration = settings.longBreak || 15;
+          const shortBreakDuration = settings.shortBreak || 5;
+          const isLongBreak = longBreakInterval > 0 && newSessionCount > 0 && newSessionCount % longBreakInterval === 0;
+          const breakDurationMinutes = isLongBreak ? longBreakDuration : shortBreakDuration;
+          console.log('[Tempo] Break info: sessionCount=', newSessionCount, 'isLongBreak=', isLongBreak, 'breakDuration=', breakDurationMinutes);
+
+          // Store break info for popup to read
+          await chrome.storage.local.set({
+            nextBreakDuration: breakDurationMinutes,
+            nextBreakIsLong: isLongBreak
+          });
+
           // Use timerDuration from storage as the authoritative duration
           // (request.duration from popup may use initialTime which could be stale)
           const storageData = await chrome.storage.local.get(['stats', 'timerDuration']);
