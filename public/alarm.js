@@ -36,6 +36,21 @@ if (mode === 'break') {
   mainIcon.textContent = 'celebration';
   startIcon.textContent = 'coffee';
   startText.textContent = 'Start Break';
+
+  // Check if next break is a long break and show info
+  if (chrome?.storage?.local) {
+    chrome.storage.local.get(['nextBreakIsLong', 'nextBreakDuration', 'sessionCount'], (data) => {
+      if (data.nextBreakIsLong) {
+        startText.textContent = `Start Long Break (${data.nextBreakDuration || 15}m)`;
+        message.textContent = 'Amazing! You\'ve earned a long break!';
+      } else if (data.nextBreakDuration) {
+        startText.textContent = `Start Break (${data.nextBreakDuration}m)`;
+      }
+      if (data.sessionCount) {
+        sessionInfo.innerHTML += ` · Session <strong>#${data.sessionCount}</strong>`;
+      }
+    });
+  }
 }
 
 // Play completion sound

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Screen, Task, GlobalProps } from '../types';
-import { enhanceTaskDescription } from '../services/geminiService';
 import { configManager } from '../config';
 import { generateId } from '../config/constants';
 
@@ -15,26 +14,6 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
   const [selectedPriority, setSelectedPriority] = useState<'High' | 'Medium' | 'Low'>('Medium');
   const [dueDate, setDueDate] = useState('');
   const [startTimerAfter, setStartTimerAfter] = useState(true);
-  const [isEnhancing, setIsEnhancing] = useState(false);
-  const [enhanceError, setEnhanceError] = useState('');
-
-  const handleMagicEnhance = async () => {
-    if (!input.trim()) return;
-    setIsEnhancing(true);
-    setEnhanceError('');
-    try {
-      const enhanced = await enhanceTaskDescription(input);
-      if (enhanced === input) {
-        setEnhanceError('AI key not configured. Set VITE_GEMINI_API_KEY in your .env file.');
-      } else {
-        setInput(enhanced);
-      }
-    } catch {
-      setEnhanceError('Enhancement failed. Check your API key.');
-    } finally {
-      setIsEnhancing(false);
-    }
-  };
 
   const handleCreateTask = () => {
     if (!input.trim()) return;
@@ -80,7 +59,7 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
           <label className="text-[10px] font-bold uppercase text-muted tracking-wider mb-1.5 block">Task</label>
           <input
             value={input}
-            onChange={(e) => { setInput(e.target.value); setEnhanceError(''); }}
+            onChange={(e) => setInput(e.target.value)}
             placeholder="What are you working on?"
             className="w-full bg-surface-dark border border-white/10 rounded-lg px-3.5 py-2.5 text-base font-semibold text-white placeholder-white/20 focus:border-primary focus:outline-none"
             autoFocus
@@ -99,22 +78,17 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
           />
         </div>
 
-        {/* AI Enhance */}
+        {/* AI Enhance - Coming Soon */}
         {input.length > 3 && (
           <div>
             <button
-              onClick={handleMagicEnhance}
-              disabled={isEnhancing}
-              className="w-full py-2 px-4 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center gap-2 text-sm font-semibold text-primary hover:bg-primary/15 transition-all disabled:opacity-50"
+              disabled
+              className="w-full py-2 px-4 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center gap-2 text-sm font-semibold text-primary/50 cursor-not-allowed opacity-60"
             >
-              <span className={`material-symbols-outlined text-base ${isEnhancing ? 'animate-spin' : ''}`}>
-                {isEnhancing ? 'sync' : 'auto_awesome'}
-              </span>
-              {isEnhancing ? 'Enhancing...' : 'Magic Enhance'}
+              <span className="material-symbols-outlined text-base">auto_awesome</span>
+              Magic Enhance
+              <span className="text-[9px] bg-primary/20 px-1.5 py-0.5 rounded-full uppercase tracking-wider">Coming Soon</span>
             </button>
-            {enhanceError && (
-              <p className="text-[10px] text-amber-400 mt-1.5 text-center">{enhanceError}</p>
-            )}
           </div>
         )}
 

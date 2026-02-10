@@ -676,31 +676,53 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           Notification.requestPermission();
         }
 
-        // Increment session count and determine break type
-        const newSessionCount = sessionCount + 1;
-        setSessionCount(newSessionCount);
-        localStorage.setItem('tempo_sessionCount', String(newSessionCount));
-        // Sync session count to chrome.storage.local for background/alarm page access
-        try {
+        // Session count is incremented by background.js (single source of truth)
+        // Read break info computed by background after a short delay to allow async processing
+        const setupBreakTimer = () => {
           const w = window as any;
           if (w.chrome?.storage?.local) {
-            w.chrome.storage.local.set({ sessionCount: newSessionCount });
+            w.chrome.storage.local.get(['sessionCount', 'nextBreakDuration', 'nextBreakIsLong'], (data: any) => {
+              const newCount = data.sessionCount || sessionCount + 1;
+              setSessionCount(newCount);
+              localStorage.setItem('tempo_sessionCount', String(newCount));
+
+              // Use break duration from background if available, otherwise compute locally
+              let breakTime: number;
+              if (data.nextBreakDuration) {
+                breakTime = data.nextBreakDuration * 60;
+                console.log('[Tempo] Using break duration from background:', data.nextBreakDuration, 'min, isLong:', data.nextBreakIsLong);
+                // Clean up the one-time break info
+                w.chrome.storage.local.remove(['nextBreakDuration', 'nextBreakIsLong']);
+              } else {
+                // Fallback: compute locally
+                const isLongBreak = longBreakInterval > 0 && newCount % longBreakInterval === 0;
+                breakTime = isLongBreak ? longBreakDuration * 60 : getBreakForTemplate(activeTemplateId);
+                console.log('[Tempo] Using locally computed break:', breakTime / 60, 'min, isLong:', isLongBreak);
+              }
+
+              setTimerMode('break');
+              setInitialTime(breakTime);
+              setTimeLeft(breakTime);
+              localStorage.setItem('tempo_timer_mode', 'break');
+              localStorage.setItem('tempo_timer_initialTime', String(breakTime));
+            });
+          } else {
+            // Non-extension fallback
+            const newSessionCount = sessionCount + 1;
+            setSessionCount(newSessionCount);
+            localStorage.setItem('tempo_sessionCount', String(newSessionCount));
+            const isLongBreak = longBreakInterval > 0 && newSessionCount % longBreakInterval === 0;
+            const breakTime = isLongBreak ? longBreakDuration * 60 : getBreakForTemplate(activeTemplateId);
+            setTimerMode('break');
+            setInitialTime(breakTime);
+            setTimeLeft(breakTime);
+            localStorage.setItem('tempo_timer_mode', 'break');
+            localStorage.setItem('tempo_timer_initialTime', String(breakTime));
           }
-        } catch (e) { }
+        };
 
-        // Determine if this should be a long break
-        const isLongBreak = longBreakInterval > 0 && newSessionCount % longBreakInterval === 0;
-        const breakTime = isLongBreak ? longBreakDuration * 60 : getBreakForTemplate(activeTemplateId);
-
-        // Automatically set up break timer - use setTimeout to ensure state updates properly
-        setTimeout(() => {
-          setTimerMode('break');
-          setInitialTime(breakTime);
-          setTimeLeft(breakTime);
-          // Persist so popup reopen shows break ready (not 0:00)
-          localStorage.setItem('tempo_timer_mode', 'break');
-          localStorage.setItem('tempo_timer_initialTime', String(breakTime));
-        }, 0);
+        // Small delay to let background.js process timerComplete first
+        setTimeout(setupBreakTimer, 300);
       } else {
         // Break completed - transition back to focus mode
         setShowCompletionNotification(true);
@@ -971,15 +993,22 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
       {/* Template Switcher */}
       <div className="flex p-0.5 bg-surface-dark rounded-lg mb-3 border border-white/5">
-        {templates.map((tmpl) => (
-          <button
-            key={tmpl.id}
-            onClick={() => setActiveTemplateId(tmpl.id)}
-            className={`flex-1 py-1.5 rounded-md text-[11px] font-semibold transition-all ${activeTemplateId === tmpl.id ? 'bg-primary text-white shadow-md shadow-primary/25' : 'text-muted hover:text-white/70'}`}
-          >
-            {tmpl.id === 'custom' ? `${userFocusDuration}/${userBreakDuration}` : tmpl.label}
-          </button>
-        ))}
+        {templates.map((tmpl) => {
+          const isCurrentTemplate = activeTemplateId === tmpl.id;
+          const isDisabled = (isActive || timerMode === 'break') && !isCurrentTemplate;
+          return (
+            <button
+              key={tmpl.id}
+              onClick={() => {
+                if (!isDisabled) setActiveTemplateId(tmpl.id);
+              }}
+              disabled={isDisabled}
+              className={`flex-1 py-1.5 rounded-md text-[11px] font-semibold transition-all ${isCurrentTemplate ? 'bg-primary text-white shadow-md shadow-primary/25' : isDisabled ? 'text-muted/40 cursor-not-allowed' : 'text-muted hover:text-white/70'}`}
+            >
+              {tmpl.id === 'custom' ? `${userFocusDuration}/${userBreakDuration}` : tmpl.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Timer Circle */}
