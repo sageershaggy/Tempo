@@ -794,6 +794,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   // On mount, check if offscreen audio is already playing (persisted from previous popup open)
   useEffect(() => {
     if (useOffscreen) {
+      // Check built-in audio status
       getOffscreenStatus().then(status => {
         if (status.isPlaying && status.trackId) {
           setAudioState(prev => ({
@@ -803,6 +804,21 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           }));
         }
       });
+      // Check YouTube status
+      const w = window as any;
+      if (w.chrome?.runtime?.sendMessage) {
+        w.chrome.runtime.sendMessage({ action: 'youtube-status' }, (response: any) => {
+          if (w.chrome?.runtime?.lastError) return;
+          if (response?.isPlaying && response?.videoId) {
+            setAudioState(prev => ({
+              ...prev,
+              isPlaying: true,
+              activeTrackId: null,
+              youtubeId: response.videoId,
+            }));
+          }
+        });
+      }
     }
   }, []);
 

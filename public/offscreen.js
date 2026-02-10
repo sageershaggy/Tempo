@@ -877,17 +877,24 @@ function playYouTube(videoId) {
   youtubeVideoId = videoId;
 
   const container = document.getElementById('youtube-container');
-  if (!container) return;
+  if (!container) {
+    console.error('[Tempo] YouTube container not found in offscreen document');
+    return;
+  }
 
   youtubeIframe = document.createElement('iframe');
-  youtubeIframe.width = '320';
-  youtubeIframe.height = '240';
-  youtubeIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&enablejsapi=1&mute=0`;
-  youtubeIframe.allow = 'autoplay; encrypted-media';
+  youtubeIframe.width = '640';
+  youtubeIframe.height = '360';
+  youtubeIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}`;
+  youtubeIframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+  youtubeIframe.setAttribute('allowfullscreen', '');
+  youtubeIframe.setAttribute('frameborder', '0');
   youtubeIframe.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
+  // sandbox to allow scripts and same-origin for autoplay
+  youtubeIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
   container.appendChild(youtubeIframe);
 
-  console.log('[Tempo] YouTube playback started:', videoId);
+  console.log('[Tempo] YouTube playback started in offscreen:', videoId);
 }
 
 function stopYouTube() {

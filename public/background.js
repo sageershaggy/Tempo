@@ -27,8 +27,8 @@ async function ensureOffscreenDocument() {
 
     await chrome.offscreen.createDocument({
       url: 'offscreen.html',
-      reasons: ['AUDIO_PLAYBACK'],
-      justification: 'Play focus sounds (binaural beats, noise, tones) while extension popup is closed'
+      reasons: ['AUDIO_PLAYBACK', 'IFRAME_SCRIPTING'],
+      justification: 'Play focus sounds and YouTube audio via iframe while extension popup is closed'
     });
     offscreenCreated = true;
     console.log('[Tempo] Offscreen audio document created');
