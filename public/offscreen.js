@@ -890,8 +890,6 @@ function playYouTube(videoId) {
   youtubeIframe.setAttribute('allowfullscreen', '');
   youtubeIframe.setAttribute('frameborder', '0');
   youtubeIframe.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
-  // sandbox to allow scripts and same-origin for autoplay
-  youtubeIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
   container.appendChild(youtubeIframe);
 
   console.log('[Tempo] YouTube playback started in offscreen:', videoId);

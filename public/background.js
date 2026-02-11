@@ -554,6 +554,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Get the mode and duration from the request (or use defaults)
     const mode = request.mode || 'focus';
     const duration = request.duration || 25;
+    const templateBreakMinutes = request.templateBreakMinutes || null;
+    const templateFocusMinutes = request.templateFocusMinutes || null;
 
     // Update stats for focus sessions (this path runs when popup detects completion)
     // Guard against double-counting if badge handler also fires
@@ -568,19 +570,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           console.log('[Tempo] Session count incremented to', newSessionCount, '(timerComplete handler)');
 
           // Compute break info and notify popup
+          // Use template break duration from popup if provided (respects active template),
+          // otherwise fall back to global settings
           const settingsData = await chrome.storage.sync.get(['settings']);
           const settings = settingsData.settings || {};
           const longBreakInterval = settings.longBreakInterval || 4;
           const longBreakDuration = settings.longBreak || 15;
-          const shortBreakDuration = settings.shortBreak || 5;
+          const shortBreakDuration = templateBreakMinutes || settings.shortBreak || 5;
           const isLongBreak = longBreakInterval > 0 && newSessionCount > 0 && newSessionCount % longBreakInterval === 0;
           const breakDurationMinutes = isLongBreak ? longBreakDuration : shortBreakDuration;
-          console.log('[Tempo] Break info: sessionCount=', newSessionCount, 'isLongBreak=', isLongBreak, 'breakDuration=', breakDurationMinutes);
+          console.log('[Tempo] Break info: sessionCount=', newSessionCount, 'isLongBreak=', isLongBreak, 'breakDuration=', breakDurationMinutes, 'templateBreak=', templateBreakMinutes);
 
-          // Store break info for popup to read
+          // Store break info and template focus duration for popup/alarm to read
           await chrome.storage.local.set({
             nextBreakDuration: breakDurationMinutes,
-            nextBreakIsLong: isLongBreak
+            nextBreakIsLong: isLongBreak,
+            templateFocusMinutes: templateFocusMinutes
           });
 
           // Use timerDuration from storage as the authoritative duration
@@ -707,20 +712,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       let durationMinutes;
 
       if (isBreak) {
-        // Check if this should be a long break based on session count
-        const longBreakInterval = settings.longBreakInterval || 4;
-        const longBreakDuration = settings.longBreak || 15;
-        const shortBreakDuration = settings.shortBreak || 5;
-
-        // Read session count from chrome.storage.local (authoritative source)
-        const sessionData = await chrome.storage.local.get(['sessionCount']);
-        const sessionCount = sessionData.sessionCount || 0;
-        const isLongBreak = longBreakInterval > 0 && sessionCount > 0 && sessionCount % longBreakInterval === 0;
-        durationMinutes = isLongBreak ? longBreakDuration : shortBreakDuration;
-        console.log('[Tempo] Break from alarm: sessionCount=', sessionCount, 'isLongBreak=', isLongBreak, 'duration=', durationMinutes);
+        // Use pre-computed break duration from timerComplete handler if available
+        const breakData = await chrome.storage.local.get(['nextBreakDuration', 'nextBreakIsLong', 'sessionCount']);
+        if (breakData.nextBreakDuration) {
+          durationMinutes = breakData.nextBreakDuration;
+          console.log('[Tempo] Break from alarm: using pre-computed duration=', durationMinutes, 'isLong=', breakData.nextBreakIsLong);
+        } else {
+          // Fallback: compute from settings
+          const longBreakInterval = settings.longBreakInterval || 4;
+          const longBreakDuration = settings.longBreak || 15;
+          const shortBreakDuration = settings.shortBreak || 5;
+          const sessionCount = breakData.sessionCount || 0;
+          const isLongBreak = longBreakInterval > 0 && sessionCount > 0 && sessionCount % longBreakInterval === 0;
+          durationMinutes = isLongBreak ? longBreakDuration : shortBreakDuration;
+          console.log('[Tempo] Break from alarm: computed duration=', durationMinutes, 'isLong=', isLongBreak);
+        }
       } else {
-        // Use focus duration (default 25 minutes)
-        durationMinutes = settings.focusDuration || 25;
+        // Use template focus duration if stored, otherwise fall back to global settings
+        const focusData = await chrome.storage.local.get(['templateFocusMinutes']);
+        durationMinutes = focusData.templateFocusMinutes || settings.focusDuration || 25;
+        console.log('[Tempo] Focus from alarm: duration=', durationMinutes, 'templateFocus=', focusData.templateFocusMinutes);
       }
 
       const seconds = durationMinutes * 60;

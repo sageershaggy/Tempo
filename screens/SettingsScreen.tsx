@@ -19,6 +19,12 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   const [darkMode, setDarkMode] = useState(true);
   const [activeTheme, setActiveTheme] = useState('default');
 
+  // Timer configuration state
+  const [focusDuration, setFocusDuration] = useState(25);
+  const [shortBreak, setShortBreak] = useState(5);
+  const [longBreak, setLongBreak] = useState(15);
+  const [longBreakInterval, setLongBreakInterval] = useState(4);
+
   // Load settings on mount
   useEffect(() => {
     const loadSettings = async () => {
@@ -28,6 +34,10 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
       setNotifications(settings.notifications);
       setDarkMode(settings.darkMode);
       setActiveTheme(settings.theme);
+      setFocusDuration(settings.focusDuration);
+      setShortBreak(settings.shortBreak);
+      setLongBreak(settings.longBreak);
+      setLongBreakInterval(settings.longBreakInterval);
     };
     loadSettings();
   }, []);
@@ -116,6 +126,156 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
       </div>
 
       <div className="p-6 space-y-6">
+
+        {/* Timer Configuration */}
+        <section>
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Timer</h3>
+          <div className="bg-surface-dark rounded-xl overflow-hidden border border-white/5 divide-y divide-white/5">
+            {/* Focus Duration */}
+            <div className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-primary">target</span>
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Focus Duration</p>
+                  <p className="text-[10px] text-muted">Minutes per focus session</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    const v = Math.max(5, focusDuration - 5);
+                    setFocusDuration(v);
+                    handleSettingChange('focusDuration', v);
+                  }}
+                  className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/15 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">remove</span>
+                </button>
+                <span className="text-sm font-bold w-8 text-center tabular-nums">{focusDuration}</span>
+                <button
+                  onClick={() => {
+                    const v = Math.min(120, focusDuration + 5);
+                    setFocusDuration(v);
+                    handleSettingChange('focusDuration', v);
+                  }}
+                  className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/15 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">add</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Short Break */}
+            <div className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-green-400">coffee</span>
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Short Break</p>
+                  <p className="text-[10px] text-muted">Minutes per short break</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    const v = Math.max(1, shortBreak - 1);
+                    setShortBreak(v);
+                    handleSettingChange('shortBreak', v);
+                  }}
+                  className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/15 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">remove</span>
+                </button>
+                <span className="text-sm font-bold w-8 text-center tabular-nums">{shortBreak}</span>
+                <button
+                  onClick={() => {
+                    const v = Math.min(30, shortBreak + 1);
+                    setShortBreak(v);
+                    handleSettingChange('shortBreak', v);
+                  }}
+                  className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/15 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">add</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Long Break */}
+            <div className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-blue-400">hotel</span>
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Long Break</p>
+                  <p className="text-[10px] text-muted">Minutes per long break</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    const v = Math.max(5, longBreak - 5);
+                    setLongBreak(v);
+                    handleSettingChange('longBreak', v);
+                  }}
+                  className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/15 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">remove</span>
+                </button>
+                <span className="text-sm font-bold w-8 text-center tabular-nums">{longBreak}</span>
+                <button
+                  onClick={() => {
+                    const v = Math.min(60, longBreak + 5);
+                    setLongBreak(v);
+                    handleSettingChange('longBreak', v);
+                  }}
+                  className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/15 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">add</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Long Break Interval */}
+            <div className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-purple-400">repeat</span>
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Long Break After</p>
+                  <p className="text-[10px] text-muted">Sessions before a long break</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    const v = Math.max(2, longBreakInterval - 1);
+                    setLongBreakInterval(v);
+                    handleSettingChange('longBreakInterval', v);
+                  }}
+                  className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/15 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">remove</span>
+                </button>
+                <span className="text-sm font-bold w-8 text-center tabular-nums">{longBreakInterval}</span>
+                <button
+                  onClick={() => {
+                    const v = Math.min(10, longBreakInterval + 1);
+                    setLongBreakInterval(v);
+                    handleSettingChange('longBreakInterval', v);
+                  }}
+                  className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/15 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">add</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* Feature Toggles */}
         <section>
