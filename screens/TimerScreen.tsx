@@ -658,7 +658,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             w.chrome.runtime.sendMessage({
               action: 'timerComplete',
               mode: 'focus',
-              duration: Math.round(initialTime / 60)
+              duration: Math.round(initialTime / 60),
+              templateBreakMinutes: Math.round(getBreakForTemplate(activeTemplateId) / 60),
+              templateFocusMinutes: Math.round(getTimeForTemplate(activeTemplateId) / 60)
             });
             w.chrome.runtime.sendMessage({ action: 'stopTimer' });
           }
