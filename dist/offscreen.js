@@ -869,46 +869,81 @@ function playReminderBeep() {
 // YOUTUBE PLAYBACK - Persistent YouTube audio via offscreen iframe
 // ============================================================================
 
-let youtubeIframe = null;
 let youtubeVideoId = null;
+let youtubeIsPlaying = false;
+
+// Get reference to the sandbox iframe for YouTube playback
+function getYouTubeSandbox() {
+  return document.getElementById('youtube-sandbox');
+}
+
+// Listen for messages from the YouTube sandbox iframe
+window.addEventListener('message', function(event) {
+  const data = event.data;
+  if (!data || !data.type) return;
+
+  switch (data.type) {
+    case 'yt-api-ready':
+      console.log('[Tempo] YouTube sandbox API ready');
+      break;
+    case 'yt-playing':
+      youtubeIsPlaying = true;
+      console.log('[Tempo] YouTube playing:', data.videoId);
+      break;
+    case 'yt-stopped':
+      youtubeIsPlaying = false;
+      console.log('[Tempo] YouTube stopped');
+      break;
+    case 'yt-state':
+      // State 1 = playing, 2 = paused, 0 = ended
+      youtubeIsPlaying = data.state === 1 || data.state === 3;
+      break;
+    case 'yt-error':
+      console.error('[Tempo] YouTube error:', data.error);
+      youtubeIsPlaying = false;
+      break;
+    case 'yt-status-response':
+      // Handled by specific status request callbacks
+      break;
+  }
+});
 
 function playYouTube(videoId) {
-  stopYouTube();
   youtubeVideoId = videoId;
+  youtubeIsPlaying = true;
 
-  const container = document.getElementById('youtube-container');
-  if (!container) {
-    console.error('[Tempo] YouTube container not found in offscreen document');
+  const sandbox = getYouTubeSandbox();
+  if (!sandbox) {
+    console.error('[Tempo] YouTube sandbox iframe not found in offscreen document');
     return;
   }
 
-  youtubeIframe = document.createElement('iframe');
-  youtubeIframe.width = '640';
-  youtubeIframe.height = '360';
-  youtubeIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}`;
-  youtubeIframe.allow = 'autoplay; encrypted-media; picture-in-picture';
-  youtubeIframe.setAttribute('allowfullscreen', '');
-  youtubeIframe.setAttribute('frameborder', '0');
-  youtubeIframe.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
-  container.appendChild(youtubeIframe);
-
-  console.log('[Tempo] YouTube playback started in offscreen:', videoId);
+  sandbox.contentWindow.postMessage({ type: 'yt-play', videoId: videoId }, '*');
+  console.log('[Tempo] YouTube play command sent to sandbox:', videoId);
 }
 
 function stopYouTube() {
-  if (youtubeIframe) {
-    youtubeIframe.remove();
-    youtubeIframe = null;
+  const sandbox = getYouTubeSandbox();
+  if (sandbox) {
+    sandbox.contentWindow.postMessage({ type: 'yt-stop' }, '*');
   }
   youtubeVideoId = null;
+  youtubeIsPlaying = false;
   console.log('[Tempo] YouTube playback stopped');
 }
 
 function getYouTubeStatus() {
   return {
-    isPlaying: !!youtubeIframe,
+    isPlaying: youtubeIsPlaying && !!youtubeVideoId,
     videoId: youtubeVideoId
   };
+}
+
+function setYouTubeVolume(volume) {
+  const sandbox = getYouTubeSandbox();
+  if (sandbox) {
+    sandbox.contentWindow.postMessage({ type: 'yt-volume', volume: Math.round(volume * 100) }, '*');
+  }
 }
 
 console.log('[Tempo] Offscreen audio engine loaded');

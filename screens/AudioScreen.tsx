@@ -68,14 +68,27 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     }
   };
 
-  const handleYoutubePlay = () => {
+  const handleYoutubePlay = async () => {
       const videoId = extractYouTubeId(youtubeInput);
       if (videoId) {
-          if (useOffscreen) { stopOffscreen(); } else { stopSound(); }
-          // Use offscreen document for persistent YouTube playback
+          // Stop any currently playing sound first
+          if (useOffscreen) { await stopOffscreen(); } else { stopSound(); }
+          // Also stop any existing YouTube playback
           const w = window as any;
           if (useOffscreen && w.chrome?.runtime?.sendMessage) {
-            w.chrome.runtime.sendMessage({ action: 'youtube-play', videoId }, () => {});
+            w.chrome.runtime.sendMessage({ action: 'youtube-stop' }, () => {
+              if (w.chrome?.runtime?.lastError) { /* ignore */ }
+            });
+          }
+          // Use offscreen document for persistent YouTube playback
+          if (useOffscreen && w.chrome?.runtime?.sendMessage) {
+            w.chrome.runtime.sendMessage({ action: 'youtube-play', videoId }, (response: any) => {
+              if (w.chrome?.runtime?.lastError) {
+                console.error('[Tempo] YouTube play error:', w.chrome.runtime.lastError.message);
+              } else {
+                console.log('[Tempo] YouTube play response:', response);
+              }
+            });
           }
           setAudioState(prev => ({
               ...prev,
