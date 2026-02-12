@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tempo YouTube Sandbox</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #000; }
+    #player { width: 640px; height: 360px; }
+  </style>
+</head>
+<body>
+  <div id="player"></div>
+  <script>
+    // YouTube IFrame API - loaded in sandbox context (relaxed CSP)
+    let player = null;
+    let currentVideoId = null;
+
+    // Load YouTube IFrame API
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+
+    function onYouTubeIframeAPIReady() {
+      console.log('[Tempo Sandbox] YouTube IFrame API ready');
+      window.parent.postMessage({ type: 'yt-api-ready' }, '*');
+    }
+
+    function createPlayer(videoId) {
+      currentVideoId = videoId;
+      if (player) {
+        try { player.destroy(); } catch (e) {}
+        player = null;
+      }
+      document.getElementById('player').innerHTML = '';
+
+      player = new YT.Player('player', {
+        width: '640',
+        height: '360',
+        videoId: videoId,
+        playerVars: {
+          autoplay: 1,
+          loop: 1,
+          playlist: videoId,
+          controls: 0,
+          disablekb: 1,
+          modestbranding: 1,
+          rel: 0,
+        },
+        events: {
+          onReady: function(event) {
+            console.log('[Tempo Sandbox] Player ready, playing video');
+            event.target.playVideo();
+            window.parent.postMessage({ type: 'yt-playing', videoId: videoId }, '*');
+          },
+          onStateChange: function(event) {
+            // YT.PlayerState: ENDED=0, PLAYING=1, PAUSED=2, BUFFERING=3
+            if (event.data === 0) {
+              // Video ended - restart for looping
+              event.target.seekTo(0);
+              event.target.playVideo();
+            }
+            window.parent.postMessage({ type: 'yt-state', state: event.data, videoId: currentVideoId }, '*');
+          },
+          onError: function(event) {
+            console.error('[Tempo Sandbox] Player error:', event.data);
+            window.parent.postMessage({ type: 'yt-error', error: event.data }, '*');
+          }
+        }
+      });
+    }
+
+    // Listen for commands from parent (offscreen document)
+    window.addEventListener('message', function(event) {
+      const data = event.data;
+      if (!data || !data.type) return;
+
+      switch (data.type) {
+        case 'yt-play':
+          if (typeof YT !== 'undefined' && YT.Player) {
+            createPlayer(data.videoId);
+          } else {
+            // API not loaded yet, wait for it
+            currentVideoId = data.videoId;
+            const check = setInterval(() => {
+              if (typeof YT !== 'undefined' && YT.Player) {
+                clearInterval(check);
+                createPlayer(data.videoId);
+              }
+            }, 200);
+            // Timeout after 10 seconds
+            setTimeout(() => clearInterval(check), 10000);
+          }
+          break;
+
+        case 'yt-stop':
+          if (player) {
+            try { player.destroy(); } catch (e) {}
+            player = null;
+          }
+          currentVideoId = null;
+          document.getElementById('player').innerHTML = '';
+          window.parent.postMessage({ type: 'yt-stopped' }, '*');
+          break;
+
+        case 'yt-status':
+          window.parent.postMessage({
+            type: 'yt-status-response',
+            isPlaying: !!player && !!currentVideoId,
+            videoId: currentVideoId
+          }, '*');
+          break;
+
+        case 'yt-volume':
+          if (player && player.setVolume) {
+            player.setVolume(data.volume); // 0-100
+          }
+          break;
+      }
+    });
+
+    console.log('[Tempo Sandbox] YouTube sandbox loaded');
+  </script>
+</body>
+</html>
