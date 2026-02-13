@@ -1,21 +1,16 @@
 # Changelog
 
-All notable changes to this project are documented in this file.
+## [1.0.2] - 2026-02-14
 
-## [1.0.2] - 2026-02-13
+### Authentic Ambience Audio Upgrade
+- **New Feature:** Added real recordings for all ambience tracks (Rain, Coffee Shop, Forest Stream, Ocean Waves, Fire, Crickets, Wind Chimes).
+- **Bug Fix:** Fixed playback quality issues for Crackling Fire, Ocean Waves, and Night Crickets.
+- **Improvement:** Improved sound switching so only the selected track plays.
+- **Stability:** Improved reliability of audio startup/fallback handling.
 
-### Fixed
-- Reworked ambience playback to use authentic recordings for all ambience tracks (`Heavy Rain`, `Coffee Shop`, `Forest Stream`, `Ocean Waves`, `Crackling Fire`, `Night Crickets`, `Wind Chimes`).
-- Fixed audio switching race conditions so selecting a new sound reliably replaces the previous sound.
-- Prevented incorrect synthetic fallback for tracks marked as authentic recordings.
+### Authentication
+- **Fix:** Updated Google Sign-In Client ID to fix "Access Blocked" errors on Chrome Web Store.
+- **Verification:** Version 1.0.2 submitted to Chrome Web Store with new credentials.
 
-### Improved
-- Added multi-source authentic URL resolution with direct-media first and safe fallback URL handling.
-- Improved cleanup of failed media attempts to avoid stale playback state.
-- Added consistent `Real` badges and `Real recording` labels in both Timer and Audio screens for authentic ambience tracks.
-- Added/kept extension permissions and CSP support for Wikimedia media hosts required by authentic audio playback.
-
-### Versioning
-- Chrome extension manifest version updated to `1.0.2`.
-- App config version updated to `1.0.2` with build `2`.
-- Package version updated to `1.0.2`.
+## [1.0.1]
+- Initial Release

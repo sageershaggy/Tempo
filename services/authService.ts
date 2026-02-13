@@ -1,5 +1,6 @@
 // Authentication Service - Google SSO via Chrome Identity API
 // Handles OAuth flow, token management, and user profile
+declare var chrome: any;
 
 export interface UserProfile {
   email: string;
@@ -34,7 +35,7 @@ class AuthService {
         this.profile = data.profile || null;
         this.token = data.token || null;
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   static getInstance(): AuthService {
@@ -59,8 +60,10 @@ class AuthService {
   // Google Sign-In via Chrome Identity API (with fallback)
   async signInWithGoogle(): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
     if (!isChromeExtension) {
-      // Fallback for development/non-extension context - simulate login
-      return this.simulateLogin();
+      // For web, the UI handles the popup/redirect via @react-oauth/google
+      // This method might be called by legacy code, but for Web SSO we use handleWebLogin
+      console.warn('[Auth] signInWithGoogle called in web context. Use handleWebLogin instead.');
+      return { success: false, error: 'Please use the Google Sign-In button.' };
     }
 
     let primaryFailureMessage = '';
@@ -99,31 +102,38 @@ class AuthService {
     }
 
     try {
-      // Fetch user profile from Google
-      const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-        headers: { Authorization: `Bearer ${this.token}` }
-      });
-
-      if (!profileRes.ok) {
-        throw new Error('Failed to fetch profile');
-      }
-
-      const profileData = await profileRes.json();
-      this.profile = {
-        email: profileData.email,
-        name: profileData.name,
-        picture: profileData.picture,
-        id: profileData.id,
-      };
+      // Token is already set in this.token by the blocks above
+      await this.fetchUserProfile();
 
       // Persist auth state
       this.saveState();
 
-      return { success: true, profile: this.profile };
+      return { success: true, profile: this.profile! };
     } catch (error: any) {
       console.error('[Auth] Profile fetch failed:', error);
       return { success: false, error: error.message || 'Failed to fetch profile' };
     }
+  }
+
+  // Shared profile fetcher (used by both Extension and Web logic)
+  private async fetchUserProfile(): Promise<void> {
+    if (!this.token) throw new Error('No token available');
+
+    const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${this.token}` }
+    });
+
+    if (!profileRes.ok) {
+      throw new Error('Failed to fetch profile');
+    }
+
+    const profileData = await profileRes.json();
+    this.profile = {
+      email: profileData.email,
+      name: profileData.name,
+      picture: profileData.picture,
+      id: profileData.id,
+    };
   }
 
   // Primary auth: uses manifest.json client_id + extension ID
@@ -232,7 +242,7 @@ class AuthService {
         });
 
         // Also revoke on Google's end
-        await fetch(`https://accounts.google.com/o/oauth2/revoke?token=${this.token}`).catch(() => {});
+        await fetch(`https://accounts.google.com/o/oauth2/revoke?token=${this.token}`).catch(() => { });
       } catch (e) {
         console.error('[Auth] Revoke error:', e);
       }
@@ -276,20 +286,17 @@ class AuthService {
     }
   }
 
-  // Fallback for development outside Chrome extension
-  private async simulateLogin(): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    this.token = 'dev-token-' + Date.now();
-    this.profile = {
-      email: 'user@gmail.com',
-      name: 'Tempo User',
-      picture: '',
-      id: 'dev-user-' + Date.now(),
-    };
-
-    this.saveState();
-    return { success: true, profile: this.profile };
+  // Handle Web Login (called from UI after @react-oauth/google success)
+  async handleWebLogin(accessToken: string): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
+    try {
+      this.token = accessToken;
+      await this.fetchUserProfile();
+      this.saveState();
+      return { success: true, profile: this.profile! };
+    } catch (e: any) {
+      console.error('[Auth] Web login processing failed:', e);
+      return { success: false, error: e.message || 'Failed to process login credential' };
+    }
   }
 }
 
