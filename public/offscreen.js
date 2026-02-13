@@ -123,7 +123,7 @@ function createTone(ctx, gainNode, freq) {
   osc2.frequency.value = freq * 2;
   osc2.type = 'sine';
   const g2 = ctx.createGain();
-  g2.gain.value = 0.08;
+  g2.gain.value = 0.04;
   osc2.connect(g2);
   g2.connect(gainNode);
 
@@ -133,11 +133,38 @@ function createTone(ctx, gainNode, freq) {
   activeNodes.push(osc, osc2, g2);
 }
 
-function createNoise(ctx, gainNode, type) {
+function createNoise(ctx, gainNode, type, options = {}) {
   const source = createNoiseBuffer(ctx, type);
-  source.connect(gainNode);
+  let node = source;
+  const filterNodes = [];
+
+  if (options.highpass) {
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = options.highpass;
+    hp.Q.value = options.q || 0.7;
+    node.connect(hp);
+    node = hp;
+    filterNodes.push(hp);
+  }
+
+  if (options.lowpass) {
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = options.lowpass;
+    lp.Q.value = options.q || 0.7;
+    node.connect(lp);
+    node = lp;
+    filterNodes.push(lp);
+  }
+
+  const colorGain = ctx.createGain();
+  colorGain.gain.value = typeof options.level === 'number' ? options.level : 1;
+  node.connect(colorGain);
+  colorGain.connect(gainNode);
+
   source.start();
-  activeNodes.push(source);
+  activeNodes.push(source, colorGain, ...filterNodes);
 }
 
 function stopSound() {
@@ -145,6 +172,9 @@ function stopSound() {
     try {
       if (node instanceof OscillatorNode) node.stop();
       if (node instanceof AudioBufferSourceNode) node.stop();
+    } catch (e) { }
+    try {
+      if (typeof node.disconnect === 'function') node.disconnect();
     } catch (e) { }
   });
   activeNodes = [];
@@ -175,10 +205,18 @@ async function playTrack(trackId, volume, range) {
 
   const gainNode = ctx.createGain();
   gainNode.gain.value = Math.max(0, Math.min(1, volume));
-  gainNode.connect(ctx.destination);
+  const compressor = ctx.createDynamicsCompressor();
+  compressor.threshold.value = -18;
+  compressor.knee.value = 24;
+  compressor.ratio.value = 4;
+  compressor.attack.value = 0.003;
+  compressor.release.value = 0.25;
+  gainNode.connect(compressor);
+  compressor.connect(ctx.destination);
   activeGain = gainNode;
   currentTrackId = trackId;
   currentVolume = volume;
+  activeNodes.push(compressor);
 
   // Binaural tracks
   const rangeMap = BINAURAL_RANGE_MAP[trackId];
@@ -196,17 +234,17 @@ async function playTrack(trackId, volume, range) {
     case '4': createTone(ctx, gainNode, 432); break;
     case '5': createTone(ctx, gainNode, 528); break;
     // Ambience + music (procedural fallback generation)
-    case '6': createNoise(ctx, gainNode, 'pink'); break;   // Heavy Rain
-    case '7': createNoise(ctx, gainNode, 'brown'); break;  // Coffee Shop
-    case '11': createNoise(ctx, gainNode, 'pink'); break;  // Forest Stream
-    case '12': createNoise(ctx, gainNode, 'brown'); break; // Ocean Waves
-    case '13': createNoise(ctx, gainNode, 'pink'); break;  // Crackling Fire
-    case '14': createNoise(ctx, gainNode, 'white'); break; // Night Crickets
-    case '15': createNoise(ctx, gainNode, 'pink'); break;  // Wind Chimes
-    case '8': createNoise(ctx, gainNode, 'brown'); break;
-    case '9': createNoise(ctx, gainNode, 'white'); break;
-    case '10': createNoise(ctx, gainNode, 'pink'); break;
-    case '18': createNoise(ctx, gainNode, 'brown'); break; // Lo-Fi Beats
+    case '6': createNoise(ctx, gainNode, 'pink', { highpass: 80, lowpass: 3600, level: 0.36 }); break;   // Heavy Rain
+    case '7': createNoise(ctx, gainNode, 'brown', { highpass: 100, lowpass: 1800, level: 0.30 }); break; // Coffee Shop
+    case '11': createNoise(ctx, gainNode, 'pink', { highpass: 160, lowpass: 4200, level: 0.28 }); break; // Forest Stream
+    case '12': createNoise(ctx, gainNode, 'brown', { highpass: 50, lowpass: 1300, level: 0.36 }); break; // Ocean Waves
+    case '13': createNoise(ctx, gainNode, 'pink', { highpass: 240, lowpass: 5200, level: 0.24 }); break; // Crackling Fire
+    case '14': createNoise(ctx, gainNode, 'white', { highpass: 2200, lowpass: 9000, level: 0.16 }); break; // Night Crickets
+    case '15': createNoise(ctx, gainNode, 'pink', { highpass: 650, lowpass: 7000, level: 0.18 }); break; // Wind Chimes
+    case '8': createNoise(ctx, gainNode, 'brown', { highpass: 20, lowpass: 1000, level: 0.42 }); break;  // Brown Noise
+    case '9': createNoise(ctx, gainNode, 'white', { highpass: 100, lowpass: 6500, level: 0.18 }); break; // White Noise
+    case '10': createNoise(ctx, gainNode, 'pink', { highpass: 90, lowpass: 5200, level: 0.26 }); break; // Pink Noise
+    case '18': createNoise(ctx, gainNode, 'brown', { highpass: 70, lowpass: 1800, level: 0.26 }); break; // Lo-Fi Beats
     default:
       gainNode.disconnect();
       activeGain = null;

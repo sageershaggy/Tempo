@@ -29,6 +29,8 @@ interface TimerPreset {
 }
 
 const TIMER_PRESETS_STORAGE_KEY = 'tempo_timer_presets_v2';
+const MAX_CUSTOM_TIMER_PRESETS = 4;
+const TIMER_PRESET_SECTION_COLLAPSED_KEY = 'tempo_timer_preset_section_collapsed';
 
 const toPositiveInt = (value: unknown, fallback: number, min: number): number => {
   const parsed = Number(value);
@@ -76,14 +78,16 @@ const loadTimerPresets = (fallbackFocus: number, fallbackBreak: number): TimerPr
       .map(normalizePreset)
       .filter((preset): preset is TimerPreset => !!preset);
 
-    return [defaultPreset, ...customPresets];
+    return [defaultPreset, ...customPresets.slice(0, MAX_CUSTOM_TIMER_PRESETS)];
   } catch (e) {
     return [defaultPreset];
   }
 };
 
 const saveTimerPresets = (presets: TimerPreset[]) => {
-  const customPresets = presets.filter(preset => preset.id !== 'default');
+  const customPresets = presets
+    .filter(preset => preset.id !== 'default')
+    .slice(0, MAX_CUSTOM_TIMER_PRESETS);
   localStorage.setItem(TIMER_PRESETS_STORAGE_KEY, JSON.stringify(customPresets));
 };
 
@@ -101,6 +105,18 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const [userBreakDuration, setUserBreakDuration] = useState(config.defaults.settings.shortBreak);
   const [longBreakDuration, setLongBreakDuration] = useState(config.defaults.settings.longBreak);
   const [longBreakInterval, setLongBreakInterval] = useState(config.defaults.settings.longBreakInterval);
+  const [showAddPresetModal, setShowAddPresetModal] = useState(false);
+  const [presetModalMode, setPresetModalMode] = useState<'add' | 'edit'>('add');
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
+  const [isPresetSectionCollapsed, setIsPresetSectionCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(TIMER_PRESET_SECTION_COLLAPSED_KEY) === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+  const [newPresetFocusMinutes, setNewPresetFocusMinutes] = useState(config.defaults.settings.focusDuration);
+  const [newPresetBreakMinutes, setNewPresetBreakMinutes] = useState(config.defaults.settings.shortBreak);
   const [sessionCount, setSessionCount] = useState(() => {
     const saved = localStorage.getItem('tempo_sessionCount');
     return saved ? parseInt(saved, 10) : 0;
@@ -216,13 +232,27 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     setIsSyncingTask(false);
   };
 
-  const handleAddTimerPreset = () => {
-    const focusMinutes = toPositiveInt(userFocusDuration, config.defaults.settings.focusDuration, 1);
-    const breakMinutes = toPositiveInt(userBreakDuration, config.defaults.settings.shortBreak, 1);
+  const handleAddTimerPreset = (focusInput?: number, breakInput?: number): boolean => {
+    const focusMinutes = toPositiveInt(
+      focusInput ?? userFocusDuration,
+      config.defaults.settings.focusDuration,
+      1
+    );
+    const breakMinutes = toPositiveInt(
+      breakInput ?? userBreakDuration,
+      config.defaults.settings.shortBreak,
+      1
+    );
 
     const existingPreset = templates.find(
       preset => preset.focusMinutes === focusMinutes && preset.breakMinutes === breakMinutes
     );
+
+    const customPresetCount = templates.filter(preset => preset.id !== 'default').length;
+    if (!existingPreset && customPresetCount >= MAX_CUSTOM_TIMER_PRESETS) {
+      setPresetNotice(`You can add up to ${MAX_CUSTOM_TIMER_PRESETS} custom presets. Delete one to add another.`);
+      return false;
+    }
 
     const selectedId = existingPreset?.id || `preset-${Date.now()}`;
     const nextTemplates = existingPreset
@@ -246,6 +276,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       setPresetNotice(`Preset ${focusMinutes}/${breakMinutes} already exists`);
     }
 
+    if (isActive) {
+      if (!existingPreset) {
+        setPresetNotice(`Added preset ${focusMinutes}/${breakMinutes}. Pause timer to switch.`);
+      }
+      return true;
+    }
+
     setActiveTemplateId(selectedId);
     localStorage.setItem(STORAGE_KEYS.TIMER_MODE, selectedId);
 
@@ -258,6 +295,100 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       localStorage.setItem('tempo_timer_initialTime', String(focusSeconds));
       localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
       localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+    }
+    return true;
+  };
+
+  const handleOpenAddPresetModal = () => {
+    const customPresetCount = templates.filter(preset => preset.id !== 'default').length;
+    if (customPresetCount >= MAX_CUSTOM_TIMER_PRESETS) {
+      setPresetNotice(`You can add up to ${MAX_CUSTOM_TIMER_PRESETS} custom presets. Delete one to add another.`);
+      return;
+    }
+    setPresetModalMode('add');
+    setEditingPresetId(null);
+    setNewPresetFocusMinutes(toPositiveInt(userFocusDuration, config.defaults.settings.focusDuration, 1));
+    setNewPresetBreakMinutes(toPositiveInt(userBreakDuration, config.defaults.settings.shortBreak, 1));
+    setShowAddPresetModal(true);
+  };
+
+  const handleOpenEditPresetModal = (presetId: string) => {
+    const preset = templates.find(t => t.id === presetId);
+    if (!preset || preset.id === 'default') return;
+
+    if (isActive && activeTemplateId === presetId) {
+      setPresetNotice('Pause timer before editing active preset');
+      return;
+    }
+
+    setPresetModalMode('edit');
+    setEditingPresetId(presetId);
+    setNewPresetFocusMinutes(preset.focusMinutes);
+    setNewPresetBreakMinutes(preset.breakMinutes);
+    setShowAddPresetModal(true);
+  };
+
+  const handleUpdateTimerPreset = (presetId: string, focusInput: number, breakInput: number): boolean => {
+    const preset = templates.find(t => t.id === presetId);
+    if (!preset || preset.id === 'default') return false;
+
+    const focusMinutes = toPositiveInt(focusInput, preset.focusMinutes, 1);
+    const breakMinutes = toPositiveInt(breakInput, preset.breakMinutes, 1);
+    const duplicatePreset = templates.find(
+      t => t.id !== presetId && t.focusMinutes === focusMinutes && t.breakMinutes === breakMinutes
+    );
+
+    if (duplicatePreset) {
+      setPresetNotice(`Preset ${focusMinutes}/${breakMinutes} already exists`);
+      return false;
+    }
+
+    const nextTemplates = templates.map(t => (
+      t.id === presetId
+        ? { ...t, focusMinutes, breakMinutes, label: `${focusMinutes}/${breakMinutes}` }
+        : t
+    ));
+
+    setTemplates(nextTemplates);
+    saveTimerPresets(nextTemplates);
+    setPresetNotice(`Updated preset ${focusMinutes}/${breakMinutes}`);
+
+    if (!isActive && activeTemplateId === presetId && timeLeft === initialTime) {
+      const nextSeconds = timerMode === 'focus' ? focusMinutes * 60 : breakMinutes * 60;
+      setInitialTime(nextSeconds);
+      setTimeLeft(nextSeconds);
+      localStorage.setItem('tempo_timer_initialTime', String(nextSeconds));
+    }
+
+    return true;
+  };
+
+  const handleClosePresetModal = () => {
+    setShowAddPresetModal(false);
+    setPresetModalMode('add');
+    setEditingPresetId(null);
+  };
+
+  const togglePresetSectionVisibility = () => {
+    setIsPresetSectionCollapsed(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem(TIMER_PRESET_SECTION_COLLAPSED_KEY, String(next));
+      } catch (e) {}
+      return next;
+    });
+  };
+
+  const handleConfirmAddPreset = () => {
+    const focusMinutes = toPositiveInt(newPresetFocusMinutes, config.defaults.settings.focusDuration, 1);
+    const breakMinutes = toPositiveInt(newPresetBreakMinutes, config.defaults.settings.shortBreak, 1);
+
+    const succeeded = presetModalMode === 'edit' && editingPresetId
+      ? handleUpdateTimerPreset(editingPresetId, focusMinutes, breakMinutes)
+      : handleAddTimerPreset(focusMinutes, breakMinutes);
+
+    if (succeeded) {
+      handleClosePresetModal();
     }
   };
 
@@ -1224,6 +1355,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const filteredTracks = soundFilter === 'All'
     ? builtInTracks
     : builtInTracks.filter(track => track.category === soundFilter);
+  const customPresetCount = templates.filter(preset => preset.id !== 'default').length;
+  const hasReachedCustomPresetLimit = customPresetCount >= MAX_CUSTOM_TIMER_PRESETS;
+  const activePresetLabel = templates.find(t => t.id === activeTemplateId)?.label || `${userFocusDuration}/${userBreakDuration}`;
 
   const showSeparatedBinauralSection = soundFilter === 'All';
   const binauralTracks = filteredTracks.filter(track => track.category === 'Binaural');
@@ -1338,46 +1472,80 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         </div>
       </div>
 
-      {/* Template Switcher */}
-      <div className="rounded-lg mb-2 border border-white/5 bg-surface-dark p-0.5">
-        <div className="overflow-x-auto no-scrollbar">
-          <div className="flex min-w-max gap-1">
-            {templates.map((tmpl) => {
-              const isCurrentTemplate = activeTemplateId === tmpl.id;
-              const isDisabled = (isActive || timerMode === 'break') && !isCurrentTemplate;
-              return (
-                <button
-                  key={tmpl.id}
-                  onClick={() => {
-                    if (!isDisabled) setActiveTemplateId(tmpl.id);
-                  }}
-                  disabled={isDisabled}
-                  title={`${tmpl.label} (${tmpl.focusMinutes}/${tmpl.breakMinutes})`}
-                  className={`shrink-0 min-w-[78px] px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap ${isCurrentTemplate ? 'bg-primary text-white shadow-md shadow-primary/25' : isDisabled ? 'text-muted/40 cursor-not-allowed' : 'text-muted hover:text-white/70'}`}
-                >
-                  {tmpl.label}
-                </button>
-              );
-            })}
+      {/* Preset Controls */}
+      {isPresetSectionCollapsed ? (
+        <div className="mb-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-muted">Preset Controls Hidden</p>
+            <p className="text-[10px] font-semibold text-white/80 truncate">{activePresetLabel} active</p>
           </div>
+          <button
+            onClick={togglePresetSectionVisibility}
+            className="w-8 h-8 rounded-md flex items-center justify-center text-muted hover:text-white hover:bg-white/10 transition-colors shrink-0"
+            title="Show timer presets and controls"
+          >
+            <span className="material-symbols-outlined text-[16px]">expand_more</span>
+          </button>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="rounded-lg mb-2 border border-white/5 bg-surface-dark p-0.5">
+            <div className="flex items-center gap-1">
+              <div className="flex-1 overflow-x-auto no-scrollbar">
+                <div className="flex min-w-max gap-1">
+                  {templates.map((tmpl) => {
+                    const isCurrentTemplate = activeTemplateId === tmpl.id;
+                    const isDisabled = (isActive || timerMode === 'break') && !isCurrentTemplate;
+                    return (
+                      <button
+                        key={tmpl.id}
+                        onClick={() => {
+                          if (!isDisabled) setActiveTemplateId(tmpl.id);
+                        }}
+                        disabled={isDisabled}
+                        title={`${tmpl.label} (${tmpl.focusMinutes}/${tmpl.breakMinutes})`}
+                        className={`shrink-0 min-w-[78px] px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap ${isCurrentTemplate ? 'bg-primary text-white shadow-md shadow-primary/25' : isDisabled ? 'text-muted/40 cursor-not-allowed' : 'text-muted hover:text-white/70'}`}
+                      >
+                        {tmpl.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <button
+                onClick={togglePresetSectionVisibility}
+                className="w-8 h-8 rounded-md flex items-center justify-center text-muted hover:text-white hover:bg-white/10 transition-colors shrink-0"
+                title="Hide timer presets and controls"
+              >
+                <span className="material-symbols-outlined text-[16px]">expand_less</span>
+              </button>
+            </div>
+          </div>
 
       <div className="w-full mb-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold text-white/85 truncate">
+            <p className="text-[10px] font-semibold text-white/85">
               Default timer: {userFocusDuration} / {userBreakDuration} min
             </p>
-            <p className="text-[9px] text-muted truncate">
+            <p className="text-[9px] text-muted">
               One default timer is always available. Add and remove extra presets anytime.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={handleAddTimerPreset}
-              className="h-8 px-2.5 rounded-md border border-primary/30 bg-primary/15 text-primary hover:bg-primary/20 transition-colors flex items-center gap-1"
-              title="Add timer preset from current default values"
+              onClick={handleOpenAddPresetModal}
+              disabled={hasReachedCustomPresetLimit}
+              className={`h-8 px-2.5 rounded-md border transition-colors flex items-center gap-1 ${
+                hasReachedCustomPresetLimit
+                  ? 'border-white/10 bg-white/5 text-muted/40 cursor-not-allowed'
+                  : 'border-primary/30 bg-primary/15 text-primary hover:bg-primary/20'
+              }`}
+              title={
+                hasReachedCustomPresetLimit
+                  ? `Maximum ${MAX_CUSTOM_TIMER_PRESETS} custom presets reached`
+                  : 'Add a new timer preset'
+              }
             >
               <span className="material-symbols-outlined text-[14px]">add</span>
               <span className="text-[10px] font-bold uppercase tracking-wide">Add</span>
@@ -1419,6 +1587,20 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 </button>
                 {!isDefaultPreset && (
                   <button
+                    onClick={() => handleOpenEditPresetModal(preset.id)}
+                    disabled={deleteDisabled}
+                    className={`mr-1 w-4 h-4 rounded-full flex items-center justify-center transition-colors ${
+                      deleteDisabled
+                        ? 'text-muted/40 cursor-not-allowed'
+                        : 'text-muted hover:text-white hover:bg-white/10'
+                    }`}
+                    title={deleteDisabled ? 'Pause timer before editing active preset' : `Edit ${preset.label}`}
+                  >
+                    <span className="material-symbols-outlined text-[11px]">edit</span>
+                  </button>
+                )}
+                {!isDefaultPreset && (
+                  <button
                     onClick={() => handleDeleteTimerPreset(preset.id)}
                     disabled={deleteDisabled}
                     className={`mr-1 w-4 h-4 rounded-full flex items-center justify-center transition-colors ${
@@ -1439,7 +1621,65 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         {presetNotice && (
           <p className="mt-1.5 text-[9px] font-semibold text-primary">{presetNotice}</p>
         )}
+        <p className="mt-1 text-[9px] text-muted">
+          Custom presets: {customPresetCount}/{MAX_CUSTOM_TIMER_PRESETS}
+        </p>
       </div>
+        </>
+      )}
+
+      {showAddPresetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-5">
+          <div className="w-full max-w-xs rounded-xl border border-white/10 bg-surface-dark p-4">
+            <p className="text-sm font-bold text-white">
+              {presetModalMode === 'edit' ? 'Edit Timer Preset' : 'Add Timer Preset'}
+            </p>
+            <p className="text-[10px] text-muted mt-1">
+              {presetModalMode === 'edit' ? 'Update focus/break values for this preset.' : 'Create a new focus/break preset.'}
+            </p>
+
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              <label className="block">
+                <span className="text-[10px] font-semibold text-white/80">Focus (min)</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={180}
+                  value={newPresetFocusMinutes}
+                  onChange={(e) => setNewPresetFocusMinutes(Math.max(1, Number(e.target.value) || 1))}
+                  className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-xs text-white focus:outline-none focus:border-primary/40"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-semibold text-white/80">Break (min)</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={newPresetBreakMinutes}
+                  onChange={(e) => setNewPresetBreakMinutes(Math.max(1, Number(e.target.value) || 1))}
+                  className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-xs text-white focus:outline-none focus:border-primary/40"
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                onClick={handleClosePresetModal}
+                className="h-8 px-3 rounded-md border border-white/10 text-[10px] font-semibold text-muted hover:text-white hover:bg-white/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmAddPreset}
+                className="h-8 px-3 rounded-md border border-primary/30 bg-primary/15 text-[10px] font-bold text-primary hover:bg-primary/20 transition-colors"
+              >
+                {presetModalMode === 'edit' ? 'Save Changes' : 'Add Preset'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Timer Circle */}
       <div className="flex flex-col items-center justify-center py-2">
