@@ -28,7 +28,10 @@
     "https://checkout.stripe.com/*",
     "https://www.googleapis.com/*",
     "https://tasks.googleapis.com/*",
-    "https://generativelanguage.googleapis.com/*"
+    "https://generativelanguage.googleapis.com/*",
+    "https://www.youtube.com/*",
+    "https://youtube.com/*",
+    "https://www.youtube-nocookie.com/*"
   ],
   "oauth2": {
     "client_id": "747255011734-l7k517kfa2908all500m6cmcs4iq1ugp.apps.googleusercontent.com",

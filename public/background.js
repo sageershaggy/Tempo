@@ -528,6 +528,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === 'youtube-volume') {
+    sendToOffscreen({
+      target: 'offscreen-audio',
+      action: 'youtube-volume',
+      volume: request.volume
+    }, sendResponse);
+    return true;
+  }
+
+  if (request.action === 'youtube-pause') {
+    sendToOffscreen({
+      target: 'offscreen-audio',
+      action: 'youtube-pause'
+    }, sendResponse);
+    return true;
+  }
+
+  if (request.action === 'youtube-resume') {
+    sendToOffscreen({
+      target: 'offscreen-audio',
+      action: 'youtube-resume'
+    }, sendResponse);
+    return true;
+  }
+
   // --- Focus Beat commands ---
   if (request.action === 'focusBeat-start') {
     sendToOffscreen({

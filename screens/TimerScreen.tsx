@@ -8,6 +8,7 @@ import {
   playOffscreen,
   stopOffscreen,
   setOffscreenVolume,
+  setYouTubeOffscreenVolume,
   getOffscreenStatus,
   isOffscreenAvailable,
   playYouTubeOffscreen,
@@ -19,14 +20,83 @@ import { googleTasksService } from '../services/googleTasks';
 // Use offscreen audio when available (Chrome extension), fallback to direct Web Audio
 const useOffscreen = isOffscreenAvailable();
 
+interface TimerPreset {
+  id: string;
+  label: string;
+  description: string;
+  focusMinutes: number;
+  breakMinutes: number;
+}
+
+const TIMER_PRESETS_STORAGE_KEY = 'tempo_timer_presets_v2';
+
+const toPositiveInt = (value: unknown, fallback: number, min: number): number => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.round(parsed));
+};
+
+const createDefaultPreset = (focusMinutes: number, breakMinutes: number): TimerPreset => {
+  const safeFocus = toPositiveInt(focusMinutes, 25, 1);
+  const safeBreak = toPositiveInt(breakMinutes, 5, 1);
+  return {
+    id: 'default',
+    label: `${safeFocus}/${safeBreak}`,
+    description: 'Default',
+    focusMinutes: safeFocus,
+    breakMinutes: safeBreak,
+  };
+};
+
+const normalizePreset = (preset: any): TimerPreset | null => {
+  if (!preset || typeof preset !== 'object') return null;
+  const id = String(preset.id || '').trim();
+  const focusMinutes = toPositiveInt(preset.focusMinutes, 25, 1);
+  const breakMinutes = toPositiveInt(preset.breakMinutes, 5, 1);
+  if (!id || id === 'default') return null;
+  return {
+    id,
+    label: `${focusMinutes}/${breakMinutes}`,
+    description: String(preset.description || 'Preset'),
+    focusMinutes,
+    breakMinutes,
+  };
+};
+
+const loadTimerPresets = (fallbackFocus: number, fallbackBreak: number): TimerPreset[] => {
+  const defaultPreset = createDefaultPreset(fallbackFocus, fallbackBreak);
+
+  try {
+    const raw = localStorage.getItem(TIMER_PRESETS_STORAGE_KEY);
+    if (!raw) return [defaultPreset];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [defaultPreset];
+
+    const customPresets = parsed
+      .map(normalizePreset)
+      .filter((preset): preset is TimerPreset => !!preset);
+
+    return [defaultPreset, ...customPresets];
+  } catch (e) {
+    return [defaultPreset];
+  }
+};
+
+const saveTimerPresets = (presets: TimerPreset[]) => {
+  const customPresets = presets.filter(preset => preset.id !== 'default');
+  localStorage.setItem(TIMER_PRESETS_STORAGE_KEY, JSON.stringify(customPresets));
+};
+
 export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState, currentTask, tasks, setTasks, setCurrentTask }) => {
   // Load configuration dynamically
   const config = configManager.getConfig();
-  const templates = config.timer.templates;
+  const [templates, setTemplates] = useState<TimerPreset[]>(() =>
+    loadTimerPresets(config.defaults.settings.focusDuration, config.defaults.settings.shortBreak)
+  );
   const TRACKS = config.audio.tracks;
   const CATEGORIES = config.audio.categories;
 
-  // User settings for custom mode
+  // User settings used for the default timer preset
   const [userFocusDuration, setUserFocusDuration] = useState(config.defaults.settings.focusDuration);
   const [userBreakDuration, setUserBreakDuration] = useState(config.defaults.settings.shortBreak);
   const [longBreakDuration, setLongBreakDuration] = useState(config.defaults.settings.longBreak);
@@ -43,6 +113,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   // Sound panel state
   const [soundFilter, setSoundFilter] = useState('All');
   const [showAllSounds, setShowAllSounds] = useState(false);
+  const [presetNotice, setPresetNotice] = useState<string | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [audioError, setAudioError] = useState<string | null>(null);
   const [youtubeError, setYoutubeError] = useState<string | null>(null);
@@ -145,26 +216,97 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     setIsSyncingTask(false);
   };
 
+  const handleAddTimerPreset = () => {
+    const focusMinutes = toPositiveInt(userFocusDuration, config.defaults.settings.focusDuration, 1);
+    const breakMinutes = toPositiveInt(userBreakDuration, config.defaults.settings.shortBreak, 1);
+
+    const existingPreset = templates.find(
+      preset => preset.focusMinutes === focusMinutes && preset.breakMinutes === breakMinutes
+    );
+
+    const selectedId = existingPreset?.id || `preset-${Date.now()}`;
+    const nextTemplates = existingPreset
+      ? templates
+      : [
+          ...templates,
+          {
+            id: selectedId,
+            label: `${focusMinutes}/${breakMinutes}`,
+            description: 'Preset',
+            focusMinutes,
+            breakMinutes,
+          },
+        ];
+
+    if (!existingPreset) {
+      setTemplates(nextTemplates);
+      saveTimerPresets(nextTemplates);
+      setPresetNotice(`Added preset ${focusMinutes}/${breakMinutes}`);
+    } else {
+      setPresetNotice(`Preset ${focusMinutes}/${breakMinutes} already exists`);
+    }
+
+    setActiveTemplateId(selectedId);
+    localStorage.setItem(STORAGE_KEYS.TIMER_MODE, selectedId);
+
+    if (!isActive) {
+      const focusSeconds = focusMinutes * 60;
+      setTimerMode('focus');
+      setInitialTime(focusSeconds);
+      setTimeLeft(focusSeconds);
+      localStorage.setItem('tempo_timer_mode', 'focus');
+      localStorage.setItem('tempo_timer_initialTime', String(focusSeconds));
+      localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
+      localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+    }
+  };
+
+  const handleDeleteTimerPreset = (presetId: string) => {
+    if (presetId === 'default') return;
+
+    const presetToDelete = templates.find(preset => preset.id === presetId);
+    if (!presetToDelete) return;
+
+    if (isActive && activeTemplateId === presetId) {
+      setPresetNotice('Pause timer before deleting active preset');
+      return;
+    }
+
+    const nextTemplates = templates.filter(preset => preset.id !== presetId);
+    const fallbackId = nextTemplates[0]?.id || 'default';
+    const shouldSwitchActivePreset = activeTemplateId === presetId;
+    const nextActivePresetId = shouldSwitchActivePreset ? fallbackId : activeTemplateId;
+
+    setTemplates(nextTemplates);
+    setActiveTemplateId(nextActivePresetId);
+    saveTimerPresets(nextTemplates);
+    localStorage.setItem(STORAGE_KEYS.TIMER_MODE, nextActivePresetId);
+    setPresetNotice(`Deleted preset ${presetToDelete.label}`);
+
+    if (!isActive && shouldSwitchActivePreset) {
+      const focusSeconds = getTimeForTemplate(nextActivePresetId);
+      setTimerMode('focus');
+      setInitialTime(focusSeconds);
+      setTimeLeft(focusSeconds);
+      localStorage.setItem('tempo_timer_mode', 'focus');
+      localStorage.setItem('tempo_timer_initialTime', String(focusSeconds));
+    }
+  };
+
   // Get initial time from a template
   const getTimeForTemplate = (templateId: string): number => {
-    if (templateId === 'custom') {
-      return userFocusDuration * 60;
-    }
     const tmpl = templates.find(t => t.id === templateId);
-    return tmpl ? tmpl.focusMinutes * 60 : config.defaults.settings.focusDuration * 60;
+    return tmpl ? tmpl.focusMinutes * 60 : (templates[0]?.focusMinutes || config.defaults.settings.focusDuration) * 60;
   };
 
   const getBreakForTemplate = (templateId: string): number => {
-    if (templateId === 'custom') {
-      return userBreakDuration * 60;
-    }
     const tmpl = templates.find(t => t.id === templateId);
-    return tmpl ? tmpl.breakMinutes * 60 : config.defaults.settings.shortBreak * 60;
+    return tmpl ? tmpl.breakMinutes * 60 : (templates[0]?.breakMinutes || config.defaults.settings.shortBreak) * 60;
   };
 
   // Restore template from localStorage if saved
   const savedTemplateId = localStorage.getItem(STORAGE_KEYS.TIMER_MODE);
-  const restoredTemplateId = (savedTemplateId && templates.find(t => t.id === savedTemplateId)) ? savedTemplateId : (templates[0]?.id || 'classic');
+  const restoredTemplateId = (savedTemplateId && templates.find(t => t.id === savedTemplateId)) ? savedTemplateId : (templates[0]?.id || 'default');
 
   const [activeTemplateId, setActiveTemplateId] = useState(restoredTemplateId);
   const [timeLeft, setTimeLeft] = useState(getTimeForTemplate(restoredTemplateId));
@@ -186,6 +328,15 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       setLongBreakInterval(settings.longBreakInterval || config.defaults.settings.longBreakInterval);
       setTickingEnabled(settings.tickingEnabled);
       setTickSpeed(settings.tickingSpeed);
+
+      // Keep one default timer preset synced with Timer settings.
+      setTemplates(prev => {
+        const defaultPreset = createDefaultPreset(settings.focusDuration, settings.shortBreak);
+        const customPresets = prev.filter(preset => preset.id !== 'default');
+        const next = [defaultPreset, ...customPresets];
+        saveTimerPresets(next);
+        return next;
+      });
 
       // Restore focus beat state from localStorage
       const savedBeatEnabled = localStorage.getItem('tempo_beatEnabled') === 'true';
@@ -228,6 +379,43 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     };
     loadUserSettings();
   }, []);
+
+  // Ensure current template id is always valid as templates change.
+  useEffect(() => {
+    if (!templates.length) return;
+
+    if (!templates.some(template => template.id === activeTemplateId)) {
+      const fallbackId = templates[0].id;
+      setActiveTemplateId(fallbackId);
+      localStorage.setItem(STORAGE_KEYS.TIMER_MODE, fallbackId);
+      return;
+    }
+
+    localStorage.setItem(STORAGE_KEYS.TIMER_MODE, activeTemplateId);
+  }, [templates, activeTemplateId]);
+
+  // If timer presets change while idle, refresh displayed duration for the selected preset.
+  useEffect(() => {
+    if (!templates.length || isActive) return;
+    if (localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true') return;
+    if (timeLeft !== initialTime) return; // Preserve paused/in-progress value
+
+    const nextSeconds = timerMode === 'focus'
+      ? getTimeForTemplate(activeTemplateId)
+      : getBreakForTemplate(activeTemplateId);
+
+    if (nextSeconds !== initialTime) {
+      setInitialTime(nextSeconds);
+      setTimeLeft(nextSeconds);
+      localStorage.setItem('tempo_timer_initialTime', String(nextSeconds));
+    }
+  }, [templates, activeTemplateId, timerMode, isActive, timeLeft, initialTime]);
+
+  useEffect(() => {
+    if (!presetNotice) return;
+    const timeout = setTimeout(() => setPresetNotice(null), 2500);
+    return () => clearTimeout(timeout);
+  }, [presetNotice]);
 
   // Auto-start timer when coming from QuickAdd with "Start Timer" toggle on
   useEffect(() => {
@@ -891,8 +1079,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       } else {
         setSoundVolume(finalVol);
       }
+      return;
     }
-  }, [audioState.volume, audioState.trackSettings, audioState.activeTrackId]);
+
+    if (audioState.isPlaying && audioState.youtubeId && !audioState.activeTrackId && useOffscreen) {
+      setYouTubeOffscreenVolume(audioState.volume / 100);
+    }
+  }, [audioState.volume, audioState.trackSettings, audioState.activeTrackId, audioState.youtubeId, audioState.isPlaying]);
 
   // Stop sound when audioState says not playing
   useEffect(() => {
@@ -1007,12 +1200,79 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     }
   };
 
-  const filteredTracks = soundFilter === 'All'
-    ? TRACKS.filter(t => isBuiltInTrack(t.id))
-    : TRACKS.filter(t => t.category === soundFilter && isBuiltInTrack(t.id));
+  const isYouTubeStreamActive = audioState.isPlaying && !!audioState.youtubeId && !audioState.activeTrackId;
 
-  // Show max 6 tracks when collapsed, all when expanded
-  const displayTracks = showAllSounds ? filteredTracks : filteredTracks.slice(0, 6);
+  const handleYoutubeToggle = async () => {
+    if (isYouTubeStreamActive) {
+      if (useOffscreen) {
+        await stopYouTubeOffscreen();
+      }
+      setAudioState(prev => ({ ...prev, isPlaying: false, youtubeId: null }));
+      setYoutubeError(null);
+      return;
+    }
+    await handleYoutubePlay();
+  };
+
+  const builtInTracks = TRACKS.filter(t => isBuiltInTrack(t.id));
+  const desiredSoundFilterOrder = ['All', 'Binaural', 'Ambience', 'Solfeggio', 'Noise', 'Music'];
+  const availableSoundCategories = new Set(builtInTracks.map(track => track.category));
+  const soundFilterOptions = desiredSoundFilterOrder.filter(
+    option => option === 'All' || availableSoundCategories.has(option)
+  );
+
+  const filteredTracks = soundFilter === 'All'
+    ? builtInTracks
+    : builtInTracks.filter(track => track.category === soundFilter);
+
+  const showSeparatedBinauralSection = soundFilter === 'All';
+  const binauralTracks = filteredTracks.filter(track => track.category === 'Binaural');
+  const ambientAndToneTracks = filteredTracks.filter(track => track.category !== 'Binaural');
+
+  const visibleBinauralTracks = showSeparatedBinauralSection
+    ? (showAllSounds ? binauralTracks : binauralTracks.slice(0, 4))
+    : [];
+  const visibleAmbientAndToneTracks = showSeparatedBinauralSection
+    ? (showAllSounds ? ambientAndToneTracks : ambientAndToneTracks.slice(0, 4))
+    : [];
+  const displayTracks = showSeparatedBinauralSection
+    ? []
+    : (showAllSounds ? filteredTracks : filteredTracks.slice(0, 6));
+  const collapsedTrackCount = showSeparatedBinauralSection
+    ? Math.min(4, binauralTracks.length) + Math.min(4, ambientAndToneTracks.length)
+    : Math.min(6, filteredTracks.length);
+  const canToggleShowAllTracks = filteredTracks.length > collapsedTrackCount;
+
+  const renderSoundCard = (track: AudioTrackConfig) => {
+    const isTrackActive = audioState.activeTrackId === track.id && audioState.isPlaying;
+    return (
+      <button
+        key={track.id}
+        onClick={() => handleToggleTrack(track)}
+        className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${isTrackActive
+          ? 'bg-primary/10 border-primary/30'
+          : 'bg-surface-dark border-white/5 hover:border-white/10'
+          }`}
+      >
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isTrackActive ? 'bg-primary text-white' : 'bg-white/5 text-muted'
+          }`}>
+          <span className="material-symbols-outlined text-sm">
+            {isTrackActive ? 'pause' : track.icon}
+          </span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className={`text-[11px] font-semibold truncate ${isTrackActive ? 'text-white' : 'text-white/80'}`}>
+            {track.name}
+          </p>
+          {track.hz ? (
+            <p className="text-[9px] font-bold text-secondary">{track.hz}</p>
+          ) : (
+            <p className="text-[9px] text-muted">{track.category}</p>
+          )}
+        </div>
+      </button>
+    );
+  };
 
   return (
     <div className="h-full flex flex-col px-5 pt-2 pb-28 overflow-y-auto no-scrollbar">
@@ -1024,7 +1284,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             <h1 className="text-base font-bold tracking-tight leading-tight">Tempo Focus</h1>
           </div>
           <p className="text-[9px] font-bold text-primary uppercase tracking-widest">
-            {templates.find(t => t.id === activeTemplateId)?.description || 'Focus Session'}
+            {(templates.find(t => t.id === activeTemplateId)?.label || `${userFocusDuration}/${userBreakDuration}`) + ' Timer'}
           </p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -1085,7 +1345,6 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             {templates.map((tmpl) => {
               const isCurrentTemplate = activeTemplateId === tmpl.id;
               const isDisabled = (isActive || timerMode === 'break') && !isCurrentTemplate;
-              const isCustomTemplate = tmpl.id === 'custom';
               return (
                 <button
                   key={tmpl.id}
@@ -1093,10 +1352,10 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                     if (!isDisabled) setActiveTemplateId(tmpl.id);
                   }}
                   disabled={isDisabled}
-                  title={isCustomTemplate ? `Custom ${userFocusDuration}/${userBreakDuration}` : tmpl.label}
+                  title={`${tmpl.label} (${tmpl.focusMinutes}/${tmpl.breakMinutes})`}
                   className={`shrink-0 min-w-[78px] px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap ${isCurrentTemplate ? 'bg-primary text-white shadow-md shadow-primary/25' : isDisabled ? 'text-muted/40 cursor-not-allowed' : 'text-muted hover:text-white/70'}`}
                 >
-                  {isCustomTemplate ? 'Custom' : tmpl.label}
+                  {tmpl.label}
                 </button>
               );
             })}
@@ -1104,21 +1363,83 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         </div>
       </div>
 
-      <button
-        onClick={() => setScreen(Screen.SETTINGS)}
-        className={`w-full mb-3 rounded-lg border px-3 py-1.5 text-[10px] font-semibold transition-colors text-left flex items-center justify-between ${
-          activeTemplateId === 'custom'
-            ? 'border-primary/15 bg-primary/5 text-primary hover:bg-primary/10'
-            : 'border-white/10 bg-white/5 text-muted hover:bg-white/10 hover:text-white/80'
-        }`}
-      >
-        <span>
-          {activeTemplateId === 'custom'
-            ? `Custom timer: ${userFocusDuration} / ${userBreakDuration} min`
-            : 'Timer settings and custom durations'}
-        </span>
-        <span className="material-symbols-outlined text-[14px]">edit_calendar</span>
-      </button>
+      <div className="w-full mb-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold text-white/85 truncate">
+              Default timer: {userFocusDuration} / {userBreakDuration} min
+            </p>
+            <p className="text-[9px] text-muted truncate">
+              One default timer is always available. Add and remove extra presets anytime.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleAddTimerPreset}
+              className="h-8 px-2.5 rounded-md border border-primary/30 bg-primary/15 text-primary hover:bg-primary/20 transition-colors flex items-center gap-1"
+              title="Add timer preset from current default values"
+            >
+              <span className="material-symbols-outlined text-[14px]">add</span>
+              <span className="text-[10px] font-bold uppercase tracking-wide">Add</span>
+            </button>
+            <button
+              onClick={() => setScreen(Screen.SETTINGS)}
+              className="w-8 h-8 rounded-md flex items-center justify-center text-muted hover:text-white hover:bg-white/10 transition-colors"
+              title="Edit default timer values"
+            >
+              <span className="material-symbols-outlined text-[14px]">edit_calendar</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          {templates.map((preset) => {
+            const isPresetActive = activeTemplateId === preset.id;
+            const isDefaultPreset = preset.id === 'default';
+            const deleteDisabled = (isActive && isPresetActive);
+            return (
+              <div
+                key={preset.id}
+                className={`shrink-0 flex items-center rounded-full border ${
+                  isPresetActive ? 'border-primary/40 bg-primary/20' : 'border-white/10 bg-black/20'
+                }`}
+              >
+                <button
+                  onClick={() => {
+                    if (!isPresetActive && !(isActive || timerMode === 'break')) {
+                      setActiveTemplateId(preset.id);
+                    }
+                  }}
+                  className={`px-2.5 py-1 text-[10px] font-semibold ${
+                    isPresetActive ? 'text-white' : 'text-muted hover:text-white/80'
+                  }`}
+                  title={`${preset.label} preset`}
+                >
+                  {isDefaultPreset ? `Default ${preset.label}` : preset.label}
+                </button>
+                {!isDefaultPreset && (
+                  <button
+                    onClick={() => handleDeleteTimerPreset(preset.id)}
+                    disabled={deleteDisabled}
+                    className={`mr-1 w-4 h-4 rounded-full flex items-center justify-center transition-colors ${
+                      deleteDisabled
+                        ? 'text-muted/40 cursor-not-allowed'
+                        : 'text-muted hover:text-red-300 hover:bg-red-500/20'
+                    }`}
+                    title={deleteDisabled ? 'Pause timer before deleting active preset' : `Delete ${preset.label}`}
+                  >
+                    <span className="material-symbols-outlined text-[12px]">close</span>
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {presetNotice && (
+          <p className="mt-1.5 text-[9px] font-semibold text-primary">{presetNotice}</p>
+        )}
+      </div>
 
       {/* Timer Circle */}
       <div className="flex flex-col items-center justify-center py-2">
@@ -1411,7 +1732,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
         {/* Category Filter */}
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar mb-3">
-          {['All', 'Binaural', 'Solfeggio', 'Noise'].map(cat => (
+          {soundFilterOptions.map(cat => (
             <button
               key={cat}
               onClick={() => setSoundFilter(cat)}
@@ -1426,41 +1747,36 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         </div>
 
         {/* Sound Grid */}
-        <div className="grid grid-cols-2 gap-2">
-          {displayTracks.map((track) => {
-            const isTrackActive = audioState.activeTrackId === track.id && audioState.isPlaying;
-            return (
-              <button
-                key={track.id}
-                onClick={() => handleToggleTrack(track)}
-                className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${isTrackActive
-                  ? 'bg-primary/10 border-primary/30'
-                  : 'bg-surface-dark border-white/5 hover:border-white/10'
-                  }`}
-              >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isTrackActive ? 'bg-primary text-white' : 'bg-white/5 text-muted'
-                  }`}>
-                  <span className="material-symbols-outlined text-sm">
-                    {isTrackActive ? 'pause' : track.icon}
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className={`text-[11px] font-semibold truncate ${isTrackActive ? 'text-white' : 'text-white/80'}`}>
-                    {track.name}
-                  </p>
-                  {track.hz ? (
-                    <p className="text-[9px] font-bold text-secondary">{track.hz}</p>
-                  ) : (
-                    <p className="text-[9px] text-muted">{track.category}</p>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        {showSeparatedBinauralSection ? (
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="material-symbols-outlined text-[14px] text-blue-300">psychology</span>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200">Binaural Beats</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {visibleBinauralTracks.map(renderSoundCard)}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="material-symbols-outlined text-[14px] text-cyan-300">music_note</span>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-200">Soundscapes</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {visibleAmbientAndToneTracks.map(renderSoundCard)}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {displayTracks.map(renderSoundCard)}
+          </div>
+        )}
 
         {/* Show More / Less */}
-        {filteredTracks.length > 6 && (
+        {canToggleShowAllTracks && (
           <button
             onClick={() => setShowAllSounds(!showAllSounds)}
             className="w-full mt-2 py-1.5 text-[10px] font-semibold text-primary hover:text-primary-light transition-colors flex items-center justify-center gap-1"
@@ -1505,15 +1821,19 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             className="flex-1 bg-surface-dark border border-white/5 rounded-lg px-3 py-2 text-[11px] text-white placeholder-muted/50 focus:outline-none focus:border-primary/40 transition-colors"
           />
           <button
-            onClick={handleYoutubePlay}
-            disabled={!youtubeUrl.trim() || isStartingYouTube}
-            className={`px-3 rounded-lg flex items-center justify-center transition-colors ${youtubeUrl.trim() && !isStartingYouTube
-              ? 'bg-red-500/20 text-red-400 border border-red-500/20 hover:bg-red-500/30'
-              : 'bg-white/5 text-muted/30 border border-white/5'
-              }`}
+            onClick={handleYoutubeToggle}
+            disabled={isStartingYouTube || (!isYouTubeStreamActive && !youtubeUrl.trim())}
+            className={`px-3 rounded-lg flex items-center justify-center transition-colors ${
+              isYouTubeStreamActive
+                ? 'bg-red-500/20 text-red-400 border border-red-500/20 hover:bg-red-500/30'
+                : youtubeUrl.trim() && !isStartingYouTube
+                  ? 'bg-red-500/20 text-red-400 border border-red-500/20 hover:bg-red-500/30'
+                  : 'bg-white/5 text-muted/30 border border-white/5'
+            }`}
+            title={isYouTubeStreamActive ? 'Turn YouTube off' : 'Start YouTube stream'}
           >
             <span className={`material-symbols-outlined text-base ${isStartingYouTube ? 'animate-spin' : ''}`}>
-              {isStartingYouTube ? 'progress_activity' : 'play_circle'}
+              {isStartingYouTube ? 'progress_activity' : isYouTubeStreamActive ? 'stop_circle' : 'play_circle'}
             </span>
           </button>
         </div>
