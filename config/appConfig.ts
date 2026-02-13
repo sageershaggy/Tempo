@@ -154,8 +154,8 @@ export interface DefaultsConfig {
 export const defaultAppConfig: AppConfig = {
   app: {
     name: 'Tempo Focus',
-    version: '1.0.0',
-    build: 1,
+    version: '1.0.2',
+    build: 2,
     chromeWebStoreUrl: 'https://chrome.google.com/webstore/category/extensions',
   },
 

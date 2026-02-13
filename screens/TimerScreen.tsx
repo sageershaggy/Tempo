@@ -92,6 +92,7 @@ const saveTimerPresets = (presets: TimerPreset[]) => {
 };
 
 export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState, currentTask, tasks, setTasks, setCurrentTask }) => {
+  const REAL_RECORDING_TRACK_IDS = new Set(['6', '7', '11', '12', '13', '14', '15']);
   // Load configuration dynamically
   const config = configManager.getConfig();
   const [templates, setTemplates] = useState<TimerPreset[]>(() =>
@@ -1401,7 +1402,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           {track.hz ? (
             <p className="text-[9px] font-bold text-secondary">{track.hz}</p>
           ) : (
-            <p className="text-[9px] text-muted">{track.category}</p>
+            <p className="text-[9px] text-muted">
+              {track.category}{REAL_RECORDING_TRACK_IDS.has(track.id) ? ' - Real recording' : ''}
+            </p>
           )}
         </div>
       </button>

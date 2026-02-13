@@ -29,3 +29,12 @@ Example redirect URI (from extension id `ifegjpnhaflnjdjbdijeaghapkfpjbbg`):
 ## Notes
 - SSO code paths are in `services/authService.ts` and `services/googleTasks.ts`.
 - YouTube + focus audio persistence are handled by `public/background.js` and `public/offscreen.js`.
+
+## Versioning
+- Extension version source of truth: `public/manifest.json`
+- App runtime version: `config/appConfig.ts`
+- Package version: `package.json`
+
+## Release Notes
+- Current release notes: `RELEASE_NOTES_1.0.2.md`
+- Changelog history: `CHANGELOG.md`
