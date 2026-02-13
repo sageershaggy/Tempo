@@ -3,6 +3,8 @@
 let offscreenCreated = false;
 let statsRecordedForCurrentSession = false; // Prevent double-counting stats
 
+// YouTube playback is handled by the offscreen document via iframe
+
 // Create offscreen document for persistent audio playback
 async function ensureOffscreenDocument() {
   if (offscreenCreated) return;
@@ -275,9 +277,27 @@ function updateTimerBadge() {
         } catch (e) {
           console.error('[Tempo] Failed to update stats from background:', e);
         }
+
+        // Compute and store break info for alarm page (badge handler path)
+        try {
+          const settingsData = await chrome.storage.sync.get(['settings']);
+          const settings = settingsData.settings || {};
+          const longBreakInterval = settings.longBreakInterval || 4;
+          const longBreakDuration = settings.longBreak || 15;
+          const shortBreakDuration = settings.shortBreak || 5;
+          const isLongBreak = longBreakInterval > 0 && newSessionCount > 0 && newSessionCount % longBreakInterval === 0;
+          const breakDurationMinutes = isLongBreak ? longBreakDuration : shortBreakDuration;
+          await chrome.storage.local.set({
+            nextBreakDuration: breakDurationMinutes,
+            nextBreakIsLong: isLongBreak
+          });
+          console.log('[Tempo] Break info stored from badge handler:', breakDurationMinutes, 'isLong:', isLongBreak);
+        } catch (e) {
+          console.error('[Tempo] Failed to store break info from badge handler:', e);
+        }
       }
 
-      // Open the alarm page
+      // Open the alarm page (after break info is stored if applicable)
       chrome.tabs.create({
         url: `alarm.html?mode=${mode}&duration=${duration}`,
         active: true
@@ -482,7 +502,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  // --- YouTube commands ---
+  // --- YouTube commands (forwarded to offscreen document) ---
   if (request.action === 'youtube-play') {
     sendToOffscreen({
       target: 'offscreen-audio',
@@ -634,14 +654,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         } catch (e) {
           console.error('[Tempo] Failed to update stats from timerComplete:', e);
         }
-      })();
-    }
 
-    // Open the alarm page in a new tab - this is the main notification!
-    chrome.tabs.create({
-      url: `alarm.html?mode=${mode}&duration=${duration}`,
-      active: true  // Bring to focus
-    });
+        // Open the alarm page AFTER break info is stored (avoids race condition)
+        chrome.tabs.create({
+          url: `alarm.html?mode=${mode}&duration=${duration}`,
+          active: true
+        });
+      })();
+    } else {
+      // Break completed or stats already recorded — open alarm immediately
+      chrome.tabs.create({
+        url: `alarm.html?mode=${mode}&duration=${duration}`,
+        active: true
+      });
+    }
 
     // Also show a Chrome notification as backup (in case alarm page is blocked)
     chrome.notifications.create('timerComplete-' + Date.now(), {

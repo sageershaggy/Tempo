@@ -866,84 +866,59 @@ function playReminderBeep() {
 }
 
 // ============================================================================
-// YOUTUBE PLAYBACK - Persistent YouTube audio via offscreen iframe
+// YOUTUBE PLAYBACK - iframe in offscreen document
 // ============================================================================
 
 let youtubeVideoId = null;
-let youtubeIsPlaying = false;
-
-// Get reference to the sandbox iframe for YouTube playback
-function getYouTubeSandbox() {
-  return document.getElementById('youtube-sandbox');
-}
-
-// Listen for messages from the YouTube sandbox iframe
-window.addEventListener('message', function(event) {
-  const data = event.data;
-  if (!data || !data.type) return;
-
-  switch (data.type) {
-    case 'yt-api-ready':
-      console.log('[Tempo] YouTube sandbox API ready');
-      break;
-    case 'yt-playing':
-      youtubeIsPlaying = true;
-      console.log('[Tempo] YouTube playing:', data.videoId);
-      break;
-    case 'yt-stopped':
-      youtubeIsPlaying = false;
-      console.log('[Tempo] YouTube stopped');
-      break;
-    case 'yt-state':
-      // State 1 = playing, 2 = paused, 0 = ended
-      youtubeIsPlaying = data.state === 1 || data.state === 3;
-      break;
-    case 'yt-error':
-      console.error('[Tempo] YouTube error:', data.error);
-      youtubeIsPlaying = false;
-      break;
-    case 'yt-status-response':
-      // Handled by specific status request callbacks
-      break;
-  }
-});
+let youtubeIframe = null;
 
 function playYouTube(videoId) {
-  youtubeVideoId = videoId;
-  youtubeIsPlaying = true;
+  // Stop any existing YouTube playback first
+  stopYouTube();
 
-  const sandbox = getYouTubeSandbox();
-  if (!sandbox) {
-    console.error('[Tempo] YouTube sandbox iframe not found in offscreen document');
+  youtubeVideoId = videoId;
+  const container = document.getElementById('youtube-container');
+  if (!container) {
+    console.error('[Tempo] YouTube container not found in offscreen document');
     return;
   }
 
-  sandbox.contentWindow.postMessage({ type: 'yt-play', videoId: videoId }, '*');
-  console.log('[Tempo] YouTube play command sent to sandbox:', videoId);
+  // Create a fresh iframe with YouTube embed
+  const iframe = document.createElement('iframe');
+  iframe.id = 'youtube-player';
+  iframe.width = '640';
+  iframe.height = '360';
+  iframe.allow = 'autoplay; encrypted-media';
+  iframe.setAttribute('allowfullscreen', '');
+  // Use youtube-nocookie for privacy + autoplay=1 + loop with playlist for repeat
+  iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&modestbranding=1&rel=0`;
+
+  container.innerHTML = '';
+  container.appendChild(iframe);
+  youtubeIframe = iframe;
+
+  console.log('[Tempo] YouTube iframe created for video:', videoId);
 }
 
 function stopYouTube() {
-  const sandbox = getYouTubeSandbox();
-  if (sandbox) {
-    sandbox.contentWindow.postMessage({ type: 'yt-stop' }, '*');
+  if (youtubeIframe) {
+    try {
+      youtubeIframe.src = '';
+      youtubeIframe.remove();
+    } catch (e) {}
+    youtubeIframe = null;
   }
+  const container = document.getElementById('youtube-container');
+  if (container) container.innerHTML = '';
   youtubeVideoId = null;
-  youtubeIsPlaying = false;
-  console.log('[Tempo] YouTube playback stopped');
+  console.log('[Tempo] YouTube stopped');
 }
 
 function getYouTubeStatus() {
   return {
-    isPlaying: youtubeIsPlaying && !!youtubeVideoId,
+    isPlaying: !!youtubeVideoId && !!youtubeIframe,
     videoId: youtubeVideoId
   };
-}
-
-function setYouTubeVolume(volume) {
-  const sandbox = getYouTubeSandbox();
-  if (sandbox) {
-    sandbox.contentWindow.postMessage({ type: 'yt-volume', volume: Math.round(volume * 100) }, '*');
-  }
 }
 
 console.log('[Tempo] Offscreen audio engine loaded');
