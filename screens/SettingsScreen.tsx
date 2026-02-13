@@ -384,15 +384,15 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
             {/* Health & Wellness */}
             <div
               className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
-              onClick={() => setScreen(Screen.HEALTH)}
+              onClick={() => setScreen(Screen.HEALTH_REMINDERS)}
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
                   <span className="material-symbols-outlined text-green-400">favorite</span>
                 </div>
                 <div>
-                  <p className="text-sm font-bold">Health Reminders</p>
-                  <p className="text-[10px] text-muted">Screen breaks, water, stretching & more</p>
+                  <p className="text-sm font-bold">Health Reminder Settings</p>
+                  <p className="text-[10px] text-muted">Configure intervals, counts, and wellness reminders</p>
                 </div>
               </div>
               <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>

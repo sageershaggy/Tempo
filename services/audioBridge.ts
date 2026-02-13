@@ -4,6 +4,7 @@
 import { BinauralRange } from './soundGenerator';
 
 const isChromeExtension = typeof chrome !== 'undefined' && chrome.runtime?.sendMessage;
+const YOUTUBE_UNAVAILABLE_ERROR = 'YouTube audio is only available in the Chrome extension.';
 
 // Send message to background/offscreen with fallback
 const sendAudioMessage = (message: any): Promise<any> => {
@@ -62,6 +63,40 @@ export const getOffscreenStatus = async (): Promise<{ isPlaying: boolean; trackI
     isPlaying: response?.isPlaying || false,
     trackId: response?.trackId || null,
     volume: response?.volume || 0.5,
+  };
+};
+
+export interface YouTubePlaybackResult {
+  success: boolean;
+  videoId?: string | null;
+  error?: string;
+}
+
+export interface YouTubeOffscreenStatus {
+  isPlaying: boolean;
+  videoId: string | null;
+  error?: string | null;
+}
+
+export const playYouTubeOffscreen = async (videoId: string): Promise<YouTubePlaybackResult> => {
+  const response = await sendAudioMessage({ action: 'youtube-play', videoId });
+  if (response?.success) {
+    return { success: true, videoId: response.videoId || videoId };
+  }
+  return { success: false, error: response?.error || YOUTUBE_UNAVAILABLE_ERROR };
+};
+
+export const stopYouTubeOffscreen = async (): Promise<boolean> => {
+  const response = await sendAudioMessage({ action: 'youtube-stop' });
+  return response?.success || false;
+};
+
+export const getYouTubeOffscreenStatus = async (): Promise<YouTubeOffscreenStatus> => {
+  const response = await sendAudioMessage({ action: 'youtube-status' });
+  return {
+    isPlaying: !!response?.isPlaying,
+    videoId: response?.videoId || null,
+    error: response?.error || null,
   };
 };
 

@@ -4,7 +4,16 @@ import { configManager, AudioTrackConfig } from '../config';
 import { STORAGE_KEYS, formatTimer, UI_DIMENSIONS, extractYouTubeId } from '../config/constants';
 import { getSettings } from '../services/storageService';
 import { playSound, stopSound, setVolume as setSoundVolume, isBuiltInTrack } from '../services/soundGenerator';
-import { playOffscreen, stopOffscreen, setOffscreenVolume, getOffscreenStatus, isOffscreenAvailable } from '../services/audioBridge';
+import {
+  playOffscreen,
+  stopOffscreen,
+  setOffscreenVolume,
+  getOffscreenStatus,
+  isOffscreenAvailable,
+  playYouTubeOffscreen,
+  stopYouTubeOffscreen,
+  getYouTubeOffscreenStatus,
+} from '../services/audioBridge';
 import { googleTasksService } from '../services/googleTasks';
 
 // Use offscreen audio when available (Chrome extension), fallback to direct Web Audio
@@ -35,6 +44,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const [soundFilter, setSoundFilter] = useState('All');
   const [showAllSounds, setShowAllSounds] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
+  const [isStartingYouTube, setIsStartingYouTube] = useState(false);
+  const [audioStatusHydrated, setAudioStatusHydrated] = useState(!useOffscreen);
+  const hasHandledInitialAudioEffect = useRef(false);
 
   // Task Selector State
   const [showTaskSelector, setShowTaskSelector] = useState(false);
@@ -817,34 +831,55 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
   // On mount, check if offscreen audio is already playing (persisted from previous popup open)
   useEffect(() => {
-    if (useOffscreen) {
-      // Check built-in audio status
-      getOffscreenStatus().then(status => {
-        if (status.isPlaying && status.trackId) {
+    let cancelled = false;
+
+    const syncOffscreenAudioState = async () => {
+      if (!useOffscreen) {
+        setAudioStatusHydrated(true);
+        return;
+      }
+
+      try {
+        const [builtInStatus, youtubeStatus] = await Promise.all([
+          getOffscreenStatus(),
+          getYouTubeOffscreenStatus(),
+        ]);
+
+        if (cancelled) return;
+
+        if (youtubeStatus.error) {
+          setYoutubeError(youtubeStatus.error);
+        }
+
+        if (youtubeStatus.isPlaying && youtubeStatus.videoId) {
           setAudioState(prev => ({
             ...prev,
             isPlaying: true,
-            activeTrackId: status.trackId,
+            activeTrackId: null,
+            youtubeId: youtubeStatus.videoId,
+          }));
+        } else if (builtInStatus.isPlaying && builtInStatus.trackId) {
+          setAudioState(prev => ({
+            ...prev,
+            isPlaying: true,
+            activeTrackId: builtInStatus.trackId,
+            youtubeId: null,
           }));
         }
-      });
-      // Check YouTube status
-      const w = window as any;
-      if (w.chrome?.runtime?.sendMessage) {
-        w.chrome.runtime.sendMessage({ action: 'youtube-status' }, (response: any) => {
-          if (w.chrome?.runtime?.lastError) return;
-          if (response?.isPlaying && response?.videoId) {
-            setAudioState(prev => ({
-              ...prev,
-              isPlaying: true,
-              activeTrackId: null,
-              youtubeId: response.videoId,
-            }));
-          }
-        });
+      } catch (e) {
+        console.error('[Tempo] Failed to sync offscreen audio state:', e);
+      } finally {
+        if (!cancelled) {
+          setAudioStatusHydrated(true);
+        }
       }
-    }
-  }, []);
+    };
+
+    syncOffscreenAudioState();
+    return () => {
+      cancelled = true;
+    };
+  }, [setAudioState]);
 
   // Sync volume changes
   useEffect(() => {
@@ -861,21 +896,31 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
   // Stop sound when audioState says not playing
   useEffect(() => {
+    if (!audioStatusHydrated) return;
+
+    if (!hasHandledInitialAudioEffect.current) {
+      hasHandledInitialAudioEffect.current = true;
+      return;
+    }
+
     if (!audioState.isPlaying) {
       if (useOffscreen) {
         stopOffscreen();
+        stopYouTubeOffscreen();
       } else {
         stopSound();
       }
     }
-  }, [audioState.isPlaying]);
+  }, [audioState.isPlaying, audioStatusHydrated]);
 
   // Handle toggling a track
   const handleToggleTrack = async (track: AudioTrackConfig) => {
+    setAudioError(null);
     const isCurrent = audioState.activeTrackId === track.id && audioState.isPlaying;
     if (isCurrent) {
       if (useOffscreen) {
         await stopOffscreen();
+        await stopYouTubeOffscreen();
       } else {
         stopSound();
       }
@@ -883,17 +928,32 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     } else {
       if (useOffscreen) {
         await stopOffscreen();
+        await stopYouTubeOffscreen();
       } else {
         stopSound();
       }
+      let started = false;
       if (isBuiltInTrack(track.id)) {
         const vol = (audioState.trackSettings[track.id]?.volume ?? 50) / 100 * (audioState.volume / 100);
         if (useOffscreen) {
-          await playOffscreen(track.id, Math.max(0.01, vol));
+          started = await playOffscreen(track.id, Math.max(0.01, vol));
         } else {
           await playSound(track.id, Math.max(0.01, vol));
+          started = true;
         }
       }
+
+      if (!started) {
+        setAudioError(`Could not start "${track.name}".`);
+        setAudioState(prev => ({
+          ...prev,
+          isPlaying: false,
+          activeTrackId: null,
+          youtubeId: null,
+        }));
+        return;
+      }
+
       setAudioState(prev => ({
         ...prev,
         isPlaying: true,
@@ -904,32 +964,46 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   };
 
   const handleYoutubePlay = async () => {
+    setYoutubeError(null);
     const videoId = extractYouTubeId(youtubeUrl);
-    if (videoId) {
+    if (!videoId) {
+      setYoutubeError('Please enter a valid YouTube link.');
+      return;
+    }
+
+    if (!useOffscreen) {
+      setYoutubeError('YouTube streaming is available in the Chrome extension build.');
+      return;
+    }
+
+    setIsStartingYouTube(true);
+    try {
       // Stop any currently playing sound first
-      if (useOffscreen) { await stopOffscreen(); } else { stopSound(); }
-      // Also stop any existing YouTube playback, then start new one
-      const w = window as any;
-      if (useOffscreen && w.chrome?.runtime?.sendMessage) {
-        w.chrome.runtime.sendMessage({ action: 'youtube-stop' }, () => {
-          if (w.chrome?.runtime?.lastError) { /* ignore */ }
-        });
+      await stopOffscreen();
+      await stopYouTubeOffscreen();
+
+      const result = await playYouTubeOffscreen(videoId);
+      if (!result.success) {
+        setYoutubeError(result.error || 'Failed to start YouTube stream.');
+        setAudioState(prev => ({
+          ...prev,
+          isPlaying: false,
+          activeTrackId: null,
+          youtubeId: null,
+        }));
+        return;
       }
-      // Use offscreen document for persistent YouTube playback (survives popup close)
-      if (useOffscreen && w.chrome?.runtime?.sendMessage) {
-        w.chrome.runtime.sendMessage({ action: 'youtube-play', videoId }, (response: any) => {
-          if (w.chrome?.runtime?.lastError) {
-            console.error('[Tempo] YouTube play error:', w.chrome.runtime.lastError.message);
-          }
-        });
-      }
+
       setAudioState(prev => ({
         ...prev,
         isPlaying: true,
         activeTrackId: null,
         youtubeId: videoId,
       }));
+      setAudioError(null);
       setYoutubeUrl('');
+    } finally {
+      setIsStartingYouTube(false);
     }
   };
 
@@ -1005,24 +1079,46 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       </div>
 
       {/* Template Switcher */}
-      <div className="flex p-0.5 bg-surface-dark rounded-lg mb-3 border border-white/5">
-        {templates.map((tmpl) => {
-          const isCurrentTemplate = activeTemplateId === tmpl.id;
-          const isDisabled = (isActive || timerMode === 'break') && !isCurrentTemplate;
-          return (
-            <button
-              key={tmpl.id}
-              onClick={() => {
-                if (!isDisabled) setActiveTemplateId(tmpl.id);
-              }}
-              disabled={isDisabled}
-              className={`flex-1 py-1.5 rounded-md text-[11px] font-semibold transition-all ${isCurrentTemplate ? 'bg-primary text-white shadow-md shadow-primary/25' : isDisabled ? 'text-muted/40 cursor-not-allowed' : 'text-muted hover:text-white/70'}`}
-            >
-              {tmpl.id === 'custom' ? `${userFocusDuration}/${userBreakDuration}` : tmpl.label}
-            </button>
-          );
-        })}
+      <div className="rounded-lg mb-2 border border-white/5 bg-surface-dark p-0.5">
+        <div className="overflow-x-auto no-scrollbar">
+          <div className="flex min-w-max gap-1">
+            {templates.map((tmpl) => {
+              const isCurrentTemplate = activeTemplateId === tmpl.id;
+              const isDisabled = (isActive || timerMode === 'break') && !isCurrentTemplate;
+              const isCustomTemplate = tmpl.id === 'custom';
+              return (
+                <button
+                  key={tmpl.id}
+                  onClick={() => {
+                    if (!isDisabled) setActiveTemplateId(tmpl.id);
+                  }}
+                  disabled={isDisabled}
+                  title={isCustomTemplate ? `Custom ${userFocusDuration}/${userBreakDuration}` : tmpl.label}
+                  className={`shrink-0 min-w-[78px] px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap ${isCurrentTemplate ? 'bg-primary text-white shadow-md shadow-primary/25' : isDisabled ? 'text-muted/40 cursor-not-allowed' : 'text-muted hover:text-white/70'}`}
+                >
+                  {isCustomTemplate ? 'Custom' : tmpl.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
+
+      <button
+        onClick={() => setScreen(Screen.SETTINGS)}
+        className={`w-full mb-3 rounded-lg border px-3 py-1.5 text-[10px] font-semibold transition-colors text-left flex items-center justify-between ${
+          activeTemplateId === 'custom'
+            ? 'border-primary/15 bg-primary/5 text-primary hover:bg-primary/10'
+            : 'border-white/10 bg-white/5 text-muted hover:bg-white/10 hover:text-white/80'
+        }`}
+      >
+        <span>
+          {activeTemplateId === 'custom'
+            ? `Custom timer: ${userFocusDuration} / ${userBreakDuration} min`
+            : 'Timer settings and custom durations'}
+        </span>
+        <span className="material-symbols-outlined text-[14px]">edit_calendar</span>
+      </button>
 
       {/* Timer Circle */}
       <div className="flex flex-col items-center justify-center py-2">
@@ -1373,6 +1469,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             <span className="material-symbols-outlined text-xs">{showAllSounds ? 'expand_less' : 'expand_more'}</span>
           </button>
         )}
+        {audioError && (
+          <p className="mt-2 text-[10px] text-red-400">{audioError}</p>
+        )}
 
         {/* Volume Control (shows when something is playing) */}
         {(audioState.isPlaying && (audioState.activeTrackId || audioState.youtubeId)) && (
@@ -1398,21 +1497,29 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             type="text"
             placeholder="Paste YouTube link for custom audio..."
             value={youtubeUrl}
-            onChange={(e) => setYoutubeUrl(e.target.value)}
+            onChange={(e) => {
+              setYoutubeUrl(e.target.value);
+              if (youtubeError) setYoutubeError(null);
+            }}
             onKeyDown={(e) => e.key === 'Enter' && handleYoutubePlay()}
             className="flex-1 bg-surface-dark border border-white/5 rounded-lg px-3 py-2 text-[11px] text-white placeholder-muted/50 focus:outline-none focus:border-primary/40 transition-colors"
           />
           <button
             onClick={handleYoutubePlay}
-            disabled={!youtubeUrl.trim()}
-            className={`px-3 rounded-lg flex items-center justify-center transition-colors ${youtubeUrl.trim()
+            disabled={!youtubeUrl.trim() || isStartingYouTube}
+            className={`px-3 rounded-lg flex items-center justify-center transition-colors ${youtubeUrl.trim() && !isStartingYouTube
               ? 'bg-red-500/20 text-red-400 border border-red-500/20 hover:bg-red-500/30'
               : 'bg-white/5 text-muted/30 border border-white/5'
               }`}
           >
-            <span className="material-symbols-outlined text-base">play_circle</span>
+            <span className={`material-symbols-outlined text-base ${isStartingYouTube ? 'animate-spin' : ''}`}>
+              {isStartingYouTube ? 'progress_activity' : 'play_circle'}
+            </span>
           </button>
         </div>
+        {youtubeError && (
+          <p className="mt-1 text-[10px] text-red-400">{youtubeError}</p>
+        )}
 
         {/* YouTube Now Playing */}
         {audioState.isPlaying && audioState.youtubeId && !audioState.activeTrackId && (
@@ -1421,13 +1528,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             <span className="material-symbols-outlined text-xs text-red-400">smart_display</span>
             <span className="text-[10px] font-semibold text-white/70 flex-1">YouTube Audio Playing</span>
             <button
-              onClick={() => {
+              onClick={async () => {
                 // Stop YouTube in offscreen document
-                const w = window as any;
-                if (useOffscreen && w.chrome?.runtime?.sendMessage) {
-                  w.chrome.runtime.sendMessage({ action: 'youtube-stop' }, () => {});
+                if (useOffscreen) {
+                  await stopYouTubeOffscreen();
                 }
                 setAudioState(prev => ({ ...prev, isPlaying: false, youtubeId: null }));
+                setYoutubeError(null);
               }}
               className="w-5 h-5 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10"
             >

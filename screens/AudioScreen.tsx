@@ -1,15 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Screen, AudioState, GlobalProps } from '../types';
 import { configManager, AudioTrackConfig } from '../config';
 import { extractYouTubeId } from '../config/constants';
 import { playSound, stopSound, setVolume as setSoundVolume, isBuiltInTrack, isBinauralTrack, switchBinauralRange, getBinauralRange, getBinauralRangeInfo, BinauralRange } from '../services/soundGenerator';
-import { playOffscreen, stopOffscreen, setOffscreenVolume, switchOffscreenRange, isOffscreenAvailable } from '../services/audioBridge';
+import {
+  playOffscreen,
+  stopOffscreen,
+  setOffscreenVolume,
+  switchOffscreenRange,
+  isOffscreenAvailable,
+  getOffscreenStatus,
+  getYouTubeOffscreenStatus,
+  playYouTubeOffscreen,
+  stopYouTubeOffscreen,
+} from '../services/audioBridge';
 
 const useOffscreen = isOffscreenAvailable();
 
 export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState }) => {
   const [filter, setFilter] = useState('All');
   const [youtubeInput, setYoutubeInput] = useState('');
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
+  const [trackError, setTrackError] = useState<string | null>(null);
+  const [isStartingYouTube, setIsStartingYouTube] = useState(false);
+  const [audioStatusHydrated, setAudioStatusHydrated] = useState(!useOffscreen);
+  const hasHandledInitialAudioEffect = useRef(false);
   // Track active binaural range per track for UI updates
   const [rangeLabels, setRangeLabels] = useState<Record<string, string>>({});
 
@@ -34,20 +49,43 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   };
 
   const toggleTrack = async (track: AudioTrackConfig) => {
+      setTrackError(null);
       const isCurrent = audioState.activeTrackId === track.id;
       if (isCurrent && audioState.isPlaying) {
-          if (useOffscreen) { await stopOffscreen(); } else { stopSound(); }
+          if (useOffscreen) {
+            await stopOffscreen();
+            await stopYouTubeOffscreen();
+          } else {
+            stopSound();
+          }
           setAudioState(prev => ({ ...prev, isPlaying: false }));
       } else {
-          if (useOffscreen) { await stopOffscreen(); } else { stopSound(); }
-          if (isBuiltInTrack(track.id)) {
-              const trackVolume = (audioState.trackSettings[track.id]?.volume ?? 50) / 100 * (audioState.volume / 100);
-              if (useOffscreen) {
-                await playOffscreen(track.id, trackVolume);
-              } else {
-                playSound(track.id, trackVolume);
-              }
+          if (useOffscreen) {
+            await stopOffscreen();
+            await stopYouTubeOffscreen();
+          } else {
+            stopSound();
           }
+          const trackVolume = (audioState.trackSettings[track.id]?.volume ?? 50) / 100 * (audioState.volume / 100);
+          let started = false;
+          if (useOffscreen) {
+            started = await playOffscreen(track.id, trackVolume);
+          } else if (isBuiltInTrack(track.id)) {
+            await playSound(track.id, trackVolume);
+            started = true;
+          }
+
+          if (!started) {
+            setTrackError(`"${track.name}" is not available yet.`);
+            setAudioState(prev => ({
+              ...prev,
+              isPlaying: false,
+              activeTrackId: null,
+              youtubeId: null,
+            }));
+            return;
+          }
+
           setAudioState(prev => ({
               ...prev,
               isPlaying: true,
@@ -68,46 +106,120 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     }
   };
 
-  const handleYoutubePlay = async () => {
-      const videoId = extractYouTubeId(youtubeInput);
-      if (videoId) {
-          // Stop any currently playing sound first
-          if (useOffscreen) { await stopOffscreen(); } else { stopSound(); }
-          // Also stop any existing YouTube playback
-          const w = window as any;
-          if (useOffscreen && w.chrome?.runtime?.sendMessage) {
-            w.chrome.runtime.sendMessage({ action: 'youtube-stop' }, () => {
-              if (w.chrome?.runtime?.lastError) { /* ignore */ }
-            });
-          }
-          // Use offscreen document for persistent YouTube playback
-          if (useOffscreen && w.chrome?.runtime?.sendMessage) {
-            w.chrome.runtime.sendMessage({ action: 'youtube-play', videoId }, (response: any) => {
-              if (w.chrome?.runtime?.lastError) {
-                console.error('[Tempo] YouTube play error:', w.chrome.runtime.lastError.message);
-              } else {
-                console.log('[Tempo] YouTube play response:', response);
-              }
-            });
-          }
+  // On mount, sync persisted offscreen audio state
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncOffscreenAudioState = async () => {
+      if (!useOffscreen) {
+        setAudioStatusHydrated(true);
+        return;
+      }
+
+      try {
+        const [builtInStatus, youtubeStatus] = await Promise.all([
+          getOffscreenStatus(),
+          getYouTubeOffscreenStatus(),
+        ]);
+
+        if (cancelled) return;
+
+        if (youtubeStatus.error) {
+          setYoutubeError(youtubeStatus.error);
+        }
+
+        if (youtubeStatus.isPlaying && youtubeStatus.videoId) {
           setAudioState(prev => ({
-              ...prev,
-              isPlaying: true,
-              activeTrackId: null, // Clear regular track
-              youtubeId: videoId
+            ...prev,
+            isPlaying: true,
+            activeTrackId: null,
+            youtubeId: youtubeStatus.videoId,
           }));
-          setYoutubeInput('');
-      } else {
-          alert("Please enter a valid YouTube URL");
+        } else if (builtInStatus.isPlaying && builtInStatus.trackId) {
+          setAudioState(prev => ({
+            ...prev,
+            isPlaying: true,
+            activeTrackId: builtInStatus.trackId,
+            youtubeId: null,
+          }));
+        }
+      } catch (e) {
+        console.error('[Tempo] Failed to sync offscreen audio state:', e);
+      } finally {
+        if (!cancelled) {
+          setAudioStatusHydrated(true);
+        }
+      }
+    };
+
+    syncOffscreenAudioState();
+    return () => {
+      cancelled = true;
+    };
+  }, [setAudioState]);
+
+  const handleYoutubePlay = async () => {
+      setYoutubeError(null);
+      const videoId = extractYouTubeId(youtubeInput);
+      if (!videoId) {
+          setYoutubeError('Please enter a valid YouTube URL.');
+          return;
+      }
+
+      if (!useOffscreen) {
+        setYoutubeError('YouTube streaming is available in the Chrome extension build.');
+        return;
+      }
+
+      setIsStartingYouTube(true);
+      try {
+        // Stop any currently playing sound first
+        await stopOffscreen();
+        await stopYouTubeOffscreen();
+
+        const result = await playYouTubeOffscreen(videoId);
+        if (!result.success) {
+          setYoutubeError(result.error || 'Failed to start YouTube stream.');
+          setAudioState(prev => ({
+            ...prev,
+            isPlaying: false,
+            activeTrackId: null,
+            youtubeId: null,
+          }));
+          return;
+        }
+
+        setAudioState(prev => ({
+            ...prev,
+            isPlaying: true,
+            activeTrackId: null, // Clear regular track
+            youtubeId: videoId
+        }));
+        setTrackError(null);
+        setYoutubeInput('');
+      } finally {
+        setIsStartingYouTube(false);
       }
   };
 
   // Stop built-in sound when audio is paused externally
   useEffect(() => {
-    if (!audioState.isPlaying) {
-      if (useOffscreen) { stopOffscreen(); } else { stopSound(); }
+    if (!audioStatusHydrated) return;
+
+    if (!hasHandledInitialAudioEffect.current) {
+      hasHandledInitialAudioEffect.current = true;
+      return;
     }
-  }, [audioState.isPlaying]);
+
+    if (!audioState.isPlaying) {
+      if (useOffscreen) {
+        stopOffscreen();
+        stopYouTubeOffscreen();
+      } else {
+        stopSound();
+      }
+    }
+  }, [audioState.isPlaying, audioStatusHydrated]);
 
   // Sync volume changes to the active built-in sound
   useEffect(() => {
@@ -209,17 +321,30 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                         type="text"
                         placeholder="Paste YouTube Link..."
                         value={youtubeInput}
-                        onChange={(e) => setYoutubeInput(e.target.value)}
+                        onChange={(e) => {
+                          setYoutubeInput(e.target.value);
+                          if (youtubeError) setYoutubeError(null);
+                        }}
                         className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 text-xs text-white focus:outline-none focus:border-primary/50"
                     />
                     <button
                         onClick={handleYoutubePlay}
-                        className="px-3 py-2 bg-red-500/20 text-red-500 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition-colors"
+                        disabled={!youtubeInput.trim() || isStartingYouTube}
+                        className={`px-3 py-2 rounded-lg transition-colors ${
+                          youtubeInput.trim() && !isStartingYouTube
+                            ? 'bg-red-500/20 text-red-500 border border-red-500/30 hover:bg-red-500/30'
+                            : 'bg-white/5 text-muted/30 border border-white/10'
+                        }`}
                     >
-                        <span className="material-symbols-outlined text-lg">play_circle</span>
+                        <span className={`material-symbols-outlined text-lg ${isStartingYouTube ? 'animate-spin' : ''}`}>
+                          {isStartingYouTube ? 'progress_activity' : 'play_circle'}
+                        </span>
                     </button>
-                </div>
-            </div>
+                 </div>
+                 {youtubeError && (
+                   <p className="mt-2 text-[10px] text-red-400">{youtubeError}</p>
+                 )}
+             </div>
 
             {filteredTracks.map(track => {
                 const isActive = audioState.activeTrackId === track.id;
@@ -275,7 +400,11 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                                             const newVol = Number(e.target.value);
                                             updateTrackSetting(track.id, { volume: newVol });
                                             if (isBuiltInTrack(track.id) && audioState.isPlaying) {
-                                              setSoundVolume((newVol / 100) * (audioState.volume / 100));
+                                              if (useOffscreen) {
+                                                setOffscreenVolume((newVol / 100) * (audioState.volume / 100));
+                                              } else {
+                                                setSoundVolume((newVol / 100) * (audioState.volume / 100));
+                                              }
                                             }
                                         }}
                                         className="flex-1 h-1 bg-white/20 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary cursor-pointer"
@@ -317,6 +446,9 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                     </div>
                 );
             })}
+            {trackError && (
+              <p className="text-[10px] text-red-400 px-1">{trackError}</p>
+            )}
         </div>
 
         {/* Master Controls */}
