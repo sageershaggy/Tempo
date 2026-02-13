@@ -160,6 +160,7 @@ ADMIN: 'ADMIN',
   TERMS: 'TERMS',
   INTEGRATIONS: 'INTEGRATIONS',
   HEALTH: 'HEALTH',
+  HEALTH_REMINDERS: 'HEALTH_REMINDERS',
 } as const;
 
 export type ScreenId = typeof SCREENS[keyof typeof SCREENS];
@@ -170,6 +171,7 @@ export const SCREENS_WITHOUT_NAV: ScreenId[] = [
   SCREENS.LOGIN,
   SCREENS.ONBOARDING,
   SCREENS.QUICK_ADD,
+  SCREENS.HEALTH_REMINDERS,
 ];
 
 // ============================================================================
@@ -339,6 +341,46 @@ export function isValidLicenseFormat(key: string): boolean {
  * Extract YouTube video ID from URL
  */
 export function extractYouTubeId(url: string): string | null {
-  const match = url.match(PATTERNS.YOUTUBE_URL);
-  return match && match[2].length === 11 ? match[2] : null;
+  const value = url.trim();
+  if (!value) return null;
+
+  const isValidId = (id: string | null | undefined): id is string =>
+    !!id && /^[a-zA-Z0-9_-]{11}$/.test(id);
+
+  // Support direct video IDs
+  if (isValidId(value)) {
+    return value;
+  }
+
+  try {
+    // Support URLs pasted without scheme (example: youtube.com/watch?v=...)
+    const normalizedUrl = /^[a-z]+:\/\//i.test(value) ? value : `https://${value}`;
+    const parsed = new URL(normalizedUrl);
+    const hostname = parsed.hostname.toLowerCase().replace(/^www\./, '').replace(/^m\./, '');
+    const pathSegments = parsed.pathname.split('/').filter(Boolean);
+
+    if (hostname === 'youtu.be') {
+      const idFromShortLink = pathSegments[0];
+      return isValidId(idFromShortLink) ? idFromShortLink : null;
+    }
+
+    if (hostname.endsWith('youtube.com') || hostname === 'youtube-nocookie.com') {
+      const idFromQuery = parsed.searchParams.get('v');
+      if (isValidId(idFromQuery)) {
+        return idFromQuery;
+      }
+
+      const markerIndex = pathSegments.findIndex(segment => ['embed', 'shorts', 'live', 'v'].includes(segment));
+      if (markerIndex >= 0) {
+        const idFromPath = pathSegments[markerIndex + 1];
+        return isValidId(idFromPath) ? idFromPath : null;
+      }
+    }
+  } catch (e) {
+    // Fall through to regex fallback for unusual URL formats.
+  }
+
+  // Regex fallback for legacy or uncommon URL shapes.
+  const match = value.match(PATTERNS.YOUTUBE_URL);
+  return isValidId(match?.[2]) ? match[2] : null;
 }

@@ -164,6 +164,22 @@ export const playSound = async (trackId: string, volume: number = 0.5): Promise<
       createNoise(ctx, gainNode, 'pink');
       break;
 
+    // Ambience + music (procedural fallback generation)
+    case '6':  // Heavy Rain
+    case '11': // Forest Stream
+    case '13': // Crackling Fire
+    case '15': // Wind Chimes
+      createNoise(ctx, gainNode, 'pink');
+      break;
+    case '7':  // Coffee Shop
+    case '12': // Ocean Waves
+    case '18': // Lo-Fi Beats
+      createNoise(ctx, gainNode, 'brown');
+      break;
+    case '14': // Night Crickets
+      createNoise(ctx, gainNode, 'white');
+      break;
+
     default:
       // No built-in sound for this track
       gainNode.disconnect();
@@ -284,5 +300,5 @@ export const isSoundPlaying = (): boolean => isPlaying;
 export const getCurrentTrackId = (): string | null => currentTrackId;
 
 export const isBuiltInTrack = (trackId: string): boolean => {
-  return ['1', '2', '3', '4', '5', '8', '9', '10', '16', '17'].includes(trackId);
+  return ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18'].includes(trackId);
 };

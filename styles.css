@@ -43,6 +43,16 @@ html, body {
   overflow: hidden;
 }
 
+/* Open-in-tab mode should not inherit popup dimensions before JS class toggles */
+@media (min-width: 700px) and (min-height: 700px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100vh;
+  }
+}
+
 /* Dark mode (default) */
 html.dark body,
 body {
@@ -205,7 +215,8 @@ html:not(.dark) input[type="range"] {
 }
 
 /* Light mode - tab bar / navigation */
-html:not(.dark) .fixed.bottom-0 {
+html:not(.dark) .fixed.bottom-0,
+html:not(.dark) .absolute.bottom-0 {
   background-color: rgba(255, 255, 255, 0.95) !important;
   border-top-color: rgba(0, 0, 0, 0.1) !important;
 }
@@ -223,6 +234,23 @@ html:not(.dark) .bg-white\/20 {
 #root {
   width: 400px;
   height: 600px;
+  overflow: hidden;
+}
+
+/* Full-tab mode (when extension page is opened in browser tab) */
+html.tempo-full-tab,
+body.tempo-full-tab {
+  width: 100%;
+  height: 100vh;
+}
+
+body.tempo-full-tab {
+  overflow: hidden;
+}
+
+#root.tempo-full-tab {
+  width: 100%;
+  height: 100vh;
   overflow: hidden;
 }
 

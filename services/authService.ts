@@ -13,8 +13,10 @@ const TOKEN_KEY = 'tempo_google_token';
 
 // Primary Client ID (in manifest.json for getAuthToken)
 const MANIFEST_CLIENT_ID = '747255011734-l7k517kfa2908all500m6cmcs4iq1ugp.apps.googleusercontent.com';
-// Fallback Client ID (for launchWebAuthFlow when extension ID doesn't match)
-const FALLBACK_CLIENT_ID = '747255011734-08rlb67q18s1ia4r3gemjn5p4v0su5p4.apps.googleusercontent.com';
+// Optional Web OAuth client ID for launchWebAuthFlow fallback.
+const WEB_AUTH_FLOW_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_OAUTH_CLIENT_ID?.trim() || '';
+const HAS_WEB_AUTH_FLOW_CLIENT = WEB_AUTH_FLOW_CLIENT_ID.length > 0;
+const AUTH_FLOW_TIMEOUT_MS = 120000;
 
 const isChromeExtension = typeof chrome !== 'undefined' && chrome.identity?.getAuthToken;
 
@@ -61,25 +63,38 @@ class AuthService {
       return this.simulateLogin();
     }
 
+    let primaryFailureMessage = '';
     try {
       // Try primary method: chrome.identity.getAuthToken (uses manifest client_id)
       const token = await this.tryGetAuthToken();
       this.token = token;
     } catch (primaryError: any) {
-      console.warn('[Auth] getAuthToken failed, trying launchWebAuthFlow fallback:', primaryError.message);
+      primaryFailureMessage = this.formatAuthError(primaryError);
+      console.warn('[Auth] getAuthToken failed, trying launchWebAuthFlow fallback:', primaryFailureMessage);
 
-      // Fallback: launchWebAuthFlow with alternate client ID
-      // This works regardless of extension ID
+      if (primaryFailureMessage === 'Google sign-in was canceled or denied.') {
+        return { success: false, error: primaryFailureMessage };
+      }
+
+      if (!HAS_WEB_AUTH_FLOW_CLIENT) {
+        const redirectUrl = chrome.identity?.getRedirectURL?.() || 'https://<extension-id>.chromiumapp.org/';
+        return {
+          success: false,
+          error: `Google sign-in failed in extension auth. Configure VITE_GOOGLE_OAUTH_CLIENT_ID and add ${redirectUrl} to Authorized redirect URIs.`,
+        };
+      }
+
+      // Fallback: launchWebAuthFlow with OAuth client ID + Chrome redirect URL
       try {
         const token = await this.tryWebAuthFlow();
         this.token = token;
       } catch (fallbackError: any) {
-        console.error('[Auth] Both auth methods failed:', fallbackError);
-        let errorMessage = fallbackError.message || 'Sign-in failed';
-        if (errorMessage.toLowerCase().includes('bad client id')) {
-          errorMessage = 'OAuth configuration error. Please contact support.';
-        }
-        return { success: false, error: errorMessage };
+        const fallbackFailureMessage = this.formatAuthError(fallbackError);
+        console.error('[Auth] Both auth methods failed:', {
+          primaryError: primaryFailureMessage,
+          fallbackError: fallbackFailureMessage,
+        });
+        return { success: false, error: fallbackFailureMessage || primaryFailureMessage || 'Sign-in failed' };
       }
     }
 
@@ -126,9 +141,14 @@ class AuthService {
     });
   }
 
-  // Fallback auth: uses launchWebAuthFlow (works with any extension ID)
+  // Fallback auth: uses launchWebAuthFlow
   private tryWebAuthFlow(): Promise<string> {
     return new Promise((resolve, reject) => {
+      if (!HAS_WEB_AUTH_FLOW_CLIENT) {
+        reject(new Error('Missing VITE_GOOGLE_OAUTH_CLIENT_ID for web auth fallback.'));
+        return;
+      }
+
       const redirectUrl = chrome.identity.getRedirectURL();
       const scopes = encodeURIComponent([
         'https://www.googleapis.com/auth/userinfo.email',
@@ -136,11 +156,15 @@ class AuthService {
         'https://www.googleapis.com/auth/tasks'
       ].join(' '));
 
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${FALLBACK_CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=${scopes}`;
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(WEB_AUTH_FLOW_CLIENT_ID)}&response_type=token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=${scopes}&prompt=consent&include_granted_scopes=true`;
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Google sign-in timed out. Please try again.'));
+      }, AUTH_FLOW_TIMEOUT_MS);
 
       chrome.identity.launchWebAuthFlow(
         { url: authUrl, interactive: true },
         (responseUrl) => {
+          clearTimeout(timeoutId);
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
             return;
@@ -152,17 +176,43 @@ class AuthService {
 
           // Extract access_token from URL fragment
           const url = new URL(responseUrl);
-          const params = new URLSearchParams(url.hash.substring(1));
-          const token = params.get('access_token');
+          const hashParams = new URLSearchParams(url.hash.startsWith('#') ? url.hash.substring(1) : url.hash);
+          const token = hashParams.get('access_token') || url.searchParams.get('access_token');
 
           if (token) {
             resolve(token);
           } else {
-            reject(new Error('No access token in response'));
+            const oauthError = hashParams.get('error') || url.searchParams.get('error');
+            if (oauthError) {
+              reject(new Error(`Google OAuth error: ${oauthError}`));
+            } else {
+              reject(new Error('No access token in response'));
+            }
           }
         }
       );
     });
+  }
+
+  private formatAuthError(error: any): string {
+    const message = (error?.message || String(error) || 'Sign-in failed').trim();
+    const lower = message.toLowerCase();
+    const webClientLabel = WEB_AUTH_FLOW_CLIENT_ID || '<missing VITE_GOOGLE_OAUTH_CLIENT_ID>';
+
+    if (lower.includes('redirect_uri_mismatch')) {
+      const redirectUrl = chrome.identity?.getRedirectURL?.() || 'https://<extension-id>.chromiumapp.org/';
+      return `Google OAuth redirect_uri mismatch. Add ${redirectUrl} to authorized redirect URIs for client ${webClientLabel}.`;
+    }
+
+    if (lower.includes('bad client id') || lower.includes('invalid_client')) {
+      return `Google OAuth client ID is invalid or misconfigured (client: ${webClientLabel}).`;
+    }
+
+    if (lower.includes('access_denied')) {
+      return 'Google sign-in was canceled or denied.';
+    }
+
+    return message;
   }
 
   // Sign out - revoke token and clear state

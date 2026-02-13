@@ -21,6 +21,7 @@ import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen';
 import { TermsScreen } from './screens/TermsScreen';
 import { IntegrationsScreen } from './screens/IntegrationsScreen';
 import { HealthScreen } from './screens/HealthScreen';
+import { HealthRemindersScreen } from './screens/HealthRemindersScreen';
 import { configManager } from './config';
 import { STORAGE_KEYS, UI_DIMENSIONS, EXTERNAL_URLS } from './config/constants';
 import { getTasks, saveTasks, getSettings, getHealthSettings } from './services/storageService';
@@ -64,6 +65,7 @@ const SCREEN_ROUTES: Record<string, Screen> = {
   milestones: Screen.MILESTONES,
   calendar: Screen.CALENDAR,
   health: Screen.HEALTH,
+  'health-reminders': Screen.HEALTH_REMINDERS,
 };
 
 const App: React.FC = () => {
@@ -359,13 +361,43 @@ const App: React.FC = () => {
         return <IntegrationsScreen {...props} />;
       case Screen.HEALTH:
         return <HealthScreen {...props} />;
+      case Screen.HEALTH_REMINDERS:
+        return <HealthRemindersScreen {...props} />;
       default:
         return <TimerScreen {...props} />;
     }
   };
 
   // Detect if running in a full browser tab (not popup)
-  const [isFullTab] = useState(() => window.innerWidth > 500);
+  const [isFullTab, setIsFullTab] = useState(() =>
+    window.innerWidth > UI_DIMENSIONS.POPUP_WIDTH + 60 && window.innerHeight > UI_DIMENSIONS.POPUP_HEIGHT + 60
+  );
+
+  useEffect(() => {
+    const updateIsFullTab = () => {
+      setIsFullTab(
+        window.innerWidth > UI_DIMENSIONS.POPUP_WIDTH + 60 &&
+        window.innerHeight > UI_DIMENSIONS.POPUP_HEIGHT + 60
+      );
+    };
+
+    updateIsFullTab();
+    window.addEventListener('resize', updateIsFullTab);
+    return () => window.removeEventListener('resize', updateIsFullTab);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('tempo-full-tab', isFullTab);
+    document.body.classList.toggle('tempo-full-tab', isFullTab);
+    const root = document.getElementById('root');
+    if (root) root.classList.toggle('tempo-full-tab', isFullTab);
+
+    return () => {
+      document.documentElement.classList.remove('tempo-full-tab');
+      document.body.classList.remove('tempo-full-tab');
+      if (root) root.classList.remove('tempo-full-tab');
+    };
+  }, [isFullTab]);
 
   return (
     <div

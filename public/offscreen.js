@@ -188,23 +188,33 @@ async function playTrack(trackId, volume, range) {
     const preset = rangeMap[r];
     createBinaural(ctx, gainNode, preset.baseFreq, preset.baseFreq + preset.beatFreq);
     isPlaying = true;
-    return;
+    return true;
   }
 
   // Other tracks
   switch (trackId) {
     case '4': createTone(ctx, gainNode, 432); break;
     case '5': createTone(ctx, gainNode, 528); break;
+    // Ambience + music (procedural fallback generation)
+    case '6': createNoise(ctx, gainNode, 'pink'); break;   // Heavy Rain
+    case '7': createNoise(ctx, gainNode, 'brown'); break;  // Coffee Shop
+    case '11': createNoise(ctx, gainNode, 'pink'); break;  // Forest Stream
+    case '12': createNoise(ctx, gainNode, 'brown'); break; // Ocean Waves
+    case '13': createNoise(ctx, gainNode, 'pink'); break;  // Crackling Fire
+    case '14': createNoise(ctx, gainNode, 'white'); break; // Night Crickets
+    case '15': createNoise(ctx, gainNode, 'pink'); break;  // Wind Chimes
     case '8': createNoise(ctx, gainNode, 'brown'); break;
     case '9': createNoise(ctx, gainNode, 'white'); break;
     case '10': createNoise(ctx, gainNode, 'pink'); break;
+    case '18': createNoise(ctx, gainNode, 'brown'); break; // Lo-Fi Beats
     default:
       gainNode.disconnect();
       activeGain = null;
       currentTrackId = null;
-      return;
+      return false;
   }
   isPlaying = true;
+  return true;
 }
 
 function setVolumeLevel(volume) {
@@ -235,7 +245,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'play':
       console.log('[Tempo Offscreen] Playing track:', message.trackId, 'volume:', message.volume);
       playTrack(message.trackId, message.volume || 0.5, message.range)
-        .then(() => {
+        .then((started) => {
+          if (!started) {
+            sendResponse({ success: false, error: 'This sound is not available yet.' });
+            return;
+          }
           console.log('[Tempo Offscreen] Track started successfully');
           sendResponse({ success: true, isPlaying: true, trackId: message.trackId });
         })
@@ -335,8 +349,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case 'youtube-play':
-      playYouTube(message.videoId);
-      sendResponse({ success: true, videoId: message.videoId });
+      sendResponse(playYouTube(message.videoId));
       break;
 
     case 'youtube-stop':
@@ -871,16 +884,29 @@ function playReminderBeep() {
 
 let youtubeVideoId = null;
 let youtubeIframe = null;
+let youtubeLastError = null;
+
+function isValidYouTubeVideoId(videoId) {
+  return typeof videoId === 'string' && /^[a-zA-Z0-9_-]{11}$/.test(videoId);
+}
 
 function playYouTube(videoId) {
   // Stop any existing YouTube playback first
   stopYouTube();
 
+  if (!isValidYouTubeVideoId(videoId)) {
+    youtubeLastError = 'Invalid YouTube link. Please paste a valid video URL.';
+    console.error('[Tempo] Invalid YouTube video ID:', videoId);
+    return { success: false, error: youtubeLastError };
+  }
+
   youtubeVideoId = videoId;
   const container = document.getElementById('youtube-container');
   if (!container) {
+    youtubeLastError = 'YouTube container is unavailable.';
     console.error('[Tempo] YouTube container not found in offscreen document');
-    return;
+    youtubeVideoId = null;
+    return { success: false, error: youtubeLastError };
   }
 
   // Create a fresh iframe with YouTube embed
@@ -890,14 +916,23 @@ function playYouTube(videoId) {
   iframe.height = '360';
   iframe.allow = 'autoplay; encrypted-media';
   iframe.setAttribute('allowfullscreen', '');
-  // Use youtube-nocookie for privacy + autoplay=1 + loop with playlist for repeat
-  iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&modestbranding=1&rel=0`;
+  iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+  // Use standard YouTube embed for broader compatibility.
+  iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&modestbranding=1&rel=0&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}`;
+  iframe.addEventListener('load', () => {
+    youtubeLastError = null;
+  });
+  iframe.addEventListener('error', () => {
+    youtubeLastError = 'Failed to load YouTube player.';
+  });
 
   container.innerHTML = '';
   container.appendChild(iframe);
   youtubeIframe = iframe;
+  youtubeLastError = null;
 
   console.log('[Tempo] YouTube iframe created for video:', videoId);
+  return { success: true, videoId };
 }
 
 function stopYouTube() {
@@ -911,13 +946,15 @@ function stopYouTube() {
   const container = document.getElementById('youtube-container');
   if (container) container.innerHTML = '';
   youtubeVideoId = null;
+  youtubeLastError = null;
   console.log('[Tempo] YouTube stopped');
 }
 
 function getYouTubeStatus() {
   return {
     isPlaying: !!youtubeVideoId && !!youtubeIframe,
-    videoId: youtubeVideoId
+    videoId: youtubeVideoId,
+    error: youtubeLastError
   };
 }
 

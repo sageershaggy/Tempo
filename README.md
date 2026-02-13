@@ -1,20 +1,31 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Tempo Focus Chrome Extension
 
-# Run and deploy your AI Studio app
+## Local Development
+Prerequisites: Node.js 18+
 
-This contains everything you need to run your app locally.
+1. Install dependencies: `npm install`
+2. Create `.env.local` from `.env.example`
+3. Set `VITE_GEMINI_API_KEY`
+4. Run: `npm run dev`
 
-View your app in AI Studio: https://ai.studio/apps/drive/1_MR6Yw1DoRo4oLTMH61307kdAvwwdmiJ
+## Production Build
+1. Build: `npm run build`
+2. Load `dist/` as unpacked extension in Chrome for QA
+3. Package and upload to Chrome Web Store
 
-## Run Locally
+## Google OAuth Setup (SSO)
+If you see `Error 400: redirect_uri_mismatch`, configure OAuth exactly like this.
 
-**Prerequisites:**  Node.js
+1. Open Google Cloud Console, then `APIs & Services -> Credentials`.
+2. Configure the client used in `public/manifest.json` under `oauth2.client_id`.
+3. If you use web-auth fallback, set `VITE_GOOGLE_OAUTH_CLIENT_ID` in `.env.local`.
+4. In that fallback OAuth client, add this redirect URI:
+   `https://<YOUR_EXTENSION_ID>.chromiumapp.org/`
+5. Ensure OAuth consent screen is configured and published (or your account is added as a test user).
 
+Example redirect URI (from extension id `ifegjpnhaflnjdjbdijeaghapkfpjbbg`):
+`https://ifegjpnhaflnjdjbdijeaghapkfpjbbg.chromiumapp.org/`
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Notes
+- SSO code paths are in `services/authService.ts` and `services/googleTasks.ts`.
+- YouTube + focus audio persistence are handled by `public/background.js` and `public/offscreen.js`.

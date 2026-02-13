@@ -26,6 +26,7 @@
   ],
   "host_permissions": [
     "https://checkout.stripe.com/*",
+    "https://www.googleapis.com/*",
     "https://tasks.googleapis.com/*",
     "https://generativelanguage.googleapis.com/*"
   ],

@@ -1,8 +1,12 @@
 // Google Tasks Service - Real API integration with bidirectional sync
 import { Task } from '../types';
+import { authService } from './authService';
 
 const API_BASE = 'https://tasks.googleapis.com/tasks/v1';
-const FALLBACK_CLIENT_ID = '747255011734-08rlb67q18s1ia4r3gemjn5p4v0su5p4.apps.googleusercontent.com';
+const MANIFEST_CLIENT_ID = '747255011734-l7k517kfa2908all500m6cmcs4iq1ugp.apps.googleusercontent.com';
+const WEB_AUTH_FLOW_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_OAUTH_CLIENT_ID?.trim() || '';
+const HAS_WEB_AUTH_FLOW_CLIENT = WEB_AUTH_FLOW_CLIENT_ID.length > 0;
+const AUTH_FLOW_TIMEOUT_MS = 120000;
 
 export interface GoogleTask {
   id: string;
@@ -40,6 +44,14 @@ export class GoogleTasksService {
   async authenticate(): Promise<boolean> {
     const isChromeExt = typeof chrome !== 'undefined' && chrome.identity?.getAuthToken;
 
+    // Reuse an existing SSO token to avoid duplicate auth prompts.
+    const existingAuthToken = authService.getToken();
+    if (!this.token && existingAuthToken) {
+      this.token = existingAuthToken;
+      localStorage.setItem('google_tasks_token', existingAuthToken);
+      return true;
+    }
+
     if (!isChromeExt) {
       this.token = 'dev-google-tasks-' + Date.now();
       localStorage.setItem('google_tasks_token', this.token);
@@ -67,19 +79,37 @@ export class GoogleTasksService {
       localStorage.setItem('google_tasks_token', token);
       return true;
     } catch (primaryError: any) {
-      console.warn('[Google Tasks] getAuthToken failed, trying webAuthFlow:', primaryError.message);
+      const primaryMessage = this.formatAuthError(primaryError);
+      console.warn('[Google Tasks] getAuthToken failed, trying webAuthFlow:', primaryMessage);
+      if (primaryMessage === 'Google sign-in was canceled or denied.') {
+        return false;
+      }
+      if (!HAS_WEB_AUTH_FLOW_CLIENT) {
+        const redirectUrl = chrome.identity?.getRedirectURL?.() || 'https://<extension-id>.chromiumapp.org/';
+        console.error('[Google Tasks] Missing web OAuth fallback config:', redirectUrl);
+        return false;
+      }
     }
 
-    // Fallback: launchWebAuthFlow with alternate client ID
+    // Fallback: launchWebAuthFlow
     try {
       const token = await new Promise<string>((resolve, reject) => {
+        if (!HAS_WEB_AUTH_FLOW_CLIENT) {
+          reject(new Error('Missing VITE_GOOGLE_OAUTH_CLIENT_ID for web auth fallback.'));
+          return;
+        }
+
         const redirectUrl = chrome.identity.getRedirectURL();
         const scopes = encodeURIComponent('https://www.googleapis.com/auth/tasks');
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${FALLBACK_CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=${scopes}`;
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(WEB_AUTH_FLOW_CLIENT_ID)}&response_type=token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=${scopes}&prompt=consent&include_granted_scopes=true`;
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Google Tasks sign-in timed out. Please try again.'));
+        }, AUTH_FLOW_TIMEOUT_MS);
 
         chrome.identity.launchWebAuthFlow(
           { url: authUrl, interactive: true },
           (responseUrl) => {
+            clearTimeout(timeoutId);
             if (chrome.runtime.lastError) {
               reject(new Error(chrome.runtime.lastError.message));
               return;
@@ -89,12 +119,17 @@ export class GoogleTasksService {
               return;
             }
             const url = new URL(responseUrl);
-            const params = new URLSearchParams(url.hash.substring(1));
-            const accessToken = params.get('access_token');
+            const params = new URLSearchParams(url.hash.startsWith('#') ? url.hash.substring(1) : url.hash);
+            const accessToken = params.get('access_token') || url.searchParams.get('access_token');
             if (accessToken) {
               resolve(accessToken);
             } else {
-              reject(new Error('No access token in response'));
+              const oauthError = params.get('error') || url.searchParams.get('error');
+              if (oauthError) {
+                reject(new Error(`Google OAuth error: ${oauthError}`));
+              } else {
+                reject(new Error('No access token in response'));
+              }
             }
           }
         );
@@ -103,8 +138,8 @@ export class GoogleTasksService {
       this.token = token;
       localStorage.setItem('google_tasks_token', token);
       return true;
-    } catch (fallbackError) {
-      console.error('[Google Tasks] Both auth methods failed:', fallbackError);
+    } catch (fallbackError: any) {
+      console.error('[Google Tasks] Both auth methods failed:', this.formatAuthError(fallbackError));
       return false;
     }
   }
@@ -237,6 +272,27 @@ export class GoogleTasksService {
   getLastSyncTime(): number | null {
     const ts = localStorage.getItem('tempo_google_last_sync');
     return ts ? parseInt(ts) : null;
+  }
+
+  private formatAuthError(error: any): string {
+    const message = (error?.message || String(error) || 'Google Tasks authentication failed').trim();
+    const lower = message.toLowerCase();
+    const webClientLabel = WEB_AUTH_FLOW_CLIENT_ID || '<missing VITE_GOOGLE_OAUTH_CLIENT_ID>';
+
+    if (lower.includes('redirect_uri_mismatch')) {
+      const redirectUrl = chrome.identity?.getRedirectURL?.() || 'https://<extension-id>.chromiumapp.org/';
+      return `Google OAuth redirect_uri mismatch. Add ${redirectUrl} to authorized redirect URIs for client ${webClientLabel}.`;
+    }
+
+    if (lower.includes('bad client id') || lower.includes('invalid_client')) {
+      return `Google OAuth client ID is invalid or misconfigured (client: ${webClientLabel}).`;
+    }
+
+    if (lower.includes('access_denied')) {
+      return 'Google sign-in was canceled or denied.';
+    }
+
+    return message;
   }
 
   private getMockData(endpoint: string, options: RequestInit): any {
