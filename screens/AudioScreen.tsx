@@ -19,6 +19,7 @@ import {
 const useOffscreen = isOffscreenAvailable();
 
 export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setAudioState }) => {
+  const REAL_RECORDING_TRACK_IDS = new Set(['6', '7', '11', '12', '13', '14', '15']);
   const [filter, setFilter] = useState('All');
   const [youtubeInput, setYoutubeInput] = useState('');
   const [youtubeError, setYoutubeError] = useState<string | null>(null);
@@ -404,6 +405,7 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                                 </div>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
+                              {REAL_RECORDING_TRACK_IDS.has(track.id) && <span className="text-[8px] font-bold text-cyan-300 bg-cyan-400/10 px-1.5 py-0.5 rounded uppercase">Real</span>}
                               {isBuiltInTrack(track.id) && <span className="text-[8px] font-bold text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded uppercase">Built-in</span>}
                               {track.hz && <span className="text-[10px] font-bold text-secondary bg-secondary/10 px-2 py-0.5 rounded">{track.hz}</span>}
                             </div>

@@ -7,6 +7,48 @@ let activeNodes = [];
 let isPlaying = false;
 let currentTrackId = null;
 let currentVolume = 0.5;
+let activeMediaElement = null;
+let playRequestToken = 0;
+
+// Authentic ambience sources (real recordings).
+// Use direct media URLs first, then Special:FilePath as backup.
+const AUTHENTIC_TRACK_SOURCES = {
+  // Heavy rain ambience (Wikimedia Commons)
+  '6': [
+    'https://upload.wikimedia.org/wikipedia/commons/c/cb/Heavy_rain_in_Glenshaw%2C_PA.ogg',
+    'https://commons.wikimedia.org/wiki/Special:FilePath/Heavy_rain_in_Glenshaw%2C_PA.ogg',
+  ],
+  // Coffee Shop ambience (CC0/Public Domain via Wikimedia Commons)
+  '7': [
+    'https://upload.wikimedia.org/wikipedia/commons/5/54/Cafe_ambiance.ogg',
+    'https://commons.wikimedia.org/wiki/Special:FilePath/Cafe_ambiance.ogg',
+  ],
+  // Forest stream ambience (Wikimedia Commons)
+  '11': [
+    'https://upload.wikimedia.org/wikipedia/commons/3/32/Rivernoise.ogg',
+    'https://commons.wikimedia.org/wiki/Special:FilePath/Rivernoise.ogg',
+  ],
+  // Ocean waves ambience (Wikimedia Commons)
+  '12': [
+    'https://upload.wikimedia.org/wikipedia/commons/1/1f/Waves.ogg',
+    'https://commons.wikimedia.org/wiki/Special:FilePath/Waves.ogg',
+  ],
+  // Crackling fire ambience (Wikimedia Commons)
+  '13': [
+    'https://upload.wikimedia.org/wikipedia/commons/b/b1/Campfire_sound_ambience.ogg',
+    'https://commons.wikimedia.org/wiki/Special:FilePath/Campfire_sound_ambience.ogg',
+  ],
+  // Night crickets ambience (Wikimedia Commons)
+  '14': [
+    'https://upload.wikimedia.org/wikipedia/commons/4/4c/Crickets_choir.ogg',
+    'https://commons.wikimedia.org/wiki/Special:FilePath/Crickets_choir.ogg',
+  ],
+  // Wind chimes ambience (Wikimedia Commons)
+  '15': [
+    'https://upload.wikimedia.org/wikipedia/commons/2/28/Windchime.ogg',
+    'https://commons.wikimedia.org/wiki/Special:FilePath/Windchime.ogg',
+  ],
+};
 
 // Focus Beat state
 let focusBeatInterval = null;
@@ -167,37 +209,84 @@ function createNoise(ctx, gainNode, type, options = {}) {
   activeNodes.push(source, colorGain, ...filterNodes);
 }
 
-function stopSound() {
-  activeNodes.forEach(node => {
-    try {
-      if (node instanceof OscillatorNode) node.stop();
-      if (node instanceof AudioBufferSourceNode) node.stop();
-    } catch (e) { }
-    try {
-      if (typeof node.disconnect === 'function') node.disconnect();
-    } catch (e) { }
-  });
-  activeNodes = [];
-  if (activeGain) {
-    try { activeGain.disconnect(); } catch (e) { }
-    activeGain = null;
-  }
-  isPlaying = false;
-  currentTrackId = null;
+function disposeMediaElement(media) {
+  if (!media) return;
+  try {
+    media.pause();
+    media.currentTime = 0;
+    media.src = '';
+    media.load();
+  } catch (e) {}
 }
 
-function getDefaultRange(trackId) {
-  switch (trackId) {
-    case '1': return 'High';
-    case '2': return 'High';
-    case '3': return 'Mid';
-    case '16': return 'Mid';
-    case '17': return 'Low';
-    default: return 'Mid';
+function stopAuthenticTrack() {
+  if (!activeMediaElement) return;
+  disposeMediaElement(activeMediaElement);
+  activeMediaElement = null;
+}
+
+function getAuthenticSourceCandidates(trackId) {
+  const configured = AUTHENTIC_TRACK_SOURCES[trackId];
+  if (!configured) return [];
+  if (Array.isArray(configured)) return configured.filter(Boolean);
+  return [configured];
+}
+
+function clearActiveTrackRouting(gainNode, compressor, trackId) {
+  try { gainNode.disconnect(); } catch (e) {}
+  try { compressor.disconnect(); } catch (e) {}
+  activeNodes = activeNodes.filter(node => node !== compressor);
+  if (activeGain === gainNode) activeGain = null;
+  if (currentTrackId === trackId) currentTrackId = null;
+}
+
+async function playAuthenticTrack(trackId, volume, requestToken) {
+  const sources = getAuthenticSourceCandidates(trackId);
+  if (!sources.length) return false;
+
+  let lastError = null;
+  for (const sourceUrl of sources) {
+    let media = null;
+    try {
+      media = new Audio(sourceUrl);
+      media.loop = true;
+      media.preload = 'auto';
+      media.crossOrigin = 'anonymous';
+      media.volume = Math.max(0, Math.min(1, volume));
+      await media.play();
+      if (requestToken !== playRequestToken) {
+        disposeMediaElement(media);
+        return false;
+      }
+      activeMediaElement = media;
+      return true;
+    } catch (err) {
+      lastError = err;
+      try {
+        if (media) {
+          disposeMediaElement(media);
+        }
+        if (activeMediaElement) {
+          disposeMediaElement(activeMediaElement);
+          activeMediaElement = null;
+        }
+      } catch (e) {}
+    }
   }
+
+  console.warn(
+    '[Tempo] Authentic source failed for track:',
+    trackId,
+    '| candidates:',
+    sources,
+    '| last error:',
+    lastError
+  );
+  return false;
 }
 
 async function playTrack(trackId, volume, range) {
+  const requestToken = ++playRequestToken;
   stopSound();
 
   const ctx = getContext();
@@ -217,6 +306,26 @@ async function playTrack(trackId, volume, range) {
   currentTrackId = trackId;
   currentVolume = volume;
   activeNodes.push(compressor);
+
+  const hasAuthenticSources = getAuthenticSourceCandidates(trackId).length > 0;
+
+  // Authentic ambience (real recordings) when available.
+  const authenticStarted = await playAuthenticTrack(trackId, volume, requestToken);
+  if (requestToken !== playRequestToken) {
+    clearActiveTrackRouting(gainNode, compressor, trackId);
+    return false;
+  }
+  if (authenticStarted) {
+    isPlaying = true;
+    return true;
+  }
+
+  // For tracks marked as authentic recordings, fail fast instead of
+  // playing a synthetic fallback that sounds incorrect.
+  if (hasAuthenticSources) {
+    clearActiveTrackRouting(gainNode, compressor, trackId);
+    return false;
+  }
 
   // Binaural tracks
   const rangeMap = BINAURAL_RANGE_MAP[trackId];
@@ -246,17 +355,49 @@ async function playTrack(trackId, volume, range) {
     case '10': createNoise(ctx, gainNode, 'pink', { highpass: 90, lowpass: 5200, level: 0.26 }); break; // Pink Noise
     case '18': createNoise(ctx, gainNode, 'brown', { highpass: 70, lowpass: 1800, level: 0.26 }); break; // Lo-Fi Beats
     default:
-      gainNode.disconnect();
-      activeGain = null;
-      currentTrackId = null;
+      clearActiveTrackRouting(gainNode, compressor, trackId);
       return false;
-  }
+    }
   isPlaying = true;
   return true;
 }
 
+function stopSound() {
+  stopAuthenticTrack();
+  activeNodes.forEach(node => {
+    try {
+      if (node instanceof OscillatorNode) node.stop();
+      if (node instanceof AudioBufferSourceNode) node.stop();
+    } catch (e) { }
+    try {
+      if (typeof node.disconnect === 'function') node.disconnect();
+    } catch (e) { }
+  });
+  activeNodes = [];
+  if (activeGain) {
+    try { activeGain.disconnect(); } catch (e) { }
+    activeGain = null;
+  }
+  isPlaying = false;
+  currentTrackId = null;
+}
+
+function getDefaultRange(trackId) {
+  switch (trackId) {
+    case '1': return 'High';
+    case '2': return 'High';
+    case '3': return 'Mid';
+    case '16': return 'Mid';
+    case '17': return 'Low';
+    default: return 'Mid';
+  }
+}
+
 function setVolumeLevel(volume) {
   const safeVolume = Math.max(0, Math.min(1, Number(volume) || 0));
+  if (activeMediaElement) {
+    activeMediaElement.volume = safeVolume;
+  }
   if (activeGain) {
     activeGain.gain.value = safeVolume;
   }
@@ -302,6 +443,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
 
     case 'stop':
+      // Cancel any in-flight async track start before stopping current playback.
+      playRequestToken++;
       stopSound();
       sendResponse({ success: true, isPlaying: false });
       break;
