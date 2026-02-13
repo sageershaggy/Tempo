@@ -42,10 +42,6 @@
     "type": "module"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; frame-src 'self' https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com",
-    "sandbox": "sandbox allow-scripts allow-forms; script-src 'self' https://www.youtube.com https://youtube.com; frame-src https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com; style-src 'self' 'unsafe-inline'; object-src 'self'"
-  },
-  "sandbox": {
-    "pages": ["youtube-sandbox.html"]
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src 'self' https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
   }
 }
