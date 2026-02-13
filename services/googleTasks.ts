@@ -115,7 +115,7 @@ export class GoogleTasksService {
               return;
             }
             if (!responseUrl) {
-              reject(new Error('No response from auth flow'));
+              reject(new Error(`No response from auth flow (redirect: ${redirectUrl})`));
               return;
             }
             const url = new URL(responseUrl);
@@ -282,6 +282,11 @@ export class GoogleTasksService {
     if (lower.includes('redirect_uri_mismatch')) {
       const redirectUrl = chrome.identity?.getRedirectURL?.() || 'https://<extension-id>.chromiumapp.org/';
       return `Google OAuth redirect_uri mismatch. Add ${redirectUrl} to authorized redirect URIs for client ${webClientLabel}.`;
+    }
+
+    if (lower.includes('authorization page could not be loaded') || lower.includes('no response from auth flow')) {
+      const redirectUrl = chrome.identity?.getRedirectURL?.() || 'https://<extension-id>.chromiumapp.org/';
+      return `Google OAuth callback failed. Verify client ${webClientLabel} has authorized redirect URI ${redirectUrl}, then retry.`;
     }
 
     if (lower.includes('bad client id') || lower.includes('invalid_client')) {

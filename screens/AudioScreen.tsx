@@ -394,7 +394,7 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                                       {track.category}
                                       {isBinaural && currentRange && (
                                         <span className="text-secondary ml-1">
-                                          · {rangeLabels[track.id] || (() => {
+                                          - {rangeLabels[track.id] || (() => {
                                             const info = getBinauralRangeInfo(track.id, currentRange);
                                             return info?.label || '';
                                           })()}
@@ -496,3 +496,4 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     </div>
   );
 };
+

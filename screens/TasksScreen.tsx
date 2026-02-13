@@ -237,18 +237,9 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
         <div className="h-full flex flex-col bg-background-dark pb-24 relative">
             {/* Header */}
             <div className="pt-12 pb-4 px-6 bg-gradient-to-b from-background-dark to-transparent sticky top-0 z-20 backdrop-blur-md">
-                <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="flex items-start justify-between gap-3 mb-4">
                     <h1 className="text-3xl font-bold leading-none">My Tasks</h1>
-                </div>
-                <div className="mb-4">
-                    <div className="inline-flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-surface-dark/70 p-2">
-                        <button
-                            onClick={() => setScreen(Screen.AUDIO)}
-                            className="w-10 h-10 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80 text-white transition-colors"
-                            title="Focus Audio"
-                        >
-                            <span className="material-symbols-outlined text-lg">headphones</span>
-                        </button>
+                    <div className="inline-flex gap-2 rounded-2xl border border-white/10 bg-surface-dark/70 p-2 shrink-0">
                         <button
                             onClick={() => setScreen(Screen.INTEGRATIONS)}
                             className="w-10 h-10 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80 text-white transition-colors"
