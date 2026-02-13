@@ -237,9 +237,11 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
         <div className="h-full flex flex-col bg-background-dark pb-24 relative">
             {/* Header */}
             <div className="pt-12 pb-4 px-6 bg-gradient-to-b from-background-dark to-transparent sticky top-0 z-20 backdrop-blur-md">
-                <div className="flex items-center justify-between mb-4">
-                    <h1 className="text-3xl font-bold">My Tasks</h1>
-                    <div className="flex gap-2">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                    <h1 className="text-3xl font-bold leading-none">My Tasks</h1>
+                </div>
+                <div className="mb-4">
+                    <div className="inline-flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-surface-dark/70 p-2">
                         <button
                             onClick={() => setScreen(Screen.AUDIO)}
                             className="w-10 h-10 rounded-full bg-surface-light flex items-center justify-center hover:bg-surface-light/80 text-white transition-colors"
@@ -270,7 +272,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                             >
                                 <div className="flex flex-col items-center leading-none">
                                     <span className="text-[9px] font-bold uppercase text-muted mb-[1px]">
-                                        {autoSyncStatus === 'syncing' ? '⟳' : 'Sync'}
+                                        {autoSyncStatus === 'syncing' ? 'SYNC' : 'Sync'}
                                     </span>
                                     <span className="text-[10px] font-bold">{syncInterval === 'Off' ? 'Off' : `${syncInterval}m`}</span>
                                 </div>
@@ -291,9 +293,6 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                             className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isSelectionMode ? 'bg-white text-black' : 'bg-surface-light text-white'}`}
                         >
                             <span className="material-symbols-outlined text-sm">checklist_rtl</span>
-                        </button>
-                        <button onClick={() => setScreen(Screen.QUICK_ADD)} className="w-10 h-10 rounded-full bg-primary flex items-center justify-center hover:bg-primary-light shadow-lg transition-colors">
-                            <span className="material-symbols-outlined text-white">add</span>
                         </button>
                     </div>
                 </div>
@@ -744,3 +743,4 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
         </div>
     );
 };
+

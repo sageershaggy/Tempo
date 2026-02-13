@@ -75,6 +75,7 @@ export interface YouTubePlaybackResult {
 export interface YouTubeOffscreenStatus {
   isPlaying: boolean;
   videoId: string | null;
+  volume?: number | null;
   error?: string | null;
 }
 
@@ -96,8 +97,24 @@ export const getYouTubeOffscreenStatus = async (): Promise<YouTubeOffscreenStatu
   return {
     isPlaying: !!response?.isPlaying,
     videoId: response?.videoId || null,
+    volume: typeof response?.volume === 'number' ? response.volume : null,
     error: response?.error || null,
   };
+};
+
+export const setYouTubeOffscreenVolume = async (volume: number): Promise<boolean> => {
+  const response = await sendAudioMessage({ action: 'youtube-volume', volume });
+  return response?.success || false;
+};
+
+export const pauseYouTubeOffscreen = async (): Promise<boolean> => {
+  const response = await sendAudioMessage({ action: 'youtube-pause' });
+  return response?.success || false;
+};
+
+export const resumeYouTubeOffscreen = async (): Promise<boolean> => {
+  const response = await sendAudioMessage({ action: 'youtube-resume' });
+  return response?.success || false;
 };
 
 // Check if offscreen audio is available

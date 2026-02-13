@@ -239,8 +239,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   console.log('[Tempo Offscreen] Processing action:', message.action);
 
-  console.log('[Tempo Offscreen] Processing action:', message.action);
-
   switch (message.action) {
     case 'play':
       console.log('[Tempo Offscreen] Playing track:', message.trackId, 'volume:', message.volume);
@@ -349,8 +347,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case 'youtube-play':
-      sendResponse(playYouTube(message.videoId));
-      break;
+      playYouTube(message.videoId)
+        .then((result) => sendResponse(result))
+        .catch((error) => sendResponse({ success: false, error: error?.message || 'Failed to start YouTube stream.' }));
+      return true;
 
     case 'youtube-stop':
       stopYouTube();
@@ -885,57 +885,21 @@ function playReminderBeep() {
 let youtubeVideoId = null;
 let youtubeIframe = null;
 let youtubeLastError = null;
+let youtubeIsPlaying = false;
+let youtubeLoadTimer = null;
 
 function isValidYouTubeVideoId(videoId) {
   return typeof videoId === 'string' && /^[a-zA-Z0-9_-]{11}$/.test(videoId);
 }
 
-function playYouTube(videoId) {
-  // Stop any existing YouTube playback first
-  stopYouTube();
-
-  if (!isValidYouTubeVideoId(videoId)) {
-    youtubeLastError = 'Invalid YouTube link. Please paste a valid video URL.';
-    console.error('[Tempo] Invalid YouTube video ID:', videoId);
-    return { success: false, error: youtubeLastError };
+function clearYouTubeLoadTimer() {
+  if (youtubeLoadTimer) {
+    clearTimeout(youtubeLoadTimer);
+    youtubeLoadTimer = null;
   }
-
-  youtubeVideoId = videoId;
-  const container = document.getElementById('youtube-container');
-  if (!container) {
-    youtubeLastError = 'YouTube container is unavailable.';
-    console.error('[Tempo] YouTube container not found in offscreen document');
-    youtubeVideoId = null;
-    return { success: false, error: youtubeLastError };
-  }
-
-  // Create a fresh iframe with YouTube embed
-  const iframe = document.createElement('iframe');
-  iframe.id = 'youtube-player';
-  iframe.width = '640';
-  iframe.height = '360';
-  iframe.allow = 'autoplay; encrypted-media';
-  iframe.setAttribute('allowfullscreen', '');
-  iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-  // Use standard YouTube embed for broader compatibility.
-  iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&modestbranding=1&rel=0&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}`;
-  iframe.addEventListener('load', () => {
-    youtubeLastError = null;
-  });
-  iframe.addEventListener('error', () => {
-    youtubeLastError = 'Failed to load YouTube player.';
-  });
-
-  container.innerHTML = '';
-  container.appendChild(iframe);
-  youtubeIframe = iframe;
-  youtubeLastError = null;
-
-  console.log('[Tempo] YouTube iframe created for video:', videoId);
-  return { success: true, videoId };
 }
 
-function stopYouTube() {
+function cleanupYouTubeIframe() {
   if (youtubeIframe) {
     try {
       youtubeIframe.src = '';
@@ -945,14 +909,91 @@ function stopYouTube() {
   }
   const container = document.getElementById('youtube-container');
   if (container) container.innerHTML = '';
+}
+
+function playYouTube(videoId) {
+  // Stop any existing YouTube playback first
+  stopYouTube();
+
+  if (!isValidYouTubeVideoId(videoId)) {
+    youtubeLastError = 'Invalid YouTube link. Please paste a valid video URL.';
+    console.error('[Tempo] Invalid YouTube video ID:', videoId);
+    return Promise.resolve({ success: false, error: youtubeLastError });
+  }
+
+  youtubeVideoId = videoId;
+  youtubeIsPlaying = false;
+  const container = document.getElementById('youtube-container');
+  if (!container) {
+    youtubeLastError = 'YouTube container is unavailable.';
+    console.error('[Tempo] YouTube container not found in offscreen document');
+    youtubeVideoId = null;
+    return Promise.resolve({ success: false, error: youtubeLastError });
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const resolveOnce = (payload) => {
+      if (settled) return;
+      settled = true;
+      clearYouTubeLoadTimer();
+      resolve(payload);
+    };
+
+    // Create a fresh iframe with YouTube embed
+    const iframe = document.createElement('iframe');
+    iframe.id = 'youtube-player';
+    iframe.width = '640';
+    iframe.height = '360';
+    iframe.allow = 'autoplay; encrypted-media';
+    iframe.setAttribute('allowfullscreen', '');
+    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+    // Keep URL minimal for compatibility. We control on/off from extension UI.
+    iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&controls=1&modestbranding=1&rel=0&playsinline=1`;
+
+    iframe.addEventListener('load', () => {
+      youtubeLastError = null;
+      youtubeIsPlaying = true;
+      console.log('[Tempo] YouTube iframe loaded for video:', videoId);
+      resolveOnce({ success: true, videoId });
+    });
+
+    iframe.addEventListener('error', () => {
+      youtubeLastError = 'Failed to load YouTube player.';
+      youtubeIsPlaying = false;
+      cleanupYouTubeIframe();
+      youtubeVideoId = null;
+      resolveOnce({ success: false, error: youtubeLastError });
+    });
+
+    container.innerHTML = '';
+    container.appendChild(iframe);
+    youtubeIframe = iframe;
+    youtubeLastError = null;
+
+    youtubeLoadTimer = setTimeout(() => {
+      if (settled) return;
+      youtubeLastError = 'YouTube player timed out. Try another video link.';
+      youtubeIsPlaying = false;
+      cleanupYouTubeIframe();
+      youtubeVideoId = null;
+      resolveOnce({ success: false, error: youtubeLastError });
+    }, 12000);
+  });
+}
+
+function stopYouTube() {
+  clearYouTubeLoadTimer();
+  cleanupYouTubeIframe();
   youtubeVideoId = null;
+  youtubeIsPlaying = false;
   youtubeLastError = null;
   console.log('[Tempo] YouTube stopped');
 }
 
 function getYouTubeStatus() {
   return {
-    isPlaying: !!youtubeVideoId && !!youtubeIframe,
+    isPlaying: youtubeIsPlaying && !!youtubeVideoId && !!youtubeIframe,
     videoId: youtubeVideoId,
     error: youtubeLastError
   };

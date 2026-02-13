@@ -7,6 +7,7 @@ import {
   playOffscreen,
   stopOffscreen,
   setOffscreenVolume,
+  setYouTubeOffscreenVolume,
   switchOffscreenRange,
   isOffscreenAvailable,
   getOffscreenStatus,
@@ -202,6 +203,20 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       }
   };
 
+  const isYouTubeStreamActive = audioState.isPlaying && !!audioState.youtubeId && !audioState.activeTrackId;
+
+  const handleYoutubeToggle = async () => {
+    if (isYouTubeStreamActive) {
+      if (useOffscreen) {
+        await stopYouTubeOffscreen();
+      }
+      setAudioState(prev => ({ ...prev, isPlaying: false, youtubeId: null }));
+      setYoutubeError(null);
+      return;
+    }
+    await handleYoutubePlay();
+  };
+
   // Stop built-in sound when audio is paused externally
   useEffect(() => {
     if (!audioStatusHydrated) return;
@@ -227,8 +242,13 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       const trackVol = (audioState.trackSettings[audioState.activeTrackId]?.volume ?? 50) / 100;
       const finalVol = trackVol * (audioState.volume / 100);
       if (useOffscreen) { setOffscreenVolume(finalVol); } else { setSoundVolume(finalVol); }
+      return;
     }
-  }, [audioState.volume, audioState.trackSettings, audioState.activeTrackId]);
+
+    if (audioState.isPlaying && audioState.youtubeId && !audioState.activeTrackId && useOffscreen) {
+      setYouTubeOffscreenVolume(audioState.volume / 100);
+    }
+  }, [audioState.volume, audioState.trackSettings, audioState.activeTrackId, audioState.youtubeId, audioState.isPlaying]);
 
   const filteredTracks = filter === 'All'
     ? TRACKS
@@ -327,17 +347,20 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                         }}
                         className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 text-xs text-white focus:outline-none focus:border-primary/50"
                     />
-                    <button
-                        onClick={handleYoutubePlay}
-                        disabled={!youtubeInput.trim() || isStartingYouTube}
+                     <button
+                        onClick={handleYoutubeToggle}
+                        disabled={isStartingYouTube || (!isYouTubeStreamActive && !youtubeInput.trim())}
                         className={`px-3 py-2 rounded-lg transition-colors ${
-                          youtubeInput.trim() && !isStartingYouTube
+                          isYouTubeStreamActive
                             ? 'bg-red-500/20 text-red-500 border border-red-500/30 hover:bg-red-500/30'
-                            : 'bg-white/5 text-muted/30 border border-white/10'
+                            : youtubeInput.trim() && !isStartingYouTube
+                              ? 'bg-red-500/20 text-red-500 border border-red-500/30 hover:bg-red-500/30'
+                              : 'bg-white/5 text-muted/30 border border-white/10'
                         }`}
+                        title={isYouTubeStreamActive ? 'Turn YouTube off' : 'Start YouTube stream'}
                     >
                         <span className={`material-symbols-outlined text-lg ${isStartingYouTube ? 'animate-spin' : ''}`}>
-                          {isStartingYouTube ? 'progress_activity' : 'play_circle'}
+                          {isStartingYouTube ? 'progress_activity' : isYouTubeStreamActive ? 'stop_circle' : 'play_circle'}
                         </span>
                     </button>
                  </div>
