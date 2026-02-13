@@ -36,7 +36,7 @@
     "https://upload.wikimedia.org/*"
   ],
   "oauth2": {
-    "client_id": "747255011734-l7k517kfa2908all500m6cmcs4iq1ugp.apps.googleusercontent.com",
+    "client_id": "32365997189-mh89c5ljnm1ng53tufuvp93mam6k65cs.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/userinfo.profile",
