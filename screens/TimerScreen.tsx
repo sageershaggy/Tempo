@@ -1656,7 +1656,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                       setNewPresetFocusMinutes(5);
                       return;
                     }
-                    setNewPresetFocusMinutes(Math.min(180, Math.max(5, Math.round(parsed))));
+                    setNewPresetFocusMinutes(Math.min(180, Math.max(5, Math.round(parsed / 5) * 5)));
                   }}
                   className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-xs text-white focus:outline-none focus:border-primary/40"
                 />
@@ -1665,10 +1665,18 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 <span className="text-[10px] font-semibold text-white/80">Break (min)</span>
                 <input
                   type="number"
-                  min={1}
+                  min={5}
                   max={60}
+                  step={5}
                   value={newPresetBreakMinutes}
-                  onChange={(e) => setNewPresetBreakMinutes(Math.max(1, Number(e.target.value) || 1))}
+                  onChange={(e) => {
+                    const parsed = Number(e.target.value);
+                    if (!Number.isFinite(parsed)) {
+                      setNewPresetBreakMinutes(5);
+                      return;
+                    }
+                    setNewPresetBreakMinutes(Math.min(60, Math.max(5, Math.round(parsed / 5) * 5)));
+                  }}
                   className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-xs text-white focus:outline-none focus:border-primary/40"
                 />
               </label>

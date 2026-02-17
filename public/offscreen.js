@@ -9,6 +9,7 @@ let currentTrackId = null;
 let currentVolume = 0.5;
 let activeMediaElement = null;
 let playRequestToken = 0;
+let lofiIntervalId = null;
 
 // Authentic ambience sources (real recordings).
 // Use direct media URLs first, then Special:FilePath as backup.
@@ -210,78 +211,203 @@ function createNoise(ctx, gainNode, type, options = {}) {
 }
 
 function createLofiBeat(ctx, gainNode) {
+  const BPM = 75;
+  const beatSec = 60 / BPM;
+  const barSec = beatSec * 4;
+
+  // -- Chord progression: Dm7 → G7 → Cmaj7 → Am7 (ii-V-I-vi in C) --
+  const chords = [
+    { root: 146.83, freqs: [146.83, 174.61, 220.00, 261.63] }, // Dm7
+    { root: 196.00, freqs: [196.00, 246.94, 293.66, 349.23] }, // G7
+    { root: 130.81, freqs: [130.81, 164.81, 196.00, 246.94] }, // Cmaj7
+    { root: 110.00, freqs: [110.00, 130.81, 164.81, 196.00] }, // Am7
+  ];
+  let chordIndex = 0;
+
+  // -- Warm pad (lo-pass filtered chord tones) --
   const padMix = ctx.createGain();
-  padMix.gain.value = 0.18;
+  padMix.gain.value = 0.13;
   padMix.connect(gainNode);
 
   const padFilter = ctx.createBiquadFilter();
   padFilter.type = 'lowpass';
-  padFilter.frequency.value = 1200;
-  padFilter.Q.value = 0.7;
+  padFilter.frequency.value = 900;
+  padFilter.Q.value = 0.5;
   padFilter.connect(padMix);
 
-  const chordFrequencies = [110, 138.59, 164.81];
-  const padOscillators = chordFrequencies.map((freq, index) => {
+  const padOscillators = chords[0].freqs.map((freq, i) => {
     const osc = ctx.createOscillator();
     osc.type = 'triangle';
     osc.frequency.value = freq;
-    osc.detune.value = index === 1 ? -4 : index === 2 ? 3 : 0;
+    osc.detune.value = (i % 2 === 0 ? -5 : 4) + Math.random() * 2;
     osc.connect(padFilter);
     osc.start();
     return osc;
   });
 
+  // Gentle tremolo on pad
   const tremoloOsc = ctx.createOscillator();
   tremoloOsc.type = 'sine';
-  tremoloOsc.frequency.value = 2.1;
+  tremoloOsc.frequency.value = 1.8;
   const tremoloGain = ctx.createGain();
-  tremoloGain.gain.value = 0.06;
+  tremoloGain.gain.value = 0.04;
   tremoloOsc.connect(tremoloGain);
   tremoloGain.connect(padMix.gain);
   tremoloOsc.start();
 
-  const hissSource = createNoiseBuffer(ctx, 'white');
-  const hissHighPass = ctx.createBiquadFilter();
-  hissHighPass.type = 'highpass';
-  hissHighPass.frequency.value = 3400;
-  const hissGain = ctx.createGain();
-  hissGain.gain.value = 0.012;
-  hissSource.connect(hissHighPass);
-  hissHighPass.connect(hissGain);
-  hissGain.connect(gainNode);
-  hissSource.start();
-
+  // -- Sub bass following root notes --
   const subOsc = ctx.createOscillator();
   subOsc.type = 'sine';
-  subOsc.frequency.value = 55;
+  subOsc.frequency.value = chords[0].root / 2;
   const subGain = ctx.createGain();
-  subGain.gain.value = 0.04;
+  subGain.gain.value = 0.06;
   subOsc.connect(subGain);
   subGain.connect(gainNode);
   subOsc.start();
 
-  const subLfo = ctx.createOscillator();
-  subLfo.type = 'triangle';
-  subLfo.frequency.value = 1.6;
-  const subLfoGain = ctx.createGain();
-  subLfoGain.gain.value = 0.03;
-  subLfo.connect(subLfoGain);
-  subLfoGain.connect(subGain.gain);
-  subLfo.start();
+  // -- Vinyl crackle --
+  const hissSource = createNoiseBuffer(ctx, 'white');
+  const hissHP = ctx.createBiquadFilter();
+  hissHP.type = 'highpass';
+  hissHP.frequency.value = 3200;
+  const hissLP = ctx.createBiquadFilter();
+  hissLP.type = 'lowpass';
+  hissLP.frequency.value = 8000;
+  const hissGain = ctx.createGain();
+  hissGain.gain.value = 0.014;
+  hissSource.connect(hissHP);
+  hissHP.connect(hissLP);
+  hissLP.connect(hissGain);
+  hissGain.connect(gainNode);
+  hissSource.start();
+
+  // -- Tape wobble (slow detune LFO on pad) --
+  const wobbleOsc = ctx.createOscillator();
+  wobbleOsc.type = 'sine';
+  wobbleOsc.frequency.value = 0.3;
+  const wobbleGain = ctx.createGain();
+  wobbleGain.gain.value = 6;
+  wobbleOsc.connect(wobbleGain);
+  padOscillators.forEach(osc => wobbleGain.connect(osc.detune));
+  wobbleOsc.start();
+
+  // -- Drum bus --
+  const drumBus = ctx.createGain();
+  drumBus.gain.value = 0.22;
+  const drumFilter = ctx.createBiquadFilter();
+  drumFilter.type = 'lowpass';
+  drumFilter.frequency.value = 4500;
+  drumBus.connect(drumFilter);
+  drumFilter.connect(gainNode);
+
+  // Helper: play a kick (sine with pitch drop)
+  function playKick(time) {
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, time);
+    osc.frequency.exponentialRampToValueAtTime(40, time + 0.08);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.7, time);
+    env.gain.exponentialRampToValueAtTime(0.001, time + 0.35);
+    osc.connect(env);
+    env.connect(drumBus);
+    osc.start(time);
+    osc.stop(time + 0.4);
+  }
+
+  // Helper: play a hi-hat (noise burst)
+  function playHat(time, accent) {
+    const bufLen = ctx.sampleRate * 0.06;
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 7000;
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(accent ? 0.45 : 0.2, time);
+    env.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+    src.connect(hp);
+    hp.connect(env);
+    env.connect(drumBus);
+    src.start(time);
+    src.stop(time + 0.07);
+  }
+
+  // -- Melody pluck (occasional pentatonic notes) --
+  const melodyBus = ctx.createGain();
+  melodyBus.gain.value = 0.08;
+  const melodyFilter = ctx.createBiquadFilter();
+  melodyFilter.type = 'lowpass';
+  melodyFilter.frequency.value = 2000;
+  melodyFilter.Q.value = 1.2;
+  melodyBus.connect(melodyFilter);
+  melodyFilter.connect(gainNode);
+
+  const pentatonicScale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25]; // C pentatonic
+
+  function playMelodyNote(time) {
+    if (Math.random() > 0.4) return; // only play ~40% of the time
+    const freq = pentatonicScale[Math.floor(Math.random() * pentatonicScale.length)];
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    osc.detune.value = (Math.random() - 0.5) * 8;
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.5, time);
+    env.gain.exponentialRampToValueAtTime(0.001, time + 0.6);
+    osc.connect(env);
+    env.connect(melodyBus);
+    osc.start(time);
+    osc.stop(time + 0.65);
+  }
+
+  // -- Sequencer: schedules drums + chord changes --
+  let beat = 0;
+  function scheduleBeat() {
+    const now = ctx.currentTime + 0.05; // small look-ahead
+
+    // Kick on beats 0 and 2 (with slight swing on beat 2)
+    if (beat % 4 === 0) playKick(now);
+    if (beat % 4 === 2) playKick(now + beatSec * 0.04);
+
+    // Hi-hat on every beat, accent on off-beats
+    playHat(now, beat % 2 === 1);
+
+    // Extra ghost hat on some &'s
+    if (Math.random() > 0.5) playHat(now + beatSec * 0.5, false);
+
+    // Melody on beats 1 and 3
+    if (beat % 4 === 1 || beat % 4 === 3) playMelodyNote(now);
+
+    // Chord change every bar (4 beats)
+    if (beat % 4 === 0) {
+      chordIndex = (chordIndex + 1) % chords.length;
+      const chord = chords[chordIndex];
+      const t = now + 0.02;
+      padOscillators.forEach((osc, i) => {
+        osc.frequency.linearRampToValueAtTime(chord.freqs[i], t + 0.3);
+      });
+      subOsc.frequency.linearRampToValueAtTime(chord.root / 2, t + 0.15);
+    }
+
+    beat++;
+  }
+
+  // Start sequencer
+  scheduleBeat();
+  lofiIntervalId = setInterval(scheduleBeat, beatSec * 1000);
 
   activeNodes.push(
-    padMix,
-    padFilter,
-    ...padOscillators,
-    tremoloOsc,
-    tremoloGain,
-    hissSource,
-    hissHighPass,
-    hissGain,
-    subOsc,
-    subGain,
-    subLfo,
-    subLfoGain
+    padMix, padFilter, ...padOscillators,
+    tremoloOsc, tremoloGain,
+    subOsc, subGain,
+    hissSource, hissHP, hissLP, hissGain,
+    wobbleOsc, wobbleGain,
+    drumBus, drumFilter,
+    melodyBus, melodyFilter
   );
 }
 
@@ -439,6 +565,7 @@ async function playTrack(trackId, volume, range) {
 }
 
 function stopSound() {
+  if (lofiIntervalId) { clearInterval(lofiIntervalId); lofiIntervalId = null; }
   stopAuthenticTrack();
   activeNodes.forEach(node => {
     try {
