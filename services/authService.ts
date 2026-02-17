@@ -60,10 +60,7 @@ class AuthService {
   // Google Sign-In via Chrome Identity API (with fallback)
   async signInWithGoogle(): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
     if (!isChromeExtension) {
-      // For web, the UI handles the popup/redirect via @react-oauth/google
-      // This method might be called by legacy code, but for Web SSO we use handleWebLogin
-      console.warn('[Auth] signInWithGoogle called in web context. Use handleWebLogin instead.');
-      return { success: false, error: 'Please use the Google Sign-In button.' };
+      return { success: false, error: 'Sign-in requires the Chrome extension environment.' };
     }
 
     let primaryFailureMessage = '';
@@ -286,18 +283,6 @@ class AuthService {
     }
   }
 
-  // Handle Web Login (called from UI after @react-oauth/google success)
-  async handleWebLogin(accessToken: string): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
-    try {
-      this.token = accessToken;
-      await this.fetchUserProfile();
-      this.saveState();
-      return { success: true, profile: this.profile! };
-    } catch (e: any) {
-      console.error('[Auth] Web login processing failed:', e);
-      return { success: false, error: e.message || 'Failed to process login credential' };
-    }
-  }
 }
 
 export const authService = AuthService.getInstance();

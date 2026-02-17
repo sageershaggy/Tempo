@@ -104,6 +104,13 @@ export const stopSound = () => {
     } catch (e) {
       // Already stopped
     }
+    try {
+      if (typeof (node as any).disconnect === 'function') {
+        (node as any).disconnect();
+      }
+    } catch (e) {
+      // Ignore disconnect errors from stale nodes
+    }
   });
   activeNodes = [];
 
@@ -173,8 +180,10 @@ export const playSound = async (trackId: string, volume: number = 0.5): Promise<
       break;
     case '7':  // Coffee Shop
     case '12': // Ocean Waves
-    case '18': // Lo-Fi Beats
       createNoise(ctx, gainNode, 'brown');
+      break;
+    case '18': // Lo-Fi Beats
+      createLofiBeat(ctx, gainNode);
       break;
     case '14': // Night Crickets
       createNoise(ctx, gainNode, 'white');
@@ -286,6 +295,82 @@ const createNoise = (ctx: AudioContext, gainNode: GainNode, type: 'white' | 'bro
   source.connect(gainNode);
   source.start();
   activeNodes.push(source);
+};
+
+const createLofiBeat = (ctx: AudioContext, gainNode: GainNode) => {
+  const padMix = ctx.createGain();
+  padMix.gain.value = 0.18;
+  padMix.connect(gainNode);
+
+  const padFilter = ctx.createBiquadFilter();
+  padFilter.type = 'lowpass';
+  padFilter.frequency.value = 1200;
+  padFilter.Q.value = 0.7;
+  padFilter.connect(padMix);
+
+  const chordFrequencies = [110, 138.59, 164.81];
+  const padOscillators = chordFrequencies.map((freq, index) => {
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    osc.detune.value = index === 1 ? -4 : index === 2 ? 3 : 0;
+    osc.connect(padFilter);
+    osc.start();
+    return osc;
+  });
+
+  const tremoloOsc = ctx.createOscillator();
+  tremoloOsc.type = 'sine';
+  tremoloOsc.frequency.value = 2.1;
+  const tremoloGain = ctx.createGain();
+  tremoloGain.gain.value = 0.06;
+  tremoloOsc.connect(tremoloGain);
+  tremoloGain.connect(padMix.gain);
+  tremoloOsc.start();
+
+  const hissSource = createNoiseBuffer(ctx, 'white');
+  const hissHighPass = ctx.createBiquadFilter();
+  hissHighPass.type = 'highpass';
+  hissHighPass.frequency.value = 3400;
+  const hissGain = ctx.createGain();
+  hissGain.gain.value = 0.012;
+  hissSource.connect(hissHighPass);
+  hissHighPass.connect(hissGain);
+  hissGain.connect(gainNode);
+  hissSource.start();
+
+  const subOsc = ctx.createOscillator();
+  subOsc.type = 'sine';
+  subOsc.frequency.value = 55;
+  const subGain = ctx.createGain();
+  subGain.gain.value = 0.04;
+  subOsc.connect(subGain);
+  subGain.connect(gainNode);
+  subOsc.start();
+
+  const subLfo = ctx.createOscillator();
+  subLfo.type = 'triangle';
+  subLfo.frequency.value = 1.6;
+  const subLfoGain = ctx.createGain();
+  subLfoGain.gain.value = 0.03;
+  subLfo.connect(subLfoGain);
+  subLfoGain.connect(subGain.gain);
+  subLfo.start();
+
+  activeNodes.push(
+    padMix,
+    padFilter,
+    ...padOscillators,
+    tremoloOsc,
+    tremoloGain,
+    hissSource,
+    hissHighPass,
+    hissGain,
+    subOsc,
+    subGain,
+    subLfo,
+    subLfoGain
+  );
 };
 
 export const setVolume = (volume: number) => {

@@ -1,5 +1,4 @@
 import React from 'react';
-import { useGoogleLogin } from '@react-oauth/google';
 declare var chrome: any;
 import { Screen } from '../types';
 import { authService } from '../services/authService';
@@ -7,26 +6,6 @@ import { authService } from '../services/authService';
 export const LoginScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-
-  // Web Login Hook
-  const webLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const result = await authService.handleWebLogin(tokenResponse.access_token);
-        handleLoginResult(result);
-      } catch (err: any) {
-        console.error("Web login error:", err);
-        setError('Login failed. Please try again.');
-        setIsLoading(false);
-      }
-    },
-    onError: () => {
-      setError('Login failed. Please try again.');
-      setIsLoading(false);
-    }
-  });
 
   const handleLoginResult = (result: { success: boolean; profile?: any; error?: string }) => {
     if (result.success) {
@@ -50,20 +29,13 @@ export const LoginScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
     setIsLoading(true);
     setError(null);
 
-    const isExtension = typeof chrome !== 'undefined' && chrome.identity?.getAuthToken;
-
-    if (isExtension) {
-      try {
-        const result = await authService.signInWithGoogle();
-        handleLoginResult(result);
-      } catch (error: any) {
-        console.error("Extension login failed:", error);
-        setError('Something went wrong. Please try again.');
-        setIsLoading(false);
-      }
-    } else {
-      // Trigger Web Logic
-      webLogin();
+    try {
+      const result = await authService.signInWithGoogle();
+      handleLoginResult(result);
+    } catch (error: any) {
+      console.error("Login failed:", error);
+      setError('Something went wrong. Please try again.');
+      setIsLoading(false);
     }
   };
 
@@ -120,8 +92,6 @@ export const LoginScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
               Continue as Guest
             </button>
           </div>
-
-          {/* Guest Login */}
 
         </div>
 

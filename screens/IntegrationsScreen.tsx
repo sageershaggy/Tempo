@@ -331,7 +331,7 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
             </div>
             <div className="mt-4">
               <button
-                onClick={() => window.open('https://keep.google.com', '_blank')}
+                onClick={() => window.open('https://keep.google.com', '_blank', 'noopener,noreferrer')}
                 className="w-full py-2.5 rounded-lg text-xs font-bold bg-[#FDB52C] text-black hover:bg-[#FDB52C]/90 transition-all flex items-center justify-center gap-2"
               >
                 <span className="material-symbols-outlined text-sm">open_in_new</span>

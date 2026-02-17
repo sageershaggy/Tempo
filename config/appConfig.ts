@@ -304,9 +304,9 @@ export const defaultAppConfig: AppConfig = {
   },
 
   admin: {
-    // In production, use proper auth with bcrypt or similar
-    // This is a SHA-256 hash of 'admin123' for demo purposes
-    passwordHash: 'admin@345', // TODO: Replace with secure authentication
+    // Use a SHA-256 hex hash. Override via VITE_ADMIN_PASSWORD_HASH.
+    // Default hash corresponds to "admin@345" to preserve existing behavior.
+    passwordHash: (import.meta as any).env?.VITE_ADMIN_PASSWORD_HASH?.trim() || '60088172714c7fc576799d095c3868aef3bbbe9d5063681af478b9573ee6a3af',
   },
 
   pricing: {
