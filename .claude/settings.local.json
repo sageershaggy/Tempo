@@ -34,7 +34,11 @@
       "Bash(npm ls:*)",
       "Bash(xargs ls:*)",
       "WebFetch(domain:developer.chrome.com)",
-      "WebFetch(domain:groups.google.com)"
+      "WebFetch(domain:groups.google.com)",
+      "Bash(.html \")",
+      "Bash(npm uninstall:*)",
+      "Bash(Select-String -Path \"D:\\\\Github\\\\Tempo\\\\dist\\\\assets\\\\main.js\" -Pattern \"gsi\" -AllMatches)",
+      "Bash(ForEach-Object { $_Matches.Count })"
     ]
   }
 }

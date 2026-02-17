@@ -1,57 +1,48 @@
-// YouTube IFrame API - loaded in sandbox context
-let player = null;
+// YouTube Sandbox - plain iframe embed (no remote YouTube IFrame API script)
+// Uses postMessage to communicate with the YouTube embed via enablejsapi=1
+
+let youtubeIframe = null;
 let currentVideoId = null;
-
-// Load YouTube IFrame API
-const tag = document.createElement('script');
-tag.src = 'https://www.youtube.com/iframe_api';
-document.head.appendChild(tag);
-
-function onYouTubeIframeAPIReady() {
-  console.log('[Tempo Sandbox] YouTube IFrame API ready');
-  window.parent.postMessage({ type: 'yt-api-ready' }, '*');
-}
 
 function createPlayer(videoId) {
   currentVideoId = videoId;
-  if (player) {
-    try { player.destroy(); } catch (e) {}
-    player = null;
-  }
-  document.getElementById('player').innerHTML = '';
 
-  player = new YT.Player('player', {
-    width: '640',
-    height: '360',
-    videoId: videoId,
-    playerVars: {
-      autoplay: 1,
-      loop: 1,
-      playlist: videoId,
-      controls: 0,
-      disablekb: 1,
-      modestbranding: 1,
-      rel: 0,
-    },
-    events: {
-      onReady: function(event) {
-        console.log('[Tempo Sandbox] Player ready, playing video');
-        event.target.playVideo();
-        window.parent.postMessage({ type: 'yt-playing', videoId: videoId }, '*');
-      },
-      onStateChange: function(event) {
-        if (event.data === 0) {
-          event.target.seekTo(0);
-          event.target.playVideo();
-        }
-        window.parent.postMessage({ type: 'yt-state', state: event.data, videoId: currentVideoId }, '*');
-      },
-      onError: function(event) {
-        console.error('[Tempo Sandbox] Player error:', event.data);
-        window.parent.postMessage({ type: 'yt-error', error: event.data }, '*');
-      }
-    }
+  // Remove existing iframe
+  const container = document.getElementById('player');
+  container.innerHTML = '';
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'yt-iframe';
+  iframe.width = '640';
+  iframe.height = '360';
+  iframe.allow = 'autoplay; encrypted-media';
+  iframe.setAttribute('allowfullscreen', '');
+  iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&rel=0&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}`;
+
+  iframe.addEventListener('load', () => {
+    console.log('[Tempo Sandbox] Player ready, video:', videoId);
+    window.parent.postMessage({ type: 'yt-playing', videoId: videoId }, '*');
+    // Nudge autoplay
+    setTimeout(() => postCommand('playVideo'), 200);
   });
+
+  iframe.addEventListener('error', () => {
+    console.error('[Tempo Sandbox] Player error');
+    window.parent.postMessage({ type: 'yt-error', error: 'iframe_load_failed' }, '*');
+  });
+
+  container.appendChild(iframe);
+  youtubeIframe = iframe;
+}
+
+// Send commands to YouTube embed via postMessage (enablejsapi=1 protocol)
+function postCommand(func, args) {
+  if (!youtubeIframe || !youtubeIframe.contentWindow) return;
+  youtubeIframe.contentWindow.postMessage(JSON.stringify({
+    event: 'command',
+    func: func,
+    args: args || []
+  }), '*');
 }
 
 // Listen for commands from parent (offscreen document)
@@ -61,24 +52,13 @@ window.addEventListener('message', function(event) {
 
   switch (data.type) {
     case 'yt-play':
-      if (typeof YT !== 'undefined' && YT.Player) {
-        createPlayer(data.videoId);
-      } else {
-        currentVideoId = data.videoId;
-        const check = setInterval(() => {
-          if (typeof YT !== 'undefined' && YT.Player) {
-            clearInterval(check);
-            createPlayer(data.videoId);
-          }
-        }, 200);
-        setTimeout(() => clearInterval(check), 10000);
-      }
+      createPlayer(data.videoId);
       break;
 
     case 'yt-stop':
-      if (player) {
-        try { player.destroy(); } catch (e) {}
-        player = null;
+      if (youtubeIframe) {
+        youtubeIframe.remove();
+        youtubeIframe = null;
       }
       currentVideoId = null;
       document.getElementById('player').innerHTML = '';
@@ -88,17 +68,19 @@ window.addEventListener('message', function(event) {
     case 'yt-status':
       window.parent.postMessage({
         type: 'yt-status-response',
-        isPlaying: !!player && !!currentVideoId,
+        isPlaying: !!youtubeIframe && !!currentVideoId,
         videoId: currentVideoId
       }, '*');
       break;
 
     case 'yt-volume':
-      if (player && player.setVolume) {
-        player.setVolume(data.volume);
+      if (youtubeIframe) {
+        postCommand('setVolume', [data.volume]);
       }
       break;
   }
 });
 
+// Signal readiness (no API to wait for)
+window.parent.postMessage({ type: 'yt-api-ready' }, '*');
 console.log('[Tempo Sandbox] YouTube sandbox loaded');

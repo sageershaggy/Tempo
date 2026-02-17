@@ -111,7 +111,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   };
 
   const openChromeWebStore = () => {
-    window.open(config.app.chromeWebStoreUrl, '_blank');
+    window.open(config.app.chromeWebStoreUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (

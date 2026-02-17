@@ -6,7 +6,8 @@ Prerequisites: Node.js 18+
 1. Install dependencies: `npm install`
 2. Create `.env.local` from `.env.example`
 3. Set `VITE_GEMINI_API_KEY`
-4. Run: `npm run dev`
+4. Optional security hardening: set `VITE_ADMIN_PASSWORD_HASH`
+5. Run: `npm run dev`
 
 ## Production Build
 1. Build: `npm run build`

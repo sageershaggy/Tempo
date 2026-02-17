@@ -39,7 +39,7 @@ const toPositiveInt = (value: unknown, fallback: number, min: number): number =>
 };
 
 const createDefaultPreset = (focusMinutes: number, breakMinutes: number): TimerPreset => {
-  const safeFocus = toPositiveInt(focusMinutes, 25, 1);
+  const safeFocus = toPositiveInt(focusMinutes, 25, 5);
   const safeBreak = toPositiveInt(breakMinutes, 5, 1);
   return {
     id: 'default',
@@ -53,7 +53,7 @@ const createDefaultPreset = (focusMinutes: number, breakMinutes: number): TimerP
 const normalizePreset = (preset: any): TimerPreset | null => {
   if (!preset || typeof preset !== 'object') return null;
   const id = String(preset.id || '').trim();
-  const focusMinutes = toPositiveInt(preset.focusMinutes, 25, 1);
+  const focusMinutes = toPositiveInt(preset.focusMinutes, 25, 5);
   const breakMinutes = toPositiveInt(preset.breakMinutes, 5, 1);
   if (!id || id === 'default') return null;
   return {
@@ -237,7 +237,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     const focusMinutes = toPositiveInt(
       focusInput ?? userFocusDuration,
       config.defaults.settings.focusDuration,
-      1
+      5
     );
     const breakMinutes = toPositiveInt(
       breakInput ?? userBreakDuration,
@@ -308,7 +308,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     }
     setPresetModalMode('add');
     setEditingPresetId(null);
-    setNewPresetFocusMinutes(toPositiveInt(userFocusDuration, config.defaults.settings.focusDuration, 1));
+    setNewPresetFocusMinutes(toPositiveInt(userFocusDuration, config.defaults.settings.focusDuration, 5));
     setNewPresetBreakMinutes(toPositiveInt(userBreakDuration, config.defaults.settings.shortBreak, 1));
     setShowAddPresetModal(true);
   };
@@ -333,7 +333,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     const preset = templates.find(t => t.id === presetId);
     if (!preset || preset.id === 'default') return false;
 
-    const focusMinutes = toPositiveInt(focusInput, preset.focusMinutes, 1);
+    const focusMinutes = toPositiveInt(focusInput, preset.focusMinutes, 5);
     const breakMinutes = toPositiveInt(breakInput, preset.breakMinutes, 1);
     const duplicatePreset = templates.find(
       t => t.id !== presetId && t.focusMinutes === focusMinutes && t.breakMinutes === breakMinutes
@@ -381,7 +381,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   };
 
   const handleConfirmAddPreset = () => {
-    const focusMinutes = toPositiveInt(newPresetFocusMinutes, config.defaults.settings.focusDuration, 1);
+    const focusMinutes = toPositiveInt(newPresetFocusMinutes, config.defaults.settings.focusDuration, 5);
     const breakMinutes = toPositiveInt(newPresetBreakMinutes, config.defaults.settings.shortBreak, 1);
 
     const succeeded = presetModalMode === 'edit' && editingPresetId
@@ -1646,10 +1646,18 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 <span className="text-[10px] font-semibold text-white/80">Focus (min)</span>
                 <input
                   type="number"
-                  min={1}
+                  min={5}
                   max={180}
+                  step={5}
                   value={newPresetFocusMinutes}
-                  onChange={(e) => setNewPresetFocusMinutes(Math.max(1, Number(e.target.value) || 1))}
+                  onChange={(e) => {
+                    const parsed = Number(e.target.value);
+                    if (!Number.isFinite(parsed)) {
+                      setNewPresetFocusMinutes(5);
+                      return;
+                    }
+                    setNewPresetFocusMinutes(Math.min(180, Math.max(5, Math.round(parsed))));
+                  }}
                   className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-xs text-white focus:outline-none focus:border-primary/40"
                 />
               </label>

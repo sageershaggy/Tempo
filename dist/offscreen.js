@@ -209,6 +209,82 @@ function createNoise(ctx, gainNode, type, options = {}) {
   activeNodes.push(source, colorGain, ...filterNodes);
 }
 
+function createLofiBeat(ctx, gainNode) {
+  const padMix = ctx.createGain();
+  padMix.gain.value = 0.18;
+  padMix.connect(gainNode);
+
+  const padFilter = ctx.createBiquadFilter();
+  padFilter.type = 'lowpass';
+  padFilter.frequency.value = 1200;
+  padFilter.Q.value = 0.7;
+  padFilter.connect(padMix);
+
+  const chordFrequencies = [110, 138.59, 164.81];
+  const padOscillators = chordFrequencies.map((freq, index) => {
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    osc.detune.value = index === 1 ? -4 : index === 2 ? 3 : 0;
+    osc.connect(padFilter);
+    osc.start();
+    return osc;
+  });
+
+  const tremoloOsc = ctx.createOscillator();
+  tremoloOsc.type = 'sine';
+  tremoloOsc.frequency.value = 2.1;
+  const tremoloGain = ctx.createGain();
+  tremoloGain.gain.value = 0.06;
+  tremoloOsc.connect(tremoloGain);
+  tremoloGain.connect(padMix.gain);
+  tremoloOsc.start();
+
+  const hissSource = createNoiseBuffer(ctx, 'white');
+  const hissHighPass = ctx.createBiquadFilter();
+  hissHighPass.type = 'highpass';
+  hissHighPass.frequency.value = 3400;
+  const hissGain = ctx.createGain();
+  hissGain.gain.value = 0.012;
+  hissSource.connect(hissHighPass);
+  hissHighPass.connect(hissGain);
+  hissGain.connect(gainNode);
+  hissSource.start();
+
+  const subOsc = ctx.createOscillator();
+  subOsc.type = 'sine';
+  subOsc.frequency.value = 55;
+  const subGain = ctx.createGain();
+  subGain.gain.value = 0.04;
+  subOsc.connect(subGain);
+  subGain.connect(gainNode);
+  subOsc.start();
+
+  const subLfo = ctx.createOscillator();
+  subLfo.type = 'triangle';
+  subLfo.frequency.value = 1.6;
+  const subLfoGain = ctx.createGain();
+  subLfoGain.gain.value = 0.03;
+  subLfo.connect(subLfoGain);
+  subLfoGain.connect(subGain.gain);
+  subLfo.start();
+
+  activeNodes.push(
+    padMix,
+    padFilter,
+    ...padOscillators,
+    tremoloOsc,
+    tremoloGain,
+    hissSource,
+    hissHighPass,
+    hissGain,
+    subOsc,
+    subGain,
+    subLfo,
+    subLfoGain
+  );
+}
+
 function disposeMediaElement(media) {
   if (!media) return;
   try {
@@ -353,7 +429,7 @@ async function playTrack(trackId, volume, range) {
     case '8': createNoise(ctx, gainNode, 'brown', { highpass: 20, lowpass: 1000, level: 0.42 }); break;  // Brown Noise
     case '9': createNoise(ctx, gainNode, 'white', { highpass: 100, lowpass: 6500, level: 0.18 }); break; // White Noise
     case '10': createNoise(ctx, gainNode, 'pink', { highpass: 90, lowpass: 5200, level: 0.26 }); break; // Pink Noise
-    case '18': createNoise(ctx, gainNode, 'brown', { highpass: 70, lowpass: 1800, level: 0.26 }); break; // Lo-Fi Beats
+    case '18': createLofiBeat(ctx, gainNode); break; // Lo-Fi Beats
     default:
       clearActiveTrackRouting(gainNode, compressor, trackId);
       return false;

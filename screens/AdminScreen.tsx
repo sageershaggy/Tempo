@@ -59,11 +59,30 @@ const saveMockUsers = (users: MockUser[]): void => {
 };
 
 type AdminTab = 'overview' | 'users' | 'feedback' | 'licenses' | 'payments' | 'access' | 'settings';
+const ADMIN_SESSION_DURATION_MS = 8 * 60 * 60 * 1000;
+
+const timingSafeEqual = (a: string, b: string): boolean => {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+};
+
+const sha256Hex = async (value: string): Promise<string> => {
+  const encoded = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', encoded);
+  const bytes = Array.from(new Uint8Array(digest));
+  return bytes.map(byte => byte.toString(16).padStart(2, '0')).join('');
+};
 
 export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [config, setConfig] = useState<AdminConfig>({
     stripeMonthlyLink: '',
@@ -89,13 +108,28 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
   const [selectedReport, setSelectedReport] = useState<FeedbackReport | null>(null);
   const [adminNote, setAdminNote] = useState('');
 
-  // Load admin password from config
+  // Load admin hash from config
   const appConfig = configManager.getConfig();
-  const ADMIN_PASSWORD = appConfig.admin.passwordHash;
+  const ADMIN_PASSWORD_HASH = String(appConfig.admin.passwordHash || '').trim().toLowerCase();
   const PRICING = appConfig.pricing;
 
   useEffect(() => {
     getAdminConfig().then(setConfig);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      if (typeof parsed?.expiresAt === 'number' && parsed.expiresAt > Date.now()) {
+        setIsLoggedIn(true);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN);
+      }
+    } catch (e) {
+      localStorage.removeItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN);
+    }
   }, []);
 
   // Save users when they change
@@ -103,15 +137,48 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
     saveMockUsers(users);
   }, [users]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Note: In production, use proper authentication with hashed passwords
-    if (password === ADMIN_PASSWORD) {
-      setIsLoggedIn(true);
-      localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN, 'authenticated');
-    } else {
-      alert('Invalid Admin Key');
+    setLoginError(null);
+
+    if (!password.trim()) {
+      setLoginError('Enter your admin key.');
+      return;
     }
+
+    if (!/^[a-f0-9]{64}$/.test(ADMIN_PASSWORD_HASH)) {
+      setLoginError('Admin hash is not configured correctly.');
+      return;
+    }
+
+    if (!globalThis.crypto?.subtle) {
+      setLoginError('Secure login is not supported in this environment.');
+      return;
+    }
+
+    setIsAuthenticating(true);
+    try {
+      const enteredHash = await sha256Hex(password.trim());
+      if (!timingSafeEqual(enteredHash, ADMIN_PASSWORD_HASH)) {
+        setLoginError('Invalid Admin Key');
+        return;
+      }
+
+      const now = Date.now();
+      setIsLoggedIn(true);
+      setPassword('');
+      localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN, JSON.stringify({
+        issuedAt: now,
+        expiresAt: now + ADMIN_SESSION_DURATION_MS,
+      }));
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    localStorage.removeItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN);
   };
 
   const handleSaveConfig = async () => {
@@ -177,7 +244,10 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
               type={showPassword ? 'text' : 'password'}
               placeholder="Enter Admin Key"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (loginError) setLoginError(null);
+              }}
               className="w-full bg-surface-light border border-white/10 rounded-xl px-4 py-3 pr-12 text-white focus:border-primary outline-none"
             />
             <button
@@ -188,8 +258,15 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
               <span className="material-symbols-outlined text-xl">{showPassword ? 'visibility_off' : 'visibility'}</span>
             </button>
           </div>
-          <button type="submit" className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-100 transition-colors">
-            Login
+          {loginError && (
+            <p className="text-[11px] text-red-400">{loginError}</p>
+          )}
+          <button
+            type="submit"
+            disabled={isAuthenticating}
+            className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {isAuthenticating ? 'Verifying...' : 'Login'}
           </button>
         </form>
         <button onClick={() => setScreen(Screen.PROFILE)} className="mt-6 text-xs text-muted hover:text-white transition-colors">
@@ -207,7 +284,7 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
           <span className="material-symbols-outlined text-primary text-xl">admin_panel_settings</span>
           <h2 className="font-bold text-sm">Tempo Admin</h2>
         </div>
-        <button onClick={() => setIsLoggedIn(false)} className="text-xs text-red-400 font-bold hover:text-red-300 mr-10">
+        <button onClick={handleLogout} className="text-xs text-red-400 font-bold hover:text-red-300 mr-10">
           Logout
         </button>
       </div>
@@ -977,8 +1054,8 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
 
             <div className="bg-surface-dark rounded-xl p-3 border border-white/5">
               <h3 className="font-bold mb-3 text-xs">Admin Credentials</h3>
-              <p className="text-[10px] text-muted mb-2">Current password: admin123</p>
-              <p className="text-[10px] text-yellow-400">Note: Change this in production!</p>
+              <p className="text-[10px] text-muted mb-2">Admin access is verified via SHA-256 hash.</p>
+              <p className="text-[10px] text-yellow-400">Set `VITE_ADMIN_PASSWORD_HASH` for production deployments.</p>
             </div>
 
             <button

@@ -3,7 +3,7 @@
 // Get mode from URL params
 const params = new URLSearchParams(window.location.search);
 const mode = params.get('mode') || 'focus'; // 'focus' or 'break'
-const duration = params.get('duration') || '25';
+const rawDuration = params.get('duration') || '25';
 
 // Elements
 const body = document.body;
@@ -18,13 +18,31 @@ const closeBtn = document.getElementById('closeBtn');
 const backLink = document.getElementById('backLink');
 const rateBtn = document.getElementById('rateBtn');
 
+const toSafeInt = (value, fallback, min, max) => {
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+};
+
+const safeDuration = toSafeInt(rawDuration, 25, 1, 240);
+
+const setSessionInfoWithStrong = (prefix, strongValue, suffix) => {
+  if (!sessionInfo) return;
+  sessionInfo.textContent = '';
+  sessionInfo.append(document.createTextNode(prefix));
+  const strongEl = document.createElement('strong');
+  strongEl.textContent = strongValue;
+  sessionInfo.append(strongEl);
+  sessionInfo.append(document.createTextNode(suffix));
+};
+
 // Configure based on mode
 if (mode === 'break') {
   // Break completed - ready for focus
   body.classList.add('break-mode');
   title.textContent = 'Break Complete!';
   message.textContent = 'Ready for another focus session?';
-  sessionInfo.innerHTML = `Your <strong>${duration} minute</strong> break is over`;
+  setSessionInfoWithStrong('Your ', `${safeDuration} minute`, ' break is over');
   mainIcon.textContent = 'rocket_launch';
   startIcon.textContent = 'play_arrow';
   startText.textContent = 'Start Focus';
@@ -32,7 +50,7 @@ if (mode === 'break') {
   // Focus completed - ready for break
   title.textContent = 'Focus Session Complete!';
   message.textContent = 'Great work! You\'ve earned a break.';
-  sessionInfo.innerHTML = `You completed <strong>${duration} minutes</strong> of focused work`;
+  setSessionInfoWithStrong('You completed ', `${safeDuration} minutes`, ' of focused work');
   mainIcon.textContent = 'celebration';
   startIcon.textContent = 'coffee';
   startText.textContent = 'Start Break';
@@ -41,13 +59,19 @@ if (mode === 'break') {
   if (chrome?.storage?.local) {
     chrome.storage.local.get(['nextBreakIsLong', 'nextBreakDuration', 'sessionCount'], (data) => {
       if (data.nextBreakIsLong) {
-        startText.textContent = `Start Long Break (${data.nextBreakDuration || 15}m)`;
+        const safeLongBreakDuration = toSafeInt(data.nextBreakDuration, 15, 1, 120);
+        startText.textContent = `Start Long Break (${safeLongBreakDuration}m)`;
         message.textContent = 'Amazing! You\'ve earned a long break!';
       } else if (data.nextBreakDuration) {
-        startText.textContent = `Start Break (${data.nextBreakDuration}m)`;
+        const safeBreakDuration = toSafeInt(data.nextBreakDuration, 15, 1, 120);
+        startText.textContent = `Start Break (${safeBreakDuration}m)`;
       }
       if (data.sessionCount) {
-        sessionInfo.innerHTML += ` · Session <strong>#${data.sessionCount}</strong>`;
+        const safeSessionCount = toSafeInt(data.sessionCount, 1, 1, 10000);
+        sessionInfo.append(document.createTextNode(' · Session '));
+        const strongEl = document.createElement('strong');
+        strongEl.textContent = `#${safeSessionCount}`;
+        sessionInfo.append(strongEl);
       }
     });
   }
@@ -111,10 +135,11 @@ backLink.addEventListener('click', () => {
 
 rateBtn.addEventListener('click', () => {
   // Open Chrome Web Store rating page (update URL when published)
-  window.open('https://chrome.google.com/webstore/detail/YOUR_EXTENSION_ID/reviews', '_blank');
+  window.open('https://chrome.google.com/webstore/detail/YOUR_EXTENSION_ID/reviews', '_blank', 'noopener,noreferrer');
 });
 
 // Auto-close after 5 minutes of inactivity
 setTimeout(() => {
   window.close();
 }, 5 * 60 * 1000);
+
