@@ -782,10 +782,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // FOCUS BEAT - Persistent metronome that works when popup is closed
 // ============================================================================
 
-// ============================================================================
-// FOCUS BEAT - Persistent metronome that works when popup is closed
-// ============================================================================
-
 let focusBeatStartTime = null;
 
 // Beat sound generators for different styles
