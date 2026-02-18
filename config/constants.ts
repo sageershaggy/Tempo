@@ -281,7 +281,7 @@ export const PATTERNS = {
 
 export const EXTERNAL_URLS = {
   PICSUM_PHOTOS: 'https://picsum.photos',
-  YOUTUBE_EMBED: 'https://www.youtube.com/embed',
+  YOUTUBE_EMBED: 'https://www.youtube-nocookie.com/embed',
   CHROME_WEB_STORE: 'https://chrome.google.com/webstore',
 } as const;
 
