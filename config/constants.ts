@@ -16,6 +16,7 @@ export const STORAGE_KEYS = {
   // Timer State
   TIMER_TARGET: 'tempo_timer_target',
   TIMER_MODE: 'tempo_timer_mode',
+  TIMER_TEMPLATE: 'tempo_timer_template',
   TIMER_ACTIVE: 'tempo_timer_active',
 
   // App State

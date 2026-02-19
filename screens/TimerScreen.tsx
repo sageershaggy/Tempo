@@ -285,7 +285,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     }
 
     setActiveTemplateId(selectedId);
-    localStorage.setItem(STORAGE_KEYS.TIMER_MODE, selectedId);
+    localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, selectedId);
 
     if (!isActive) {
       const focusSeconds = focusMinutes * 60;
@@ -412,7 +412,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     setTemplates(nextTemplates);
     setActiveTemplateId(nextActivePresetId);
     saveTimerPresets(nextTemplates);
-    localStorage.setItem(STORAGE_KEYS.TIMER_MODE, nextActivePresetId);
+    localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, nextActivePresetId);
     setPresetNotice(`Deleted preset ${presetToDelete.label}`);
 
     if (!isActive && shouldSwitchActivePreset) {
@@ -436,8 +436,16 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     return tmpl ? tmpl.breakMinutes * 60 : (templates[0]?.breakMinutes || config.defaults.settings.shortBreak) * 60;
   };
 
-  // Restore template from localStorage if saved
-  const savedTemplateId = localStorage.getItem(STORAGE_KEYS.TIMER_MODE);
+  // Restore template from localStorage if saved (migrate from old key if needed)
+  let savedTemplateId = localStorage.getItem(STORAGE_KEYS.TIMER_TEMPLATE);
+  if (!savedTemplateId) {
+    // Migration: old versions stored template ID under TIMER_MODE (same key as focus/break mode)
+    const oldVal = localStorage.getItem(STORAGE_KEYS.TIMER_MODE);
+    if (oldVal && oldVal !== 'focus' && oldVal !== 'break' && templates.find(t => t.id === oldVal)) {
+      savedTemplateId = oldVal;
+      localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, oldVal);
+    }
+  }
   const restoredTemplateId = (savedTemplateId && templates.find(t => t.id === savedTemplateId)) ? savedTemplateId : (templates[0]?.id || 'default');
 
   const [activeTemplateId, setActiveTemplateId] = useState(restoredTemplateId);
@@ -519,11 +527,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     if (!templates.some(template => template.id === activeTemplateId)) {
       const fallbackId = templates[0].id;
       setActiveTemplateId(fallbackId);
-      localStorage.setItem(STORAGE_KEYS.TIMER_MODE, fallbackId);
+      localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, fallbackId);
       return;
     }
 
-    localStorage.setItem(STORAGE_KEYS.TIMER_MODE, activeTemplateId);
+    localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, activeTemplateId);
   }, [templates, activeTemplateId]);
 
   // If timer presets change while idle, refresh displayed duration for the selected preset.
@@ -559,7 +567,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         const target = Date.now() + (timeLeft * 1000);
         localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(target));
         localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'true');
-        localStorage.setItem(STORAGE_KEYS.TIMER_MODE, activeTemplateId);
+        localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, activeTemplateId);
       }, 100);
     }
   }, []);
@@ -799,7 +807,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   useEffect(() => {
     const loadTimerState = async () => {
       const savedTarget = localStorage.getItem(STORAGE_KEYS.TIMER_TARGET);
-      const savedTemplateId = localStorage.getItem(STORAGE_KEYS.TIMER_MODE);
+      const savedTemplateId = localStorage.getItem(STORAGE_KEYS.TIMER_TEMPLATE);
       const savedIsActive = localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true';
       const savedTimerModeVal = localStorage.getItem('tempo_timer_mode') as 'focus' | 'break' | null;
       const savedInitialTime = localStorage.getItem('tempo_timer_initialTime');
@@ -1100,7 +1108,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     const newActive = !isActive;
     setIsActive(newActive);
     localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, String(newActive));
-    localStorage.setItem(STORAGE_KEYS.TIMER_MODE, activeTemplateId);
+    localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, activeTemplateId);
     // Persist timerMode and initialTime so they survive popup close/reopen
     localStorage.setItem('tempo_timer_mode', timerMode);
     localStorage.setItem('tempo_timer_initialTime', String(initialTime));
@@ -2147,7 +2155,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                   const target = Date.now() + (timeLeft * 1000);
                   localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(target));
                   localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'true');
-                  localStorage.setItem(STORAGE_KEYS.TIMER_MODE, activeTemplateId);
+                  localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, activeTemplateId);
                   localStorage.setItem('tempo_timer_mode', timerMode);
                   localStorage.setItem('tempo_timer_initialTime', String(initialTime));
                   try {

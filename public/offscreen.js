@@ -1391,21 +1391,24 @@ function playYouTube(videoId) {
     iframe.height = '360';
     iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
     iframe.setAttribute('allowfullscreen', '');
-    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
     const extensionOrigin = self.location?.origin || '';
-    iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&controls=1&modestbranding=1&rel=0&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(extensionOrigin)}`;
+    iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&controls=1&modestbranding=1&rel=0&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(extensionOrigin)}`;
 
     iframe.addEventListener('load', () => {
       youtubeLastError = null;
       youtubeIsPlaying = true;
-      // Double-tap play command helps on some embeds that don't autoplay immediately.
+      // Retry play commands at increasing intervals to handle embeds that don't autoplay immediately.
       setTimeout(() => {
         resumeYouTubePlayback();
         setYouTubeVolumeLevel(currentVolume);
-      }, 120);
+      }, 150);
       setTimeout(() => {
         resumeYouTubePlayback();
-      }, 700);
+        setYouTubeVolumeLevel(currentVolume);
+      }, 800);
+      setTimeout(() => {
+        resumeYouTubePlayback();
+      }, 2000);
       console.log('[Tempo] YouTube iframe loaded for video:', videoId);
       resolveOnce({ success: true, videoId });
     });
