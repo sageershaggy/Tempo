@@ -211,10 +211,16 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
     const getPriorityColor = (p: string) => {
         switch (p) {
             case 'High': return 'text-secondary border-secondary/30 bg-secondary/10';
-            case 'Medium': return 'text-orange-400 border-orange-400/30 bg-orange-400/10';
             case 'Low': return 'text-blue-400 border-blue-400/30 bg-blue-400/10';
             default: return 'text-muted border-white/10 bg-white/5';
         }
+    };
+
+    const getPriorityStyle = (p: string): React.CSSProperties | undefined => {
+        if (p === 'Medium') {
+            return { color: '#FB923C', borderColor: 'rgba(251,146,60,0.3)', backgroundColor: 'rgba(251,146,60,0.1)' };
+        }
+        return undefined;
     };
 
     const formatDateDisplay = (dateStr?: string) => {
@@ -321,7 +327,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-4 space-y-3 pb-8">
+            <div className="flex-1 overflow-y-auto no-scrollbar px-4 space-y-3 pb-8">
                 {/* Completed tab header */}
                 {filter === 'Completed' && (
                     <div className="flex items-center justify-between mb-1">
@@ -402,7 +408,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                 <h3 className={`text-sm font-medium break-words leading-tight pr-2 ${task.completed ? 'line-through text-muted' : 'text-white'}`}>
                                                     {task.title}
                                                 </h3>
-                                                <div className={`flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider ${getPriorityColor(task.priority)}`}>
+                                                <div className={`flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider ${getPriorityColor(task.priority)}`} style={getPriorityStyle(task.priority)}>
                                                     {task.priority === 'High' && <span className="material-symbols-outlined text-[10px]">priority_high</span>}
                                                     {task.priority}
                                                 </div>
@@ -506,7 +512,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                         </div>
                                                     </div>
                                                     <div>
-                                                        <label className="text-[10px] uppercase font-bold text-muted block mb-1">Priority AI</label>
+                                                        <label className="text-[10px] uppercase font-bold text-muted block mb-1">Priority</label>
                                                         <div className="flex gap-2 items-center">
                                                             <select
                                                                 value={task.priority}
