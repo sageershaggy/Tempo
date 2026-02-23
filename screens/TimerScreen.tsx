@@ -1673,17 +1673,17 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 <span className="text-[10px] font-semibold text-white/80">Break (min)</span>
                 <input
                   type="number"
-                  min={5}
+                  min={1}
                   max={60}
-                  step={5}
+                  step={1}
                   value={newPresetBreakMinutes}
                   onChange={(e) => {
                     const parsed = Number(e.target.value);
                     if (!Number.isFinite(parsed)) {
-                      setNewPresetBreakMinutes(5);
+                      setNewPresetBreakMinutes(1);
                       return;
                     }
-                    setNewPresetBreakMinutes(Math.min(60, Math.max(5, Math.round(parsed / 5) * 5)));
+                    setNewPresetBreakMinutes(Math.min(60, Math.max(1, Math.round(parsed))));
                   }}
                   className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-xs text-white focus:outline-none focus:border-primary/40"
                 />
