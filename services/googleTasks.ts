@@ -1,9 +1,9 @@
 // Google Tasks Service - Real API integration with bidirectional sync
 import { Task } from '../types';
 import { authService } from './authService';
+declare var chrome: any;
 
 const API_BASE = 'https://tasks.googleapis.com/tasks/v1';
-const MANIFEST_CLIENT_ID = '747255011734-l7k517kfa2908all500m6cmcs4iq1ugp.apps.googleusercontent.com';
 const WEB_AUTH_FLOW_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_OAUTH_CLIENT_ID?.trim() || '';
 const HAS_WEB_AUTH_FLOW_CLIENT = WEB_AUTH_FLOW_CLIENT_ID.length > 0;
 const AUTH_FLOW_TIMEOUT_MS = 120000;
@@ -25,6 +25,7 @@ export interface GoogleTaskList {
 export class GoogleTasksService {
   private static instance: GoogleTasksService;
   private token: string | null = null;
+  private lastAuthError: string | null = null;
 
   private constructor() {
     this.token = localStorage.getItem('google_tasks_token');
@@ -41,7 +42,12 @@ export class GoogleTasksService {
     return !!this.token;
   }
 
+  getLastAuthError(): string | null {
+    return this.lastAuthError;
+  }
+
   async authenticate(): Promise<boolean> {
+    this.lastAuthError = null;
     const isChromeExt = typeof chrome !== 'undefined' && chrome.identity?.getAuthToken;
 
     // Reuse an existing SSO token to avoid duplicate auth prompts.
@@ -82,10 +88,12 @@ export class GoogleTasksService {
       const primaryMessage = this.formatAuthError(primaryError);
       console.warn('[Google Tasks] getAuthToken failed, trying webAuthFlow:', primaryMessage);
       if (primaryMessage === 'Google sign-in was canceled or denied.') {
+        this.lastAuthError = primaryMessage;
         return false;
       }
       if (!HAS_WEB_AUTH_FLOW_CLIENT) {
         const redirectUrl = chrome.identity?.getRedirectURL?.() || 'https://<extension-id>.chromiumapp.org/';
+        this.lastAuthError = `Google Tasks auth failed. Configure VITE_GOOGLE_OAUTH_CLIENT_ID and add ${redirectUrl} to OAuth redirect URIs.`;
         console.error('[Google Tasks] Missing web OAuth fallback config:', redirectUrl);
         return false;
       }
@@ -139,7 +147,8 @@ export class GoogleTasksService {
       localStorage.setItem('google_tasks_token', token);
       return true;
     } catch (fallbackError: any) {
-      console.error('[Google Tasks] Both auth methods failed:', this.formatAuthError(fallbackError));
+      this.lastAuthError = this.formatAuthError(fallbackError);
+      console.error('[Google Tasks] Both auth methods failed:', this.lastAuthError);
       return false;
     }
   }
@@ -151,7 +160,7 @@ export class GoogleTasksService {
   }
 
   private async apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    if (!this.token) throw new Error('Not authenticated');
+    if (!this.token) throw new Error('Not authenticated. Please connect Google Tasks first.');
 
     if (this.token.startsWith('dev-')) {
       return this.getMockData(endpoint, options) as T;
@@ -176,13 +185,19 @@ export class GoogleTasksService {
             'Content-Type': 'application/json',
           },
         });
-        if (!retryRes.ok) throw new Error(`API error: ${retryRes.status}`);
+        if (!retryRes.ok) {
+          const retryMessage = await this.extractApiErrorMessage(retryRes);
+          throw new Error(retryMessage || `Google Tasks API error (${retryRes.status}).`);
+        }
         return retryRes.json();
       }
       throw new Error('Token refresh failed');
     }
 
-    if (!res.ok) throw new Error(`API error: ${res.status}`);
+    if (!res.ok) {
+      const apiMessage = await this.extractApiErrorMessage(res);
+      throw new Error(apiMessage || `Google Tasks API error (${res.status}).`);
+    }
     if (res.status === 204) return {} as T;
     return res.json();
   }
@@ -298,6 +313,23 @@ export class GoogleTasksService {
     }
 
     return message;
+  }
+
+  private async extractApiErrorMessage(response: Response): Promise<string> {
+    try {
+      const body = await response.json();
+      const apiMessage = String(body?.error?.message || body?.message || '').trim();
+      if (!apiMessage) return '';
+
+      const lower = apiMessage.toLowerCase();
+      if (response.status === 403 && (lower.includes('insufficient') || lower.includes('permission'))) {
+        return 'Google Tasks permission denied. Reconnect and grant Tasks access.';
+      }
+
+      return `Google Tasks API error (${response.status}): ${apiMessage}`;
+    } catch (_e) {
+      return '';
+    }
   }
 
   private getMockData(endpoint: string, options: RequestInit): any {

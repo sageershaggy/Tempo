@@ -3,7 +3,7 @@ import { Screen, GlobalProps } from '../types';
 import { STORAGE_KEYS } from '../config/constants';
 import { googleTasksService } from '../services/googleTasks';
 
-import { authService, UserProfile } from '../services/authService';
+import { authService } from '../services/authService';
 
 interface IntegrationCardProps {
   title: string;
@@ -173,41 +173,57 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
     localStorage.setItem(STORAGE_KEYS.INTEGRATIONS, JSON.stringify({ google }));
   };
 
+  const isSignInCanceledError = (message: string) => {
+    const lower = message.toLowerCase();
+    return lower.includes('canceled') || lower.includes('cancelled') || lower.includes('denied');
+  };
+
   // Google Connect - triggers Google SSO login flow then connects Tasks
   const handleGoogleConnect = async () => {
     setLoading('google');
     setError(null);
+    setGoogleSyncResult(null);
 
     try {
-      // Step 1: Sign in with Google SSO (shows Google account picker)
+      let authError: string | null = null;
+
+      // Step 1: Try Google SSO (used for profile display and token reuse)
       const authResult = await authService.signInWithGoogle();
 
-      if (!authResult.success) {
-        setError(authResult.error || 'Google sign-in failed');
-        setLoading(null);
-        return;
-      }
-
-      // Step 2: Save user profile for display
-      const profile = authResult.profile;
-      if (profile) {
-        const profileData = { name: profile.name, email: profile.email, picture: profile.picture };
+      if (authResult.success && authResult.profile) {
+        const profileData = {
+          name: authResult.profile.name,
+          email: authResult.profile.email,
+          picture: authResult.profile.picture,
+        };
         setGoogleProfile(profileData);
         localStorage.setItem('tempo_google_profile', JSON.stringify(profileData));
         localStorage.setItem('tempo_userProfile', JSON.stringify({
-          displayName: profile.name,
-          email: profile.email,
-          avatarUrl: profile.picture,
+          displayName: authResult.profile.name,
+          email: authResult.profile.email,
+          avatarUrl: authResult.profile.picture,
         }));
+      } else if (authResult.error) {
+        authError = authResult.error;
+        if (isSignInCanceledError(authError)) {
+          setError(authError);
+          setLoading(null);
+          return;
+        }
       }
 
-      // Step 3: Authenticate Google Tasks API
+      // Step 2: Authenticate Google Tasks API
       const tasksAuth = await googleTasksService.authenticate();
       if (tasksAuth) {
         setGoogleConnected(true);
         saveIntegrationState(true);
+        const gSync = googleTasksService.getLastSyncTime();
+        setGoogleLastSync(gSync ? formatTimeAgo(gSync) : null);
+        if (authError && authError.toLowerCase().includes('extension environment')) {
+          setGoogleSyncResult('Connected. Profile details are unavailable outside the extension runtime.');
+        }
       } else {
-        setError('Connected to Google but failed to access Tasks. Please try again.');
+        setError(googleTasksService.getLastAuthError() || authError || 'Failed to connect Google Tasks. Please try again.');
       }
     } catch (e: any) {
       setError(e.message || 'Connection failed');
@@ -230,6 +246,13 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
     setSyncing('google');
     setGoogleSyncResult(null);
     try {
+      if (!googleTasksService.isConnected()) {
+        const connected = await googleTasksService.authenticate();
+        if (!connected) {
+          throw new Error(googleTasksService.getLastAuthError() || 'Google Tasks is not connected.');
+        }
+      }
+
       const result = await googleTasksService.syncBidirectional(tasks);
       const existingTitles = new Set(tasks.map(t => t.title));
       const newTasks = result.pulled.filter(t => !existingTitles.has(t.title));
@@ -237,11 +260,11 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
         setTasks(prev => [...prev, ...newTasks]);
       }
       setGoogleSyncResult(
-        `✓ Pushed ${result.pushed.created} new, ${result.pushed.updated} updated. Pulled ${newTasks.length} new tasks.`
+        `OK: Pushed ${result.pushed.created} new, ${result.pushed.updated} updated. Pulled ${newTasks.length} new tasks.`
       );
       setGoogleLastSync('Just now');
     } catch (e: any) {
-      setGoogleSyncResult(`✗ Sync failed: ${e.message}`);
+      setGoogleSyncResult(`Sync failed: ${e.message}`);
     }
     setSyncing(null);
   };
@@ -270,7 +293,7 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
             <div>
               <h3 className="font-bold text-xs text-blue-200">Bidirectional Sync</h3>
               <p className="text-[10px] text-blue-200/60 leading-relaxed mt-0.5">
-                Sign in with your Google or Microsoft account to sync tasks both ways.
+                Sign in with Google to sync tasks both ways.
               </p>
             </div>
           </div>
@@ -311,43 +334,13 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
           connectLabel="Sign in with Google"
         />
 
-        {/* Microsoft To Do */}
-        {/* Google Keep */}
-        <div className="bg-surface-dark rounded-xl border border-white/5 overflow-hidden">
-          <div className="p-4">
-            <div className="flex gap-3">
-              <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center border border-white/10 shrink-0">
-                <span className="material-symbols-outlined text-[#FDB52C]">lightbulb</span>
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-sm">Google Keep</h3>
-                  <span className="flex items-center gap-1 text-[9px] font-bold text-muted bg-white/5 px-1.5 py-0.5 rounded-full">
-                    Shortcut
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted mt-0.5">Quickly access your notes and thoughts.</p>
-              </div>
-            </div>
-            <div className="mt-4">
-              <button
-                onClick={() => window.open('https://keep.google.com', '_blank', 'noopener,noreferrer')}
-                className="w-full py-2.5 rounded-lg text-xs font-bold bg-[#FDB52C] text-black hover:bg-[#FDB52C]/90 transition-all flex items-center justify-center gap-2"
-              >
-                <span className="material-symbols-outlined text-sm">open_in_new</span>
-                Open Google Keep
-              </button>
-            </div>
-          </div>
-        </div>
-
         {/* Setup Info */}
         <div className="bg-surface-dark/50 rounded-xl p-3.5 border border-white/5">
           <div className="flex items-start gap-3">
             <span className="material-symbols-outlined text-muted text-base mt-0.5">info</span>
             <div>
               <p className="text-[10px] text-muted leading-relaxed">
-                Clicking "Sign in" will open a secure login window from Google or Microsoft.
+                Clicking "Sign in" will open a secure login window from Google.
                 Your credentials are handled directly by their servers — Tempo never sees your password.
               </p>
             </div>
@@ -357,3 +350,4 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
     </div>
   );
 };
+

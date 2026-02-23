@@ -4,19 +4,19 @@ import { Screen, Task, GlobalProps } from '../types';
 // Priority color mapping
 const PRIORITY_COLORS: Record<string, string> = {
   High: 'bg-red-400',
-  Medium: 'bg-primary',
+  Medium: 'bg-orange-400',
   Low: 'bg-blue-400',
 };
 
 const PRIORITY_BORDER: Record<string, string> = {
   High: 'border-red-400/30',
-  Medium: 'border-primary/30',
+  Medium: 'border-orange-400/30',
   Low: 'border-blue-400/30',
 };
 
 const PRIORITY_BAR: Record<string, string> = {
   High: 'bg-red-400',
-  Medium: 'bg-primary',
+  Medium: 'bg-orange-400',
   Low: 'bg-blue-400',
 };
 
@@ -122,7 +122,7 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
     return (
       <div className="flex gap-0.5">
         {hasHigh && <div className="w-1.5 h-1.5 rounded-full bg-red-400"></div>}
-        {hasMedium && <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>}
+        {hasMedium && <div className="w-1.5 h-1.5 rounded-full bg-orange-400"></div>}
         {hasLow && <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>}
         {!hasHigh && !hasMedium && !hasLow && <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>}
       </div>
@@ -251,7 +251,7 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
             <span className="text-[9px] text-muted">High</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-orange-400"></div>
             <span className="text-[9px] text-muted">Medium</span>
           </div>
           <div className="flex items-center gap-1">
@@ -296,7 +296,7 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                         task.priority === 'High' ? 'bg-red-400/10 text-red-400' :
-                        task.priority === 'Medium' ? 'bg-primary/10 text-primary' :
+                        task.priority === 'Medium' ? 'bg-orange-400/10 text-orange-400' :
                         'bg-blue-400/10 text-blue-400'
                       }`}>
                         {task.priority}
