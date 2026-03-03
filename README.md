@@ -19,7 +19,7 @@ If you see `Error 400: redirect_uri_mismatch`, configure OAuth exactly like this
 
 1. Open Google Cloud Console, then `APIs & Services -> Credentials`.
 2. Configure the client used in `public/manifest.json` under `oauth2.client_id`.
-3. If you use web-auth fallback, set `VITE_GOOGLE_OAUTH_CLIENT_ID` in `.env.local`.
+3. If you use web-auth fallback, set `VITE_GOOGLE_OAUTH_CLIENT_ID` and `VITE_ENABLE_WEB_AUTH_FALLBACK=true` in `.env.local`.
 4. In that fallback OAuth client, add this redirect URI:
    `https://<YOUR_EXTENSION_ID>.chromiumapp.org/`
 5. Ensure OAuth consent screen is configured and published (or your account is added as a test user).
