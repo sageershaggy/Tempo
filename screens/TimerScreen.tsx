@@ -31,6 +31,12 @@ interface TimerPreset {
 const TIMER_PRESETS_STORAGE_KEY = 'tempo_timer_presets_v2';
 const MAX_CUSTOM_TIMER_PRESETS = 4;
 const TIMER_PRESET_SECTION_COLLAPSED_KEY = 'tempo_timer_preset_section_collapsed';
+const FOCUS_PRESET_MINUTES_STEP = 5;
+const FOCUS_PRESET_MINUTES_MIN = 5;
+const FOCUS_PRESET_MINUTES_MAX = 180;
+const BREAK_PRESET_MINUTES_STEP = 1;
+const BREAK_PRESET_MINUTES_MIN = 1;
+const BREAK_PRESET_MINUTES_MAX = 60;
 
 const toPositiveInt = (value: unknown, fallback: number, min: number): number => {
   const parsed = Number(value);
@@ -38,9 +44,21 @@ const toPositiveInt = (value: unknown, fallback: number, min: number): number =>
   return Math.max(min, Math.round(parsed));
 };
 
+const normalizeFocusPresetMinutes = (value: unknown, fallback: number): number => {
+  const rounded = toPositiveInt(value, fallback, FOCUS_PRESET_MINUTES_MIN);
+  const stepped = Math.round(rounded / FOCUS_PRESET_MINUTES_STEP) * FOCUS_PRESET_MINUTES_STEP;
+  return Math.min(FOCUS_PRESET_MINUTES_MAX, Math.max(FOCUS_PRESET_MINUTES_MIN, stepped));
+};
+
+const normalizeBreakPresetMinutes = (value: unknown, fallback: number): number => {
+  const rounded = toPositiveInt(value, fallback, BREAK_PRESET_MINUTES_MIN);
+  const stepped = Math.round(rounded / BREAK_PRESET_MINUTES_STEP) * BREAK_PRESET_MINUTES_STEP;
+  return Math.min(BREAK_PRESET_MINUTES_MAX, Math.max(BREAK_PRESET_MINUTES_MIN, stepped));
+};
+
 const createDefaultPreset = (focusMinutes: number, breakMinutes: number): TimerPreset => {
-  const safeFocus = toPositiveInt(focusMinutes, 25, 5);
-  const safeBreak = toPositiveInt(breakMinutes, 5, 1);
+  const safeFocus = normalizeFocusPresetMinutes(focusMinutes, 25);
+  const safeBreak = normalizeBreakPresetMinutes(breakMinutes, 5);
   return {
     id: 'default',
     label: `${safeFocus}/${safeBreak}`,
@@ -53,8 +71,8 @@ const createDefaultPreset = (focusMinutes: number, breakMinutes: number): TimerP
 const normalizePreset = (preset: any): TimerPreset | null => {
   if (!preset || typeof preset !== 'object') return null;
   const id = String(preset.id || '').trim();
-  const focusMinutes = toPositiveInt(preset.focusMinutes, 25, 5);
-  const breakMinutes = toPositiveInt(preset.breakMinutes, 5, 1);
+  const focusMinutes = normalizeFocusPresetMinutes(preset.focusMinutes, 25);
+  const breakMinutes = normalizeBreakPresetMinutes(preset.breakMinutes, 5);
   if (!id || id === 'default') return null;
   return {
     id,
@@ -234,15 +252,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   };
 
   const handleAddTimerPreset = (focusInput?: number, breakInput?: number): boolean => {
-    const focusMinutes = toPositiveInt(
+    const focusMinutes = normalizeFocusPresetMinutes(
       focusInput ?? userFocusDuration,
-      config.defaults.settings.focusDuration,
-      5
+      config.defaults.settings.focusDuration
     );
-    const breakMinutes = toPositiveInt(
+    const breakMinutes = normalizeBreakPresetMinutes(
       breakInput ?? userBreakDuration,
-      config.defaults.settings.shortBreak,
-      1
+      config.defaults.settings.shortBreak
     );
 
     const existingPreset = templates.find(
@@ -308,8 +324,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     }
     setPresetModalMode('add');
     setEditingPresetId(null);
-    setNewPresetFocusMinutes(toPositiveInt(userFocusDuration, config.defaults.settings.focusDuration, 5));
-    setNewPresetBreakMinutes(toPositiveInt(userBreakDuration, config.defaults.settings.shortBreak, 1));
+    setNewPresetFocusMinutes(normalizeFocusPresetMinutes(userFocusDuration, config.defaults.settings.focusDuration));
+    setNewPresetBreakMinutes(normalizeBreakPresetMinutes(userBreakDuration, config.defaults.settings.shortBreak));
     setShowAddPresetModal(true);
   };
 
@@ -324,8 +340,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
     setPresetModalMode('edit');
     setEditingPresetId(presetId);
-    setNewPresetFocusMinutes(preset.focusMinutes);
-    setNewPresetBreakMinutes(preset.breakMinutes);
+    setNewPresetFocusMinutes(normalizeFocusPresetMinutes(preset.focusMinutes, preset.focusMinutes));
+    setNewPresetBreakMinutes(normalizeBreakPresetMinutes(preset.breakMinutes, preset.breakMinutes));
     setShowAddPresetModal(true);
   };
 
@@ -333,8 +349,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     const preset = templates.find(t => t.id === presetId);
     if (!preset || preset.id === 'default') return false;
 
-    const focusMinutes = toPositiveInt(focusInput, preset.focusMinutes, 5);
-    const breakMinutes = toPositiveInt(breakInput, preset.breakMinutes, 1);
+    const focusMinutes = normalizeFocusPresetMinutes(focusInput, preset.focusMinutes);
+    const breakMinutes = normalizeBreakPresetMinutes(breakInput, preset.breakMinutes);
     const duplicatePreset = templates.find(
       t => t.id !== presetId && t.focusMinutes === focusMinutes && t.breakMinutes === breakMinutes
     );
@@ -381,8 +397,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   };
 
   const handleConfirmAddPreset = () => {
-    const focusMinutes = toPositiveInt(newPresetFocusMinutes, config.defaults.settings.focusDuration, 5);
-    const breakMinutes = toPositiveInt(newPresetBreakMinutes, config.defaults.settings.shortBreak, 1);
+    const focusMinutes = normalizeFocusPresetMinutes(newPresetFocusMinutes, config.defaults.settings.focusDuration);
+    const breakMinutes = normalizeBreakPresetMinutes(newPresetBreakMinutes, config.defaults.settings.shortBreak);
 
     const succeeded = presetModalMode === 'edit' && editingPresetId
       ? handleUpdateTimerPreset(editingPresetId, focusMinutes, breakMinutes)
@@ -534,20 +550,32 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, activeTemplateId);
   }, [templates, activeTemplateId]);
 
-  // If timer presets change while idle, refresh displayed duration for the selected preset.
+  // If timer presets change while idle, keep focus duration aligned with the selected preset.
   useEffect(() => {
     if (!templates.length || isActive) return;
     if (localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true') return;
-    if (timeLeft !== initialTime) return; // Preserve paused/in-progress value
+    if (timerMode !== 'focus') return;
 
-    const nextSeconds = timerMode === 'focus'
-      ? getTimeForTemplate(activeTemplateId)
-      : getBreakForTemplate(activeTemplateId);
+    const expectedFocusSeconds = getTimeForTemplate(activeTemplateId);
 
-    if (nextSeconds !== initialTime) {
-      setInitialTime(nextSeconds);
-      setTimeLeft(nextSeconds);
-      localStorage.setItem('tempo_timer_initialTime', String(nextSeconds));
+    // Fix stale timer state where selected preset is 25/5 but a previous 5/5 value remained.
+    if (initialTime !== expectedFocusSeconds) {
+      setInitialTime(expectedFocusSeconds);
+      setTimeLeft(expectedFocusSeconds);
+      localStorage.setItem('tempo_timer_mode', 'focus');
+      localStorage.setItem('tempo_timer_initialTime', String(expectedFocusSeconds));
+      localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
+      localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+      return;
+    }
+
+    // Preserve paused value when it already matches the selected preset duration.
+    if (timeLeft !== initialTime) return;
+
+    if (expectedFocusSeconds !== timeLeft) {
+      setInitialTime(expectedFocusSeconds);
+      setTimeLeft(expectedFocusSeconds);
+      localStorage.setItem('tempo_timer_initialTime', String(expectedFocusSeconds));
     }
   }, [templates, activeTemplateId, timerMode, isActive, timeLeft, initialTime]);
 
@@ -563,8 +591,19 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     if (autoStart === 'true') {
       localStorage.removeItem('tempo_autoStartTimer');
       setTimeout(() => {
+        let secondsToRun = timeLeft;
+        if (timerMode === 'focus') {
+          const expectedFocusSeconds = getTimeForTemplate(activeTemplateId);
+          if (expectedFocusSeconds !== timeLeft || expectedFocusSeconds !== initialTime) {
+            secondsToRun = expectedFocusSeconds;
+            setInitialTime(expectedFocusSeconds);
+            setTimeLeft(expectedFocusSeconds);
+            localStorage.setItem('tempo_timer_initialTime', String(expectedFocusSeconds));
+          }
+        }
+
         setIsActive(true);
-        const target = Date.now() + (timeLeft * 1000);
+        const target = Date.now() + (secondsToRun * 1000);
         localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(target));
         localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'true');
         localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, activeTemplateId);
@@ -1105,27 +1144,44 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   }, [isActive, timeLeft]);
 
   const toggleTimer = () => {
-    const newActive = !isActive;
-    setIsActive(newActive);
-    localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, String(newActive));
-    localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, activeTemplateId);
-    // Persist timerMode and initialTime so they survive popup close/reopen
-    localStorage.setItem('tempo_timer_mode', timerMode);
-    localStorage.setItem('tempo_timer_initialTime', String(initialTime));
-
     const w = window as any;
     const isExtension = useOffscreen && w.chrome?.runtime?.sendMessage;
+    const newActive = !isActive;
 
     if (newActive) {
-      const target = Date.now() + (timeLeft * 1000);
+      let secondsToRun = timeLeft;
+      let initialSeconds = initialTime;
+
+      // Normalize stale focus duration before starting a fresh run.
+      const isPauseResume = timeLeft < initialTime;
+      if (!isPauseResume && timerMode === 'focus') {
+        const expectedFocusSeconds = getTimeForTemplate(activeTemplateId);
+        if (expectedFocusSeconds !== timeLeft || expectedFocusSeconds !== initialTime) {
+          secondsToRun = expectedFocusSeconds;
+          initialSeconds = expectedFocusSeconds;
+          setInitialTime(expectedFocusSeconds);
+          setTimeLeft(expectedFocusSeconds);
+        }
+      }
+
+      setIsActive(true);
+      localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'true');
+      localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, activeTemplateId);
+      localStorage.setItem('tempo_timer_mode', timerMode);
+      localStorage.setItem('tempo_timer_initialTime', String(initialSeconds));
+
+      const target = Date.now() + (secondsToRun * 1000);
       localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(target));
 
       // Update extension badge with timer
       try {
         if (w.chrome?.runtime?.sendMessage) {
-          // If timeLeft < initialTime, this is a resume after pause - don't overwrite the original duration
-          const isPauseResume = timeLeft < initialTime;
-          w.chrome.runtime.sendMessage({ action: 'startTimer', seconds: timeLeft, mode: timerMode, isRestore: isPauseResume });
+          w.chrome.runtime.sendMessage({
+            action: 'startTimer',
+            seconds: secondsToRun,
+            mode: timerMode,
+            isRestore: secondsToRun < initialSeconds,
+          });
         }
       } catch (e) { }
 
@@ -1140,6 +1196,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       }
 
     } else {
+      setIsActive(false);
+      localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'false');
+      localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, activeTemplateId);
+      localStorage.setItem('tempo_timer_mode', timerMode);
+      localStorage.setItem('tempo_timer_initialTime', String(initialTime));
       localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
 
       // Clear extension badge
@@ -1654,17 +1715,14 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 <span className="text-[10px] font-semibold text-white/80">Focus (min)</span>
                 <input
                   type="number"
-                  min={5}
-                  max={180}
-                  step={5}
+                  min={FOCUS_PRESET_MINUTES_MIN}
+                  max={FOCUS_PRESET_MINUTES_MAX}
+                  step={FOCUS_PRESET_MINUTES_STEP}
                   value={newPresetFocusMinutes}
                   onChange={(e) => {
-                    const parsed = Number(e.target.value);
-                    if (!Number.isFinite(parsed)) {
-                      setNewPresetFocusMinutes(5);
-                      return;
-                    }
-                    setNewPresetFocusMinutes(Math.min(180, Math.max(5, Math.round(parsed / 5) * 5)));
+                    setNewPresetFocusMinutes(
+                      normalizeFocusPresetMinutes(e.target.value, FOCUS_PRESET_MINUTES_MIN)
+                    );
                   }}
                   className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-xs text-white focus:outline-none focus:border-primary/40"
                 />
@@ -1673,17 +1731,14 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 <span className="text-[10px] font-semibold text-white/80">Break (min)</span>
                 <input
                   type="number"
-                  min={1}
-                  max={60}
-                  step={1}
+                  min={BREAK_PRESET_MINUTES_MIN}
+                  max={BREAK_PRESET_MINUTES_MAX}
+                  step={BREAK_PRESET_MINUTES_STEP}
                   value={newPresetBreakMinutes}
                   onChange={(e) => {
-                    const parsed = Number(e.target.value);
-                    if (!Number.isFinite(parsed)) {
-                      setNewPresetBreakMinutes(1);
-                      return;
-                    }
-                    setNewPresetBreakMinutes(Math.min(60, Math.max(1, Math.round(parsed))));
+                    setNewPresetBreakMinutes(
+                      normalizeBreakPresetMinutes(e.target.value, BREAK_PRESET_MINUTES_MIN)
+                    );
                   }}
                   className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-xs text-white focus:outline-none focus:border-primary/40"
                 />

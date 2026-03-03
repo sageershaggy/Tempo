@@ -17,6 +17,8 @@ const MANIFEST_CLIENT_ID = '747255011734-l7k517kfa2908all500m6cmcs4iq1ugp.apps.g
 // Optional Web OAuth client ID for launchWebAuthFlow fallback.
 const WEB_AUTH_FLOW_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_OAUTH_CLIENT_ID?.trim() || '';
 const HAS_WEB_AUTH_FLOW_CLIENT = WEB_AUTH_FLOW_CLIENT_ID.length > 0;
+const ENABLE_WEB_AUTH_FLOW_FALLBACK = String((import.meta as any).env?.VITE_ENABLE_WEB_AUTH_FALLBACK || '').trim().toLowerCase() === 'true';
+const CAN_USE_WEB_AUTH_FLOW = HAS_WEB_AUTH_FLOW_CLIENT && ENABLE_WEB_AUTH_FLOW_FALLBACK;
 const AUTH_FLOW_TIMEOUT_MS = 120000;
 
 const isChromeExtension = typeof chrome !== 'undefined' && chrome.identity?.getAuthToken;
@@ -76,11 +78,11 @@ class AuthService {
         return { success: false, error: primaryFailureMessage };
       }
 
-      if (!HAS_WEB_AUTH_FLOW_CLIENT) {
+      if (!CAN_USE_WEB_AUTH_FLOW) {
         const redirectUrl = chrome.identity?.getRedirectURL?.() || 'https://<extension-id>.chromiumapp.org/';
         return {
           success: false,
-          error: `Google sign-in failed in extension auth. Configure VITE_GOOGLE_OAUTH_CLIENT_ID and add ${redirectUrl} to Authorized redirect URIs.`,
+          error: `${primaryFailureMessage} Enable web auth fallback with VITE_ENABLE_WEB_AUTH_FALLBACK=true and configure VITE_GOOGLE_OAUTH_CLIENT_ID with authorized redirect URI ${redirectUrl}.`,
         };
       }
 
@@ -151,8 +153,8 @@ class AuthService {
   // Fallback auth: uses launchWebAuthFlow
   private tryWebAuthFlow(): Promise<string> {
     return new Promise((resolve, reject) => {
-      if (!HAS_WEB_AUTH_FLOW_CLIENT) {
-        reject(new Error('Missing VITE_GOOGLE_OAUTH_CLIENT_ID for web auth fallback.'));
+      if (!CAN_USE_WEB_AUTH_FLOW) {
+        reject(new Error('Web auth fallback is disabled. Set VITE_ENABLE_WEB_AUTH_FALLBACK=true and configure VITE_GOOGLE_OAUTH_CLIENT_ID.'));
         return;
       }
 
@@ -214,6 +216,11 @@ class AuthService {
     if (lower.includes('authorization page could not be loaded') || lower.includes('no response from auth flow')) {
       const redirectUrl = chrome.identity?.getRedirectURL?.() || 'https://<extension-id>.chromiumapp.org/';
       return `Google OAuth callback failed. Verify client ${webClientLabel} has authorized redirect URI ${redirectUrl}, then retry.`;
+    }
+
+    if (lower.includes('invalid_request')) {
+      const redirectUrl = chrome.identity?.getRedirectURL?.() || 'https://<extension-id>.chromiumapp.org/';
+      return `Google OAuth rejected the request (invalid_request). Verify OAuth client setup and authorized redirect URI ${redirectUrl}.`;
     }
 
     if (lower.includes('bad client id') || lower.includes('invalid_client')) {

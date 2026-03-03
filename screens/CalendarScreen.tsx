@@ -3,21 +3,27 @@ import { Screen, Task, GlobalProps } from '../types';
 
 // Priority color mapping
 const PRIORITY_COLORS: Record<string, string> = {
-  High: 'bg-red-400',
-  Medium: 'bg-orange-400',
-  Low: 'bg-blue-400',
+  high: 'bg-red-400',
+  medium: 'bg-orange-400',
+  low: 'bg-blue-400',
 };
 
 const PRIORITY_BORDER: Record<string, string> = {
-  High: 'border-red-400/30',
-  Medium: 'border-orange-400/30',
-  Low: 'border-blue-400/30',
+  high: 'border-red-400/30',
+  medium: 'border-orange-400/30',
+  low: 'border-blue-400/30',
 };
 
 const PRIORITY_BAR: Record<string, string> = {
-  High: 'bg-red-400',
-  Medium: 'bg-orange-400',
-  Low: 'bg-blue-400',
+  high: 'bg-red-400',
+  medium: 'bg-orange-400',
+  low: 'bg-blue-400',
+};
+
+const getPriorityKey = (priority: string | undefined): 'high' | 'medium' | 'low' | '' => {
+  const lower = String(priority || '').toLowerCase();
+  if (lower === 'high' || lower === 'medium' || lower === 'low') return lower;
+  return '';
 };
 
 export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
@@ -110,9 +116,9 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
     const dayTasks = tasksByDay[day];
     if (!dayTasks || dayTasks.length === 0) return null;
 
-    const hasHigh = dayTasks.some(t => t.priority === 'High' && !t.completed);
-    const hasMedium = dayTasks.some(t => t.priority === 'Medium' && !t.completed);
-    const hasLow = dayTasks.some(t => t.priority === 'Low' && !t.completed);
+    const hasHigh = dayTasks.some(t => getPriorityKey(t.priority) === 'high' && !t.completed);
+    const hasMedium = dayTasks.some(t => getPriorityKey(t.priority) === 'medium' && !t.completed);
+    const hasLow = dayTasks.some(t => getPriorityKey(t.priority) === 'low' && !t.completed);
     const allDone = dayTasks.every(t => t.completed);
 
     if (allDone) {
@@ -223,7 +229,7 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
                         <div className="space-y-1 max-h-24 overflow-y-auto no-scrollbar">
                           {dayTaskList.slice(0, 4).map(task => (
                             <div key={task.id} className="flex items-center gap-1.5">
-                              <div className={`w-1 h-1 rounded-full shrink-0 ${PRIORITY_COLORS[task.priority] || 'bg-white/30'}`}></div>
+                              <div className={`w-1 h-1 rounded-full shrink-0 ${PRIORITY_COLORS[getPriorityKey(task.priority)] || 'bg-white/30'}`}></div>
                               <span className={`text-[10px] truncate ${task.completed ? 'line-through text-muted' : 'text-white/90'}`}>
                                 {task.title}
                               </span>
@@ -283,11 +289,11 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
                 <div
                   key={task.id}
                   className={`bg-surface-dark p-3 rounded-xl border flex items-center gap-3 transition-all hover:border-white/15 ${
-                    task.completed ? 'border-green-500/10 opacity-60' : (PRIORITY_BORDER[task.priority] || 'border-white/5')
+                    task.completed ? 'border-green-500/10 opacity-60' : (PRIORITY_BORDER[getPriorityKey(task.priority)] || 'border-white/5')
                   }`}
                 >
                   <div className={`w-1 h-8 rounded-full shrink-0 ${
-                    task.completed ? 'bg-green-400' : (PRIORITY_BAR[task.priority] || 'bg-white/20')
+                    task.completed ? 'bg-green-400' : (PRIORITY_BAR[getPriorityKey(task.priority)] || 'bg-white/20')
                   }`}></div>
                   <div className="flex-1 min-w-0">
                     <p className={`font-semibold text-xs ${task.completed ? 'line-through text-muted' : 'text-white'}`}>
@@ -295,8 +301,8 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                        task.priority === 'High' ? 'bg-red-400/10 text-red-400' :
-                        task.priority === 'Medium' ? 'bg-orange-400/10 text-orange-400' :
+                        getPriorityKey(task.priority) === 'high' ? 'bg-red-400/10 text-red-400' :
+                        getPriorityKey(task.priority) === 'medium' ? 'bg-orange-400/10 text-orange-400' :
                         'bg-blue-400/10 text-blue-400'
                       }`}>
                         {task.priority}
