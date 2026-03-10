@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
-import { getSettings, saveSettings, UserSettings, exportUserDataAsCSV } from '../services/storageService';
+import { getSettings, saveSettings, UserSettings, exportUserDataAsCSV, getProStatus } from '../services/storageService';
 import { configManager } from '../config';
 import { STORAGE_KEYS } from '../config/constants';
 
@@ -8,6 +8,8 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   // Modals
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
+  const [showProThemeUpsell, setShowProThemeUpsell] = useState(false);
+  const [isPro, setIsPro] = useState(false);
   const [feedbackType, setFeedbackType] = useState<'bug' | 'feedback' | 'help'>('feedback');
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackSent, setFeedbackSent] = useState(false);
@@ -40,6 +42,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
       setLongBreakInterval(settings.longBreakInterval);
     };
     loadSettings();
+    getProStatus().then(s => setIsPro(s.isPro));
   }, []);
 
   // Save settings when changed
@@ -55,9 +58,13 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   const THEMES = config.themes;
 
   const handleThemeSelect = (themeId: string) => {
+    const theme = THEMES.find(t => t.id === themeId);
+    if (theme?.pro && !isPro) {
+      setShowProThemeUpsell(true);
+      return;
+    }
     setActiveTheme(themeId);
     handleSettingChange('theme', themeId);
-    const theme = THEMES.find(t => t.id === themeId);
     if (theme) {
       document.documentElement.style.setProperty('--color-primary', theme.cssVar);
       document.documentElement.style.setProperty('--color-primary-light', theme.cssVar + 'CC');
@@ -725,6 +732,44 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 className="w-full py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-light transition-colors"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pro Theme Upsell Modal */}
+      {showProThemeUpsell && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-xs bg-surface-dark rounded-2xl border border-yellow-500/20 shadow-2xl p-6 text-center space-y-4">
+            <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-yellow-400 text-2xl">workspace_premium</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-white">Premium Theme</h3>
+              <p className="text-[11px] text-muted mt-1 leading-relaxed">
+                This theme is part of <strong className="text-white">Tempo Pro</strong>.
+                Upgrade to unlock all themes, Google sync, and more.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <a
+                href={config.pricing.paypalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-bold bg-[#0070BA] text-white hover:bg-[#005ea6] transition-colors"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106zm14.146-14.42a3.35 3.35 0 0 0-.607-.541c-.013.076-.026.175-.041.254-.59 3.025-2.566 6.082-8.558 6.082H9.819l-1.35 8.568h4.106a.641.641 0 0 0 .634-.55l.025-.13.49-3.098.031-.17a.641.641 0 0 1 .633-.55h.398c2.587 0 4.61-.543 5.655-2.114.478-.718.733-1.587.8-2.614.044-.683-.034-1.27-.219-1.737z"/>
+                </svg>
+                Upgrade with PayPal
+              </a>
+              <p className="text-[10px] text-muted">Account activated within 24 hours.</p>
+              <button
+                onClick={() => setShowProThemeUpsell(false)}
+                className="w-full py-2 rounded-xl text-xs font-bold bg-white/5 text-white/50 hover:bg-white/10 transition-colors"
+              >
+                Maybe later
               </button>
             </div>
           </div>

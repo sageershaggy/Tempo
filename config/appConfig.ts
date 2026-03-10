@@ -115,6 +115,7 @@ export interface AdminAuthConfig {
 export interface PricingConfig {
   monthly: { price: number; label: string };
   yearly: { price: number; label: string };
+  paypalUrl: string;
   testLicenseKeys: string[];
   licensePattern: RegExp;
 }
@@ -206,15 +207,15 @@ export const defaultAppConfig: AppConfig = {
   },
 
   themes: [
-    // Free Themes (7)
+    // Free Themes (2)
     { id: 'default', name: 'Royal Purple', color: 'bg-gradient-to-br from-[#7F13EC] to-[#5a0db5]', cssVar: '#7F13EC', pro: false },
     { id: 'ocean', name: 'Ocean', color: 'bg-gradient-to-br from-[#06B6D4] to-[#3B82F6]', cssVar: '#0EA5E9', pro: false },
-    { id: 'emerald', name: 'Emerald', color: 'bg-gradient-to-br from-[#059669] to-[#065F46]', cssVar: '#059669', pro: false },
-    { id: 'coral', name: 'Coral', color: 'bg-gradient-to-br from-[#FB7185] to-[#F43F5E]', cssVar: '#FB7185', pro: false },
-    { id: 'slate', name: 'Slate', color: 'bg-gradient-to-br from-[#475569] to-[#1E293B]', cssVar: '#475569', pro: false },
-    { id: 'crimson', name: 'Crimson', color: 'bg-gradient-to-br from-[#DC2626] to-[#7F1D1D]', cssVar: '#DC2626', pro: false },
-    { id: 'indigo', name: 'Indigo', color: 'bg-gradient-to-br from-[#4F46E5] to-[#312E81]', cssVar: '#4F46E5', pro: false },
-    // Pro Themes (14)
+    // Pro Themes
+    { id: 'emerald', name: 'Emerald', color: 'bg-gradient-to-br from-[#059669] to-[#065F46]', cssVar: '#059669', pro: true },
+    { id: 'coral', name: 'Coral', color: 'bg-gradient-to-br from-[#FB7185] to-[#F43F5E]', cssVar: '#FB7185', pro: true },
+    { id: 'slate', name: 'Slate', color: 'bg-gradient-to-br from-[#475569] to-[#1E293B]', cssVar: '#475569', pro: true },
+    { id: 'crimson', name: 'Crimson', color: 'bg-gradient-to-br from-[#DC2626] to-[#7F1D1D]', cssVar: '#DC2626', pro: true },
+    { id: 'indigo', name: 'Indigo', color: 'bg-gradient-to-br from-[#4F46E5] to-[#312E81]', cssVar: '#4F46E5', pro: true },
     { id: 'nebula', name: 'Nebula', color: 'bg-gradient-to-br from-[#6366F1] to-[#D946EF]', cssVar: '#8B5CF6', pro: true },
     { id: 'sunset', name: 'Sunset', color: 'bg-gradient-to-br from-[#F59E0B] to-[#EF4444]', cssVar: '#F97316', pro: true },
     { id: 'midnight', name: 'Midnight', color: 'bg-gradient-to-br from-[#1E293B] to-[#0F172A]', cssVar: '#64748B', pro: true },
@@ -312,6 +313,7 @@ export const defaultAppConfig: AppConfig = {
   pricing: {
     monthly: { price: 1, label: '$1/mo' },
     yearly: { price: 10, label: '$10/yr' },
+    paypalUrl: 'https://paypal.me/sageeramber?locale.x=en_GB&country.x=IN',
     testLicenseKeys: ['TEST-KEY-2024', 'TEMPO-TEST-KEY-2024'],
     licensePattern: /^TEMPO-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-(M|Y)$/,
   },
