@@ -52,14 +52,6 @@ export class GoogleTasksService {
     this.lastAuthError = null;
     const isChromeExt = typeof chrome !== 'undefined' && chrome.identity?.getAuthToken;
 
-    // Reuse an existing SSO token to avoid duplicate auth prompts.
-    const existingAuthToken = authService.getToken();
-    if (!this.token && existingAuthToken) {
-      this.token = existingAuthToken;
-      localStorage.setItem('google_tasks_token', existingAuthToken);
-      return true;
-    }
-
     if (!isChromeExt) {
       this.token = 'dev-google-tasks-' + Date.now();
       localStorage.setItem('google_tasks_token', this.token);
@@ -161,6 +153,16 @@ export class GoogleTasksService {
     localStorage.removeItem('tempo_google_last_sync');
   }
 
+  private async clearCachedToken(): Promise<void> {
+    if (this.token && typeof chrome !== 'undefined' && chrome.identity?.removeCachedAuthToken) {
+      await new Promise<void>(resolve => {
+        chrome.identity.removeCachedAuthToken({ token: this.token! }, resolve);
+      });
+    }
+    this.token = null;
+    localStorage.removeItem('google_tasks_token');
+  }
+
   private async apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     if (!this.token) throw new Error('Not authenticated. Please connect Google Tasks first.');
 
@@ -177,7 +179,9 @@ export class GoogleTasksService {
       },
     });
 
-    if (res.status === 401) {
+    if (res.status === 401 || res.status === 403) {
+      // Clear stale/insufficient-scope token before re-authenticating
+      await this.clearCachedToken();
       const refreshed = await this.authenticate();
       if (refreshed) {
         const retryRes = await fetch(`${API_BASE}${endpoint}`, {
@@ -191,9 +195,12 @@ export class GoogleTasksService {
           const retryMessage = await this.extractApiErrorMessage(retryRes);
           throw new Error(retryMessage || `Google Tasks API error (${retryRes.status}).`);
         }
+        if (retryRes.status === 204) return {} as T;
         return retryRes.json();
       }
-      throw new Error('Token refresh failed');
+      throw new Error(res.status === 403
+        ? 'Google Tasks permission denied. Please disconnect and reconnect to grant Tasks access.'
+        : 'Token refresh failed. Please reconnect Google Tasks.');
     }
 
     if (!res.ok) {
