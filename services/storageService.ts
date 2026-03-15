@@ -202,6 +202,16 @@ export const getProStatus = async (): Promise<ProStatus> => {
   const data = await storage.sync.get(['isPro', 'proExpiry', 'licenseKey', 'activatedAt', 'plan']);
   const now = Date.now();
 
+  // Check if Global Pro Access is active (admin-controlled, same Chrome profile)
+  const adminData = await storage.local.get('adminConfig');
+  const adminConfig = adminData.adminConfig || {};
+  if (adminConfig.globalAccessEnabled) {
+    const endDate = adminConfig.globalAccessEndDate ? new Date(adminConfig.globalAccessEndDate).getTime() : null;
+    if (!endDate || endDate > now) {
+      return { isPro: true, proExpiry: endDate, licenseKey: null, activatedAt: null, plan: null };
+    }
+  }
+
   // Check if pro expired
   if (data.isPro && data.proExpiry && data.proExpiry < now) {
     await storage.sync.set({ isPro: false });

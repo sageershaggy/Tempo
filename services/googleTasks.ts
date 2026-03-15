@@ -193,7 +193,7 @@ export class GoogleTasksService {
         });
         if (!retryRes.ok) {
           const retryMessage = await this.extractApiErrorMessage(retryRes);
-          throw new Error(retryMessage || `Google Tasks API error (${retryRes.status}).`);
+          throw new Error(retryMessage || 'Google Tasks access denied. Please disconnect and reconnect your Google account.');
         }
         if (retryRes.status === 204) return {} as T;
         return retryRes.json();
@@ -336,8 +336,13 @@ export class GoogleTasksService {
       if (!apiMessage) return '';
 
       const lower = apiMessage.toLowerCase();
-      if (response.status === 403 && (lower.includes('insufficient') || lower.includes('permission'))) {
-        return 'Google Tasks permission denied. Reconnect and grant Tasks access.';
+      if (response.status === 403) {
+        if (lower.includes('insufficient') || lower.includes('permission') || lower.includes('permissiondenied')) {
+          return 'Google Tasks permission denied. Please disconnect and reconnect to grant Tasks access.';
+        }
+        if (lower.includes('disabled') || lower.includes('not been used') || lower.includes('not enabled') || lower.includes('access not configured')) {
+          return 'Google Tasks API is not enabled. Please enable it in your Google Cloud Console, then disconnect and reconnect.';
+        }
       }
 
       return `Google Tasks API error (${response.status}): ${apiMessage}`;

@@ -24,7 +24,7 @@ import { HealthScreen } from './screens/HealthScreen';
 import { HealthRemindersScreen } from './screens/HealthRemindersScreen';
 import { configManager } from './config';
 import { STORAGE_KEYS, UI_DIMENSIONS, EXTERNAL_URLS } from './config/constants';
-import { getTasks, saveTasks, getSettings, getHealthSettings } from './services/storageService';
+import { getTasks, saveTasks, getSettings, getHealthSettings, getAdminConfig } from './services/storageService';
 
 // Apply theme CSS variables to the document
 const applyTheme = (themeId: string) => {
@@ -96,6 +96,7 @@ const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
 
   // Load configuration and theme on mount
   useEffect(() => {
@@ -114,6 +115,22 @@ const App: React.FC = () => {
       } else {
         // Default to dark mode if not set
         document.documentElement.classList.add('dark');
+      }
+
+      // 3. Check maintenance mode (admin-controlled, same Chrome profile)
+      const adminConfig = await getAdminConfig();
+      if (adminConfig.maintenanceMode) {
+        // Allow admin (with valid session token) to bypass maintenance mode
+        try {
+          const adminToken = localStorage.getItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN);
+          const parsed = adminToken ? JSON.parse(adminToken) : null;
+          const isAdminSession = parsed?.expiresAt && parsed.expiresAt > Date.now();
+          if (!isAdminSession) {
+            setIsMaintenanceMode(true);
+          }
+        } catch {
+          setIsMaintenanceMode(true);
+        }
       }
     };
     initApp();
@@ -433,8 +450,18 @@ const App: React.FC = () => {
 
         {/* YouTube audio is now handled by the offscreen document for persistence */}
 
-        {renderScreen()}
-        <BottomNav currentScreen={currentScreen} setScreen={setCurrentScreen} />
+        {isMaintenanceMode ? (
+          <div className="absolute inset-0 bg-background-dark flex flex-col items-center justify-center p-6 text-center z-50">
+            <span className="material-symbols-outlined text-5xl text-yellow-400 mb-4">construction</span>
+            <h2 className="text-xl font-bold mb-2">Under Maintenance</h2>
+            <p className="text-muted text-sm leading-relaxed">Tempo is currently undergoing maintenance. Please check back soon.</p>
+          </div>
+        ) : (
+          <>
+            {renderScreen()}
+            <BottomNav currentScreen={currentScreen} setScreen={setCurrentScreen} />
+          </>
+        )}
 
         {/* In-Tab Notification Popup */}
         <InTabNotification

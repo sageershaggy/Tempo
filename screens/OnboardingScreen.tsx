@@ -26,7 +26,7 @@ export const OnboardingScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({
 
         {/* Content */}
         <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
-            <div className="relative w-64 h-64 mb-10 flex items-center justify-center">
+            <div className="relative w-64 h-64 mt-8 mb-10 flex items-center justify-center">
                 <div className={`absolute inset-0 opacity-10 rounded-full blur-3xl bg-current ${steps[step].color}`}></div>
                 <div className="w-full h-full bg-surface-light rounded-3xl border border-white/5 flex items-center justify-center shadow-2xl relative z-10 transition-all duration-500">
                     <span className={`material-symbols-outlined text-8xl ${steps[step].color}`}>

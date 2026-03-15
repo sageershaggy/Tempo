@@ -157,7 +157,7 @@ export const defaultAppConfig: AppConfig = {
     name: 'Tempo Focus',
     version: '1.0.2',
     build: 2,
-    chromeWebStoreUrl: 'https://chrome.google.com/webstore/category/extensions',
+    chromeWebStoreUrl: 'https://chrome.google.com/webstore/detail/ifegjpnhaflnjdjbdijeaghapkfpjbbg',
   },
 
   timer: {

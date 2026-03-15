@@ -315,7 +315,7 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 pb-24">
+      <div className="flex-1 overflow-y-auto no-scrollbar p-3 space-y-3 pb-24">
         {/* ... content ... */}
 
         {/* Overview Tab */}
@@ -915,18 +915,9 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
 
             <div className="bg-surface-dark rounded-xl border border-white/5">
               <h3 className="font-bold p-3 border-b border-white/5 text-xs">Recent Transactions</h3>
-              {[
-                { email: 'user_1001@gmail.com', plan: 'Yearly', amount: '$10.00', date: 'Jan 22' },
-                { email: 'user_1002@outlook.com', plan: 'Monthly', amount: '$1.00', date: 'Jan 21' },
-              ].map((tx, i) => (
-                <div key={i} className="p-2.5 border-b border-white/5 last:border-0 flex justify-between items-center">
-                  <div>
-                    <p className="text-xs font-medium">{tx.email}</p>
-                    <p className="text-[9px] text-muted">{tx.plan} • {tx.date}</p>
-                  </div>
-                  <span className="text-green-400 text-xs font-bold">{tx.amount}</span>
-                </div>
-              ))}
+              <div className="p-4 text-center text-muted text-xs">
+                No transactions yet. Revenue data will appear here once users purchase plans.
+              </div>
             </div>
           </>
         )}
