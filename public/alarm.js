@@ -135,7 +135,7 @@ backLink.addEventListener('click', () => {
 
 rateBtn.addEventListener('click', () => {
   // Open Chrome Web Store rating page (update URL when published)
-  window.open('https://chrome.google.com/webstore/detail/YOUR_EXTENSION_ID/reviews', '_blank', 'noopener,noreferrer');
+  window.open('https://chrome.google.com/webstore/detail/ifegjpnhaflnjdjbdijeaghapkfpjbbg/reviews', '_blank', 'noopener,noreferrer');
 });
 
 // Auto-close after 5 minutes of inactivity

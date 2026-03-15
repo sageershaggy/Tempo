@@ -289,9 +289,10 @@ function updateTimerBadge() {
           const breakDurationMinutes = isLongBreak ? longBreakDuration : shortBreakDuration;
           await chrome.storage.local.set({
             nextBreakDuration: breakDurationMinutes,
-            nextBreakIsLong: isLongBreak
+            nextBreakIsLong: isLongBreak,
+            templateFocusMinutes: duration
           });
-          console.log('[Tempo] Break info stored from badge handler:', breakDurationMinutes, 'isLong:', isLongBreak);
+          console.log('[Tempo] Break info stored from badge handler:', breakDurationMinutes, 'isLong:', isLongBreak, 'focusDuration:', duration);
         } catch (e) {
           console.error('[Tempo] Failed to store break info from badge handler:', e);
         }

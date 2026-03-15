@@ -1088,9 +1088,9 @@ const beatSounds = {
   }
 };
 
-function playBeatSound() {
+async function playBeatSound() {
   const ctx = getContext();
-  if (ctx.state === 'suspended') ctx.resume();
+  if (ctx.state === 'suspended') await ctx.resume();
 
   // Play the selected beat sound
   const soundFn = beatSounds[focusBeatSoundType] || beatSounds.soft;
@@ -1219,9 +1219,9 @@ setTimeout(restoreFocusBeatState, 50);
 // COMPLETION BEEP - Plays when timer completes
 // ============================================================================
 
-function playCompletionBeep() {
+async function playCompletionBeep() {
   const ctx = getContext();
-  if (ctx.state === 'suspended') ctx.resume();
+  if (ctx.state === 'suspended') await ctx.resume();
 
   // Play a pleasant completion sound - triumphant chime sequence
   const playTone = (freq, startTime, duration, volume = 0.5) => {
@@ -1252,9 +1252,9 @@ function playCompletionBeep() {
 // REMINDER BEEP - Plays for task due date reminders
 // ============================================================================
 
-function playReminderBeep() {
+async function playReminderBeep() {
   const ctx = getContext();
-  if (ctx.state === 'suspended') ctx.resume();
+  if (ctx.state === 'suspended') await ctx.resume();
 
   // Play an alert sound - two quick beeps
   const playTone = (freq, startTime, duration) => {
