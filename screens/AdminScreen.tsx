@@ -77,7 +77,22 @@ const sha256Hex = async (value: string): Promise<string> => {
   return bytes.map(byte => byte.toString(16).padStart(2, '0')).join('');
 };
 
+/**
+ * Derives a proof binding a session's expiry to the configured admin hash.
+ * Without this the stored token was just `{expiresAt}`, so anyone could grant
+ * themselves admin with a single localStorage write.
+ */
+const sessionProof = (passwordHash: string, expiresAt: number): Promise<string> =>
+  sha256Hex(`${passwordHash}:${expiresAt}`);
+
 export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
+  // The admin panel is a local development tool. It has no server behind it —
+  // every control writes to this profile's own chrome.storage — so shipping it
+  // gives users a confusing, forgeable "admin" surface and nothing more.
+  // import.meta.env.DEV is substituted at build time, so this is a constant
+  // per build and does not change hook ordering.
+  if (!import.meta.env.DEV) return null;
+
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -108,9 +123,12 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
   const [selectedReport, setSelectedReport] = useState<FeedbackReport | null>(null);
   const [adminNote, setAdminNote] = useState('');
 
-  // Load admin hash from config
+  // The admin key hash comes from the build environment only. It used to live
+  // in appConfig, which meant (a) a default hash for a known password shipped
+  // in the bundle, and (b) saveConfig persisted it to localStorage, letting a
+  // user overwrite it with a hash of their own choosing and log straight in.
   const appConfig = configManager.getConfig();
-  const ADMIN_PASSWORD_HASH = String(appConfig.admin.passwordHash || '').trim().toLowerCase();
+  const ADMIN_PASSWORD_HASH = String(import.meta.env.VITE_ADMIN_PASSWORD_HASH || '').trim().toLowerCase();
   const PRICING = appConfig.pricing;
 
   useEffect(() => {
@@ -118,18 +136,34 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
   }, []);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN);
-      if (!saved) return;
-      const parsed = JSON.parse(saved);
-      if (typeof parsed?.expiresAt === 'number' && parsed.expiresAt > Date.now()) {
-        setIsLoggedIn(true);
-      } else {
+    let cancelled = false;
+    (async () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN);
+        if (!saved) return;
+        const parsed = JSON.parse(saved);
+
+        // Require both a live expiry AND a proof derived from the configured
+        // hash. A hand-written {expiresAt} no longer restores a session.
+        const expiresAt = parsed?.expiresAt;
+        const valid =
+          typeof expiresAt === 'number' &&
+          expiresAt > Date.now() &&
+          typeof parsed?.proof === 'string' &&
+          ADMIN_PASSWORD_HASH.length === 64 &&
+          timingSafeEqual(parsed.proof, await sessionProof(ADMIN_PASSWORD_HASH, expiresAt));
+
+        if (cancelled) return;
+        if (valid) {
+          setIsLoggedIn(true);
+        } else {
+          localStorage.removeItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN);
+        }
+      } catch (e) {
         localStorage.removeItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN);
       }
-    } catch (e) {
-      localStorage.removeItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN);
-    }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // Save users when they change
@@ -147,7 +181,7 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
     }
 
     if (!/^[a-f0-9]{64}$/.test(ADMIN_PASSWORD_HASH)) {
-      setLoginError('Admin hash is not configured correctly.');
+      setLoginError('Set VITE_ADMIN_PASSWORD_HASH in .env.local to enable admin login.');
       return;
     }
 
@@ -165,11 +199,13 @@ export const AdminScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
       }
 
       const now = Date.now();
+      const expiresAt = now + ADMIN_SESSION_DURATION_MS;
       setIsLoggedIn(true);
       setPassword('');
       localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN, JSON.stringify({
         issuedAt: now,
-        expiresAt: now + ADMIN_SESSION_DURATION_MS,
+        expiresAt,
+        proof: await sessionProof(ADMIN_PASSWORD_HASH, expiresAt),
       }));
     } finally {
       setIsAuthenticating(false);

@@ -24,13 +24,20 @@ export interface GoogleTaskList {
   title: string;
 }
 
+// Only a non-sensitive "the user connected this integration" flag is stored.
+// The OAuth bearer token itself is never written to localStorage — Chrome
+// already caches it, and localStorage is readable by every extension page.
+const CONNECTED_KEY = 'tempo_google_tasks_connected';
+const TASKS_SCOPES = ['https://www.googleapis.com/auth/tasks'];
+
 export class GoogleTasksService {
   private static instance: GoogleTasksService;
   private token: string | null = null;
+  private connected = false;
   private lastAuthError: string | null = null;
 
   private constructor() {
-    this.token = localStorage.getItem('google_tasks_token');
+    this.connected = localStorage.getItem(CONNECTED_KEY) === 'true';
   }
 
   static getInstance(): GoogleTasksService {
@@ -41,7 +48,32 @@ export class GoogleTasksService {
   }
 
   isConnected(): boolean {
-    return !!this.token;
+    return this.connected;
+  }
+
+  /**
+   * Returns a usable access token, asking Chrome for a cached one when we don't
+   * already hold it in memory (which is the case on every fresh popup open).
+   */
+  private async ensureToken(): Promise<string> {
+    if (this.token) return this.token;
+
+    if (typeof chrome === 'undefined' || !chrome.identity?.getAuthToken) {
+      throw new Error('Google Tasks is only available in the Chrome extension.');
+    }
+
+    const token = await new Promise<string>((resolve, reject) => {
+      chrome.identity.getAuthToken({ interactive: false, scopes: TASKS_SCOPES }, (t: string) => {
+        if (chrome.runtime.lastError || !t) {
+          reject(new Error(chrome.runtime.lastError?.message || 'Not authenticated.'));
+        } else {
+          resolve(t);
+        }
+      });
+    });
+
+    this.token = token;
+    return token;
   }
 
   getLastAuthError(): string | null {
@@ -53,9 +85,11 @@ export class GoogleTasksService {
     const isChromeExt = typeof chrome !== 'undefined' && chrome.identity?.getAuthToken;
 
     if (!isChromeExt) {
-      this.token = 'dev-google-tasks-' + Date.now();
-      localStorage.setItem('google_tasks_token', this.token);
-      return true;
+      // Previously this minted a fake 'dev-...' token, flipped isConnected() to
+      // true and served invented tasks from getMockData — so outside the
+      // extension the UI claimed a working Google connection that did not exist.
+      this.lastAuthError = 'Google Tasks is only available in the Chrome extension.';
+      return false;
     }
 
     // Try primary method first (getAuthToken uses manifest client_id)
@@ -76,7 +110,8 @@ export class GoogleTasksService {
       });
 
       this.token = token;
-      localStorage.setItem('google_tasks_token', token);
+      this.connected = true;
+      localStorage.setItem(CONNECTED_KEY, 'true');
       return true;
     } catch (primaryError: any) {
       const primaryMessage = this.formatAuthError(primaryError);
@@ -138,7 +173,8 @@ export class GoogleTasksService {
       });
 
       this.token = token;
-      localStorage.setItem('google_tasks_token', token);
+      this.connected = true;
+      localStorage.setItem(CONNECTED_KEY, 'true');
       return true;
     } catch (fallbackError: any) {
       this.lastAuthError = this.formatAuthError(fallbackError);
@@ -148,8 +184,9 @@ export class GoogleTasksService {
   }
 
   async disconnect(): Promise<void> {
-    this.token = null;
-    localStorage.removeItem('google_tasks_token');
+    await this.clearCachedToken();
+    this.connected = false;
+    localStorage.removeItem(CONNECTED_KEY);
     localStorage.removeItem('tempo_google_last_sync');
   }
 
@@ -160,20 +197,15 @@ export class GoogleTasksService {
       });
     }
     this.token = null;
-    localStorage.removeItem('google_tasks_token');
   }
 
   private async apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    if (!this.token) throw new Error('Not authenticated. Please connect Google Tasks first.');
-
-    if (this.token.startsWith('dev-')) {
-      return this.getMockData(endpoint, options) as T;
-    }
+    const token = await this.ensureToken();
 
     const res = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       headers: {
-        Authorization: `Bearer ${this.token}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
         ...options.headers,
       },
@@ -351,30 +383,6 @@ export class GoogleTasksService {
     }
   }
 
-  private getMockData(endpoint: string, options: RequestInit): any {
-    if (endpoint.includes('/users/@me/lists')) {
-      return { items: [
-        { id: 'list1', title: 'My Tasks' },
-        { id: 'list2', title: 'Work' },
-        { id: 'list3', title: 'Personal' },
-      ]};
-    }
-    if (endpoint.includes('/tasks') && (!options.method || options.method === 'GET')) {
-      return { items: [
-        { id: 'gt1', title: 'Review Q3 Report', status: 'needsAction', updated: new Date().toISOString() },
-        { id: 'gt2', title: 'Email Marketing Team', status: 'completed', updated: new Date().toISOString() },
-        { id: 'gt3', title: 'Prepare Presentation', status: 'needsAction', due: new Date(Date.now() + 86400000).toISOString() },
-      ]};
-    }
-    if (options.method === 'POST') {
-      const body = JSON.parse(options.body as string || '{}');
-      return { id: 'new-' + Date.now(), ...body, status: 'needsAction' };
-    }
-    if (options.method === 'PATCH') {
-      return { id: 'updated', ...JSON.parse(options.body as string || '{}') };
-    }
-    return {};
-  }
 }
 
 export const googleTasksService = GoogleTasksService.getInstance();

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Screen, Task, GlobalProps } from '../types';
 import { configManager } from '../config';
 import { generateId } from '../config/constants';
+import { enhanceTaskDescription, isAiConfigured } from '../services/geminiService';
 
 export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, setCurrentTask }) => {
   const config = configManager.getConfig();
@@ -14,6 +15,28 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
   const [selectedPriority, setSelectedPriority] = useState<'High' | 'Medium' | 'Low'>('Medium');
   const [dueDate, setDueDate] = useState('');
   const [startTimerAfter, setStartTimerAfter] = useState(true);
+
+  // Magic Enhance shipped as a permanently disabled "Coming Soon" button. It
+  // now works, using the user's own Gemini key from Settings.
+  const [aiReady, setAiReady] = useState(false);
+  const [enhancing, setEnhancing] = useState(false);
+  const [enhanceError, setEnhanceError] = useState<string | null>(null);
+
+  useEffect(() => {
+    isAiConfigured().then(setAiReady);
+  }, []);
+
+  const handleEnhance = async () => {
+    setEnhancing(true);
+    setEnhanceError(null);
+    try {
+      setInput(await enhanceTaskDescription(input));
+    } catch (e: any) {
+      setEnhanceError(e?.message || 'Could not enhance this task.');
+    } finally {
+      setEnhancing(false);
+    }
+  };
 
   const handleCreateTask = () => {
     if (!input.trim()) return;
@@ -78,17 +101,28 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
           />
         </div>
 
-        {/* AI Enhance - Coming Soon */}
-        {input.length > 3 && (
-          <div>
+        {/* AI Enhance — rewrites a rough note into a clear task title */}
+        {input.trim().length > 3 && (
+          <div className="space-y-1.5">
             <button
-              disabled
-              className="w-full py-2 px-4 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center gap-2 text-sm font-semibold text-primary/50 cursor-not-allowed opacity-60"
+              onClick={aiReady ? handleEnhance : () => setScreen(Screen.SETTINGS)}
+              disabled={enhancing}
+              title={aiReady ? 'Rewrite this as a clearer task title' : 'Add your Gemini API key in Settings'}
+              className="w-full py-2 px-4 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center gap-2 text-sm font-semibold text-primary hover:bg-primary/20 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <span className="material-symbols-outlined text-base">auto_awesome</span>
-              Magic Enhance
-              <span className="text-[9px] bg-primary/20 px-1.5 py-0.5 rounded-full uppercase tracking-wider">Coming Soon</span>
+              <span className={`material-symbols-outlined text-base ${enhancing ? 'animate-spin' : ''}`}>
+                {enhancing ? 'progress_activity' : 'auto_awesome'}
+              </span>
+              {enhancing ? 'Enhancing…' : 'Magic Enhance'}
+              {!aiReady && (
+                <span className="text-[9px] bg-primary/20 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                  Set up
+                </span>
+              )}
             </button>
+            {enhanceError && (
+              <p role="alert" className="text-[10px] text-red-400 leading-relaxed px-1">{enhanceError}</p>
+            )}
           </div>
         )}
 

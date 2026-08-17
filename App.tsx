@@ -22,9 +22,10 @@ import { TermsScreen } from './screens/TermsScreen';
 import { IntegrationsScreen } from './screens/IntegrationsScreen';
 import { HealthScreen } from './screens/HealthScreen';
 import { HealthRemindersScreen } from './screens/HealthRemindersScreen';
+import { HelpScreen } from './screens/HelpScreen';
 import { configManager } from './config';
 import { STORAGE_KEYS, UI_DIMENSIONS, EXTERNAL_URLS } from './config/constants';
-import { getTasks, saveTasks, getSettings, getHealthSettings, getAdminConfig } from './services/storageService';
+import { getTasks, saveTasks, getSettings, getAdminConfig } from './services/storageService';
 
 // Apply theme CSS variables to the document
 const applyTheme = (themeId: string) => {
@@ -52,9 +53,12 @@ const createInitialAudioState = (): AudioState => {
   };
 };
 
-// Screen routing map for dynamic URL-based navigation
+// Screens reachable via ?screen=... — used by the mini timer and alarm page to
+// deep-link back into the popup.
+//
+// Deliberately excludes ADMIN: routing to it here previously bypassed the login
+// and onboarding gates entirely (chrome-extension://<id>/index.html?screen=admin).
 const SCREEN_ROUTES: Record<string, Screen> = {
-  admin: Screen.ADMIN,
   tasks: Screen.TASKS,
   stats: Screen.STATS,
   settings: Screen.SETTINGS,
@@ -66,6 +70,7 @@ const SCREEN_ROUTES: Record<string, Screen> = {
   calendar: Screen.CALENDAR,
   health: Screen.HEALTH,
   'health-reminders': Screen.HEALTH_REMINDERS,
+  help: Screen.HELP,
 };
 
 const App: React.FC = () => {
@@ -73,22 +78,22 @@ const App: React.FC = () => {
   const { notification, showNotification, dismissNotification } = useInTabNotification();
 
   const getInitialScreen = (): Screen => {
-    const params = new URLSearchParams(window.location.search);
-    const screenParam = params.get('screen');
+    // Gates come first. Honouring ?screen= before these checks let a brand-new
+    // user land straight in Settings (or the admin panel) with no first run.
+    const loginMethod = localStorage.getItem(STORAGE_KEYS.LOGIN_METHOD);
+    if (!loginMethod) return Screen.LOGIN;
 
-    // Dynamic screen routing from URL params
+    const hasOnboarded = localStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE) === 'true';
+    if (!hasOnboarded) return Screen.ONBOARDING;
+
+    // Only an onboarded user may deep-link, and only to a whitelisted screen.
+    const screenParam = new URLSearchParams(window.location.search).get('screen');
     if (screenParam) {
       const route = SCREEN_ROUTES[screenParam.toLowerCase()];
       if (route) return route;
     }
 
-    // Check for login status
-    const loginMethod = localStorage.getItem('tempo_login_method');
-    if (!loginMethod) return Screen.LOGIN;
-
-    // Check if user has completed onboarding
-    const hasOnboarded = localStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE) === 'true';
-    return hasOnboarded ? Screen.TIMER : Screen.ONBOARDING;
+    return Screen.TIMER;
   };
 
   const [currentScreen, setCurrentScreen] = useState<Screen>(getInitialScreen());
@@ -117,20 +122,12 @@ const App: React.FC = () => {
         document.documentElement.classList.add('dark');
       }
 
-      // 3. Check maintenance mode (admin-controlled, same Chrome profile)
+      // 3. Check maintenance mode (admin-controlled, same Chrome profile).
+      // The previous bypass trusted an unsigned localStorage token, which any
+      // user could forge. Development builds bypass it; production does not.
       const adminConfig = await getAdminConfig();
-      if (adminConfig.maintenanceMode) {
-        // Allow admin (with valid session token) to bypass maintenance mode
-        try {
-          const adminToken = localStorage.getItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN);
-          const parsed = adminToken ? JSON.parse(adminToken) : null;
-          const isAdminSession = parsed?.expiresAt && parsed.expiresAt > Date.now();
-          if (!isAdminSession) {
-            setIsMaintenanceMode(true);
-          }
-        } catch {
-          setIsMaintenanceMode(true);
-        }
+      if (adminConfig.maintenanceMode && !import.meta.env.DEV) {
+        setIsMaintenanceMode(true);
       }
     };
     initApp();
@@ -259,8 +256,10 @@ const App: React.FC = () => {
           icon: 'celebration',
           actions: [
             {
+              // Previously a no-op with a comment claiming the timer screen
+              // handled it — nothing did. Send the user there explicitly.
               label: 'Start Break',
-              onClick: () => { }, // Will be handled by timer screen
+              onClick: () => setCurrentScreen(Screen.TIMER),
               primary: true,
             },
           ],
@@ -274,61 +273,10 @@ const App: React.FC = () => {
     }
   }, [showNotification]);
 
-  // Health reminder system — independent timer per health type
-  useEffect(() => {
-    const healthTimers: ReturnType<typeof setInterval>[] = [];
-    let cancelled = false;
-
-    const HEALTH_TIPS: Record<string, { title: string; message: string; icon: string }> = {
-      screen_break: { title: 'Screen Break', message: 'Take a moment to look away from your screen and rest your eyes.', icon: 'visibility_off' },
-      water: { title: 'Drink Water', message: 'Stay hydrated! Grab a glass of water.', icon: 'water_drop' },
-      stretch: { title: 'Time to Stretch', message: 'Stand up and stretch your body for a minute.', icon: 'self_improvement' },
-      eye_rest: { title: 'Eye Rest (20-20-20)', message: 'Look at something 20 feet away for 20 seconds.', icon: 'remove_red_eye' },
-      posture: { title: 'Posture Check', message: 'Sit up straight, relax your shoulders.', icon: 'accessibility_new' },
-    };
-
-    const setupHealthReminders = async () => {
-      const healthSettings = await getHealthSettings();
-      if (!healthSettings.enabled || cancelled) return;
-
-      // Create an independent interval for each enabled health type
-      Object.entries(healthSettings.types).forEach(([typeId, typeConfig]) => {
-        if (!typeConfig.enabled || typeConfig.reminderCount <= 0) return;
-
-        let remindersShown = 0;
-        const intervalMs = typeConfig.intervalMinutes * 60 * 1000;
-        const tip = HEALTH_TIPS[typeId];
-        if (!tip) return;
-
-        const timer = setInterval(() => {
-          if (remindersShown >= typeConfig.reminderCount) {
-            clearInterval(timer);
-            return;
-          }
-          remindersShown++;
-          showNotification({
-            type: 'reminder',
-            title: tip.title,
-            message: `${tip.message} (${remindersShown}/${typeConfig.reminderCount})`,
-            icon: tip.icon,
-            actions: [
-              { label: 'Done', onClick: () => {}, primary: true },
-              { label: 'Dismiss', onClick: () => {} },
-            ],
-          });
-        }, intervalMs);
-
-        healthTimers.push(timer);
-      });
-    };
-
-    setupHealthReminders();
-
-    return () => {
-      cancelled = true;
-      healthTimers.forEach(timer => clearInterval(timer));
-    };
-  }, [showNotification]);
+  // Health reminders are owned by the service worker (see syncHealthAlarms in
+  // public/background.js). They used to run as setInterval timers here, which
+  // meant they only ticked while the popup happened to be open — with a default
+  // 30-minute interval, they effectively never fired.
 
   const renderScreen = () => {
     const props = {
@@ -380,6 +328,8 @@ const App: React.FC = () => {
         return <HealthScreen {...props} />;
       case Screen.HEALTH_REMINDERS:
         return <HealthRemindersScreen {...props} />;
+      case Screen.HELP:
+        return <HelpScreen setScreen={setCurrentScreen} />;
       default:
         return <TimerScreen {...props} />;
     }

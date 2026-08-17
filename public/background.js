@@ -1,7 +1,9 @@
 // Tempo Focus - Background Service Worker
 
 let offscreenCreated = false;
-let statsRecordedForCurrentSession = false; // Prevent double-counting stats
+// NOTE: the "already recorded this session" guard deliberately lives in
+// chrome.storage (see claimSessionCompletion), not in a module variable.
+// Module state is wiped every time Chrome evicts the service worker.
 
 // YouTube playback is handled by the offscreen document via iframe
 
@@ -167,14 +169,22 @@ async function loadTimerState() {
 
   try {
     const data = await chrome.storage.local.get(['timerTargetTime']);
-    if (data.timerTargetTime && data.timerTargetTime > Date.now()) {
+    if (!data.timerTargetTime) return;
+
+    if (data.timerTargetTime > Date.now()) {
       timerTargetTime = data.timerTargetTime;
       updateTimerBadge();
-    } else if (data.timerTargetTime) {
-      // Timer already expired while service worker was asleep
-      chrome.storage.local.remove('timerTargetTime');
-      chrome.action.setBadgeText({ text: '' });
+      return;
     }
+
+    // The timer expired while the service worker was asleep. Previously this
+    // branch just cleared the badge, so the session was silently discarded —
+    // no stats, no notification. Complete it properly instead. finishSession
+    // is idempotent and suppresses the tab/notification if it is long stale.
+    const expiredTarget = data.timerTargetTime;
+    timerTargetTime = null;
+    await chrome.storage.local.remove('timerTargetTime');
+    await finishSession(expiredTarget, { openAlarmTab: true });
   } catch (e) {
     // This can happen during service worker initialization - it's normal
     console.log('[Tempo] Timer state will load on next event');
@@ -190,6 +200,156 @@ function saveTimerState() {
   }
 }
 
+// A session that expired more than this long ago is credited to stats but does
+// not pop a tab or a notification — the user has long since moved on.
+const MISSED_COMPLETION_GRACE_MS = 5 * 60 * 1000;
+
+/**
+ * Claims the right to complete a given session, exactly once.
+ *
+ * Two independent paths can complete the same session (the badgeTick alarm and
+ * the popup's `timerComplete` message). The previous guard was a module-level
+ * boolean, which resets whenever Chrome evicts the service worker — so stats
+ * could double-count and two alarm tabs could open. The claim now lives in
+ * storage, so it survives eviction.
+ *
+ * @returns true if the caller should perform the completion.
+ */
+async function claimSessionCompletion(targetTime) {
+  const key = targetTime || 0;
+  const { completedSessionTarget } = await chrome.storage.local.get('completedSessionTarget');
+  if (completedSessionTarget === key) return false;
+  await chrome.storage.local.set({ completedSessionTarget: key });
+  return true;
+}
+
+/** Records a finished session and tells the user about it, exactly once. */
+async function finishSession(expiredTarget, options = {}) {
+  const {
+    openAlarmTab = true,
+    mode: modeOverride,
+    duration: durationOverride,
+    templateBreakMinutes = null,
+    templateFocusMinutes = null
+  } = options;
+
+  if (!(await claimSessionCompletion(expiredTarget))) return;
+
+  const data = await chrome.storage.local.get(['timerDuration', 'timerMode']);
+  // Storage is authoritative for duration: the popup may send the remaining
+  // time rather than the full session length.
+  const duration = data.timerDuration || durationOverride || 25;
+  const mode = modeOverride || data.timerMode || 'focus';
+  const isFocus = mode === 'focus';
+
+  chrome.action.setBadgeText({ text: '✓' });
+  chrome.action.setBadgeBackgroundColor({ color: '#22C55E' });
+
+  // Stop focus beat and focus sounds if running
+  sendToOffscreen({ target: 'offscreen-audio', action: 'focusBeat-stop' }, () => {});
+  sendToOffscreen({ target: 'offscreen-audio', action: 'stop' }, () => {});
+
+  if (isFocus) {
+    const sessionData = await chrome.storage.local.get('sessionCount');
+    const newSessionCount = (sessionData.sessionCount || 0) + 1;
+    await chrome.storage.local.set({ sessionCount: newSessionCount });
+
+    try {
+      const statsData = await chrome.storage.local.get('stats');
+      const stats = recordFocusSession(statsData.stats, duration);
+      await chrome.storage.local.set({ stats });
+      try {
+        await chrome.storage.sync.set({ stats: { ...stats, weeklyData: prunedWeeklyData(stats.weeklyData) } });
+      } catch (e) {
+        console.warn('[Tempo] Cross-device stats sync failed:', e);
+      }
+    } catch (e) {
+      console.error('[Tempo] Failed to update stats:', e);
+    }
+
+    // Precompute break info for the alarm page.
+    try {
+      const settingsData = await chrome.storage.sync.get(['settings']);
+      const settings = settingsData.settings || {};
+      const longBreakInterval = settings.longBreakInterval || 4;
+      const isLongBreak =
+        longBreakInterval > 0 && newSessionCount > 0 && newSessionCount % longBreakInterval === 0;
+      // The active template's break length wins over the global short break.
+      const shortBreak = templateBreakMinutes || settings.shortBreak || 5;
+      await chrome.storage.local.set({
+        nextBreakDuration: isLongBreak ? (settings.longBreak || 15) : shortBreak,
+        nextBreakIsLong: isLongBreak,
+        templateFocusMinutes: templateFocusMinutes || duration
+      });
+    } catch (e) {
+      console.error('[Tempo] Failed to store break info:', e);
+    }
+  }
+
+  // If the worker was asleep when the timer expired, we still credit the
+  // session above, but we do not hijack the user's screen long afterwards.
+  const lateBy = Date.now() - (expiredTarget || Date.now());
+  const isStale = lateBy > MISSED_COMPLETION_GRACE_MS;
+  if (isStale) {
+    chrome.action.setBadgeText({ text: '' });
+    return;
+  }
+
+  if (openAlarmTab) {
+    chrome.tabs.create({ url: `alarm.html?mode=${mode}&duration=${duration}`, active: true });
+  }
+
+  chrome.notifications.create('timerComplete-' + Date.now(), {
+    type: 'basic',
+    iconUrl: 'icons/icon128_v4.png',
+    title: isFocus ? 'Focus Session Complete!' : 'Break Complete!',
+    message: isFocus ? 'Great work! Time for a break.' : 'Ready for another focus session?',
+    priority: 2
+  });
+
+  setTimeout(() => chrome.action.setBadgeText({ text: '' }), 10000);
+}
+
+/** Applies one completed focus session to a stats object. Pure. */
+function recordFocusSession(existing, durationMinutes) {
+  const stats = existing || {
+    totalSessions: 0,
+    totalFocusMinutes: 0,
+    currentStreak: 0,
+    lastSessionDate: null,
+    weeklyData: {}
+  };
+
+  const today = new Date().toLocaleDateString('en-CA');
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toLocaleDateString('en-CA');
+
+  if (!stats.lastSessionDate) {
+    stats.currentStreak = 1;
+  } else if (stats.lastSessionDate === yesterdayStr) {
+    stats.currentStreak = (stats.currentStreak || 0) + 1;
+  } else if (stats.lastSessionDate !== today) {
+    stats.currentStreak = 1;
+  }
+
+  stats.totalSessions = (stats.totalSessions || 0) + 1;
+  stats.totalFocusMinutes = (stats.totalFocusMinutes || 0) + durationMinutes;
+  stats.lastSessionDate = today;
+
+  if (!stats.weeklyData) stats.weeklyData = {};
+  stats.weeklyData[today] = (stats.weeklyData[today] || 0) + durationMinutes;
+
+  return stats;
+}
+
+/** Trims synced history so it stays under chrome.storage.sync's 8KB item cap. */
+function prunedWeeklyData(weeklyData, days = 90) {
+  if (!weeklyData) return {};
+  const recent = Object.keys(weeklyData).sort().slice(-days);
+  return Object.fromEntries(recent.map(date => [date, weeklyData[date]]));
+}
+
 // Update badge text based on remaining time
 function updateTimerBadge() {
   if (!timerTargetTime) {
@@ -199,126 +359,13 @@ function updateTimerBadge() {
 
   const remaining = Math.ceil((timerTargetTime - Date.now()) / 1000);
   if (remaining <= 0) {
-    // Timer finished - get the original duration and mode before clearing
-    chrome.storage.local.get(['timerDuration', 'timerMode'], async (data) => {
-      const duration = data.timerDuration || 25;
-      const mode = data.timerMode || 'focus';
-
-      timerTargetTime = null;
-      saveTimerState();
-      chrome.alarms.clear('badgeTick');
-      chrome.action.setBadgeText({ text: '✓' });
-      chrome.action.setBadgeBackgroundColor({ color: '#22C55E' });
-
-      // Stop focus beat and focus sounds if running
-      sendToOffscreen({
-        target: 'offscreen-audio',
-        action: 'focusBeat-stop'
-      }, () => {});
-      sendToOffscreen({
-        target: 'offscreen-audio',
-        action: 'stop'
-      }, () => {});
-
-      // Only update stats for focus sessions (not breaks)
-      // Guard against double-counting if timerComplete message also fires
-      if (mode === 'focus' && !statsRecordedForCurrentSession) {
-        statsRecordedForCurrentSession = true;
-
-        // Increment session count for long break tracking
-        const sessionData = await chrome.storage.local.get('sessionCount');
-        const newSessionCount = (sessionData.sessionCount || 0) + 1;
-        await chrome.storage.local.set({ sessionCount: newSessionCount });
-        console.log('[Tempo] Session count incremented to', newSessionCount, '(badge handler)');
-
-        try {
-          const statsData = await chrome.storage.local.get('stats');
-          const stats = statsData.stats || {
-            totalSessions: 0,
-            totalFocusMinutes: 0,
-            currentStreak: 0,
-            lastSessionDate: null,
-            weeklyData: {}
-          };
-
-          const today = new Date().toLocaleDateString('en-CA');
-
-          // Update streak
-          if (stats.lastSessionDate) {
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            const yesterdayStr = yesterday.toLocaleDateString('en-CA');
-
-            if (stats.lastSessionDate === yesterdayStr) {
-              stats.currentStreak = (stats.currentStreak || 0) + 1;
-            } else if (stats.lastSessionDate !== today) {
-              stats.currentStreak = 1;
-            }
-          } else {
-            stats.currentStreak = 1;
-          }
-
-          stats.totalSessions = (stats.totalSessions || 0) + 1;
-          stats.totalFocusMinutes = (stats.totalFocusMinutes || 0) + duration;
-          stats.lastSessionDate = today;
-
-          if (!stats.weeklyData) stats.weeklyData = {};
-          stats.weeklyData[today] = (stats.weeklyData[today] || 0) + duration;
-
-          await chrome.storage.local.set({ stats });
-          // Also sync to sync storage
-          try {
-            await chrome.storage.sync.set({ stats });
-          } catch (e) {
-            console.log('[Tempo] Sync storage save failed:', e);
-          }
-
-          console.log('[Tempo] Stats updated from background badge handler:', stats);
-        } catch (e) {
-          console.error('[Tempo] Failed to update stats from background:', e);
-        }
-
-        // Compute and store break info for alarm page (badge handler path)
-        try {
-          const settingsData = await chrome.storage.sync.get(['settings']);
-          const settings = settingsData.settings || {};
-          const longBreakInterval = settings.longBreakInterval || 4;
-          const longBreakDuration = settings.longBreak || 15;
-          const shortBreakDuration = settings.shortBreak || 5;
-          const isLongBreak = longBreakInterval > 0 && newSessionCount > 0 && newSessionCount % longBreakInterval === 0;
-          const breakDurationMinutes = isLongBreak ? longBreakDuration : shortBreakDuration;
-          await chrome.storage.local.set({
-            nextBreakDuration: breakDurationMinutes,
-            nextBreakIsLong: isLongBreak,
-            templateFocusMinutes: duration
-          });
-          console.log('[Tempo] Break info stored from badge handler:', breakDurationMinutes, 'isLong:', isLongBreak, 'focusDuration:', duration);
-        } catch (e) {
-          console.error('[Tempo] Failed to store break info from badge handler:', e);
-        }
-      }
-
-      // Open the alarm page (after break info is stored if applicable)
-      chrome.tabs.create({
-        url: `alarm.html?mode=${mode}&duration=${duration}`,
-        active: true
-      });
-
-      // Also show Chrome notification as backup
-      const isFocus = mode === 'focus';
-      chrome.notifications.create('timerComplete-' + Date.now(), {
-        type: 'basic',
-        iconUrl: 'icons/icon128_v4.png',
-        title: isFocus ? 'Focus Session Complete!' : 'Break Complete!',
-        message: isFocus ? 'Great work! Time for a break.' : 'Ready for another focus session?',
-        priority: 2
-      });
-
-      // Clear badge after 10 seconds
-      setTimeout(() => {
-        chrome.action.setBadgeText({ text: '' });
-      }, 10000);
-    });
+    const expiredTarget = timerTargetTime;
+    timerTargetTime = null;
+    saveTimerState();
+    chrome.alarms.clear('badgeTick');
+    finishSession(expiredTarget, { openAlarmTab: true }).catch(e =>
+      console.error('[Tempo] Failed to finish session:', e)
+    );
     return;
   }
 
@@ -335,6 +382,98 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
   if (alarm.name === 'taskReminderCheck') {
     checkTaskReminders();
+  }
+  if (alarm.name.startsWith(HEALTH_ALARM_PREFIX)) {
+    fireHealthReminder(alarm.name.slice(HEALTH_ALARM_PREFIX.length));
+  }
+});
+
+// ============================================================================
+// HEALTH REMINDERS - hydration, posture, eye rest, stretch, screen breaks
+// ============================================================================
+//
+// These used to run as setInterval timers inside the React popup. A popup is
+// destroyed the moment it loses focus, and the default interval is 30 minutes,
+// so in practice the reminders never fired for anyone. They belong to the
+// service worker, driven by chrome.alarms, which survive popup closure and
+// browser restarts.
+
+const HEALTH_ALARM_PREFIX = 'health:';
+
+const HEALTH_TIPS = {
+  screen_break: { title: 'Screen Break', message: 'Look away from your screen and rest your eyes.' },
+  water: { title: 'Drink Water', message: 'Stay hydrated — grab a glass of water.' },
+  stretch: { title: 'Time to Stretch', message: 'Stand up and stretch for a minute.' },
+  eye_rest: { title: 'Eye Rest (20-20-20)', message: 'Look at something 20 feet away for 20 seconds.' },
+  posture: { title: 'Posture Check', message: 'Sit up straight and relax your shoulders.' }
+};
+
+/** Rebuilds the health alarm set from the user's saved settings. */
+async function syncHealthAlarms() {
+  try {
+    // Clear any existing health alarms so removed/disabled types stop firing.
+    const existing = await chrome.alarms.getAll();
+    await Promise.all(
+      existing
+        .filter(a => a.name.startsWith(HEALTH_ALARM_PREFIX))
+        .map(a => chrome.alarms.clear(a.name))
+    );
+
+    const { healthSettings } = await chrome.storage.sync.get('healthSettings');
+    if (!healthSettings || healthSettings.enabled === false) return;
+
+    for (const [typeId, config] of Object.entries(healthSettings.types || {})) {
+      if (!config?.enabled || !HEALTH_TIPS[typeId]) continue;
+      if ((config.reminderCount || 0) <= 0) continue;
+
+      // chrome.alarms rejects periods below 30 seconds; keep a sane floor.
+      const periodInMinutes = Math.max(1, Number(config.intervalMinutes) || 30);
+      chrome.alarms.create(HEALTH_ALARM_PREFIX + typeId, { periodInMinutes, delayInMinutes: periodInMinutes });
+    }
+  } catch (e) {
+    console.error('[Tempo] Failed to sync health alarms:', e);
+  }
+}
+
+/** Shows one health reminder, respecting the per-day cap for that type. */
+async function fireHealthReminder(typeId) {
+  try {
+    const tip = HEALTH_TIPS[typeId];
+    if (!tip) return;
+
+    const { healthSettings } = await chrome.storage.sync.get('healthSettings');
+    const config = healthSettings?.types?.[typeId];
+    if (!healthSettings?.enabled || !config?.enabled) return;
+
+    // Counts reset each day so "3 reminders" means 3 per day, not 3 ever.
+    const today = new Date().toLocaleDateString('en-CA');
+    const { healthReminderCounts } = await chrome.storage.local.get('healthReminderCounts');
+    const counts = healthReminderCounts?.date === today
+      ? healthReminderCounts
+      : { date: today };
+
+    const shown = counts[typeId] || 0;
+    if (shown >= (config.reminderCount || 0)) return;
+
+    chrome.notifications.create(`health-${typeId}-${Date.now()}`, {
+      type: 'basic',
+      iconUrl: 'icons/icon128_v4.png',
+      title: tip.title,
+      message: `${tip.message} (${shown + 1}/${config.reminderCount})`,
+      priority: 1
+    });
+
+    counts[typeId] = shown + 1;
+    await chrome.storage.local.set({ healthReminderCounts: counts });
+  } catch (e) {
+    console.error('[Tempo] Failed to fire health reminder:', e);
+  }
+}
+
+// Re-register alarms whenever the user changes their health settings.
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'sync' && changes.healthSettings) {
+    syncHealthAlarms();
   }
 });
 
@@ -412,9 +551,14 @@ async function checkTaskReminders() {
 chrome.notifications.onButtonClicked.addListener(async (notificationId, buttonIndex) => {
   if (!notificationId.startsWith('taskReminder-')) return;
 
-  // Extract task ID from notification ID (format: taskReminder-{taskId}-{timestamp})
-  const parts = notificationId.split('-');
-  const taskId = parts[1];
+  // Extract task ID from notification ID (format: taskReminder-{taskId}-{timestamp}).
+  // Task ids themselves contain hyphens ('task-<ts>-<rand>', 'google-<id>'), so
+  // splitting on '-' and taking [1] yielded the literal string 'task' and every
+  // button click silently matched no task. Take everything between the prefix
+  // and the final '-' instead.
+  const PREFIX = 'taskReminder-';
+  const taskId = notificationId.slice(PREFIX.length, notificationId.lastIndexOf('-'));
+  if (!taskId) return;
 
   try {
     const data = await chrome.storage.local.get(['tasks']);
@@ -593,125 +737,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // --- Timer commands ---
 
   if (request.action === 'timerComplete') {
-    timerTargetTime = null;
-    saveTimerState();
-    chrome.alarms.clear('badgeTick');
+    // The popup noticed the session ended. The badgeTick alarm may notice the
+    // same session independently, so both paths funnel into finishSession(),
+    // which claims each session exactly once via chrome.storage. Previously
+    // both ran, opening two alarm tabs and two notifications — and, if Chrome
+    // had evicted the worker in between, counting the session twice.
+    (async () => {
+      // The in-memory target is lost whenever the worker restarts, so fall
+      // back to storage to identify which session this is.
+      const stored = await chrome.storage.local.get('timerTargetTime');
+      const expiredTarget = timerTargetTime || stored.timerTargetTime || 0;
 
-    // Get the mode and duration from the request (or use defaults)
-    const mode = request.mode || 'focus';
-    const duration = request.duration || 25;
-    const templateBreakMinutes = request.templateBreakMinutes || null;
-    const templateFocusMinutes = request.templateFocusMinutes || null;
+      timerTargetTime = null;
+      saveTimerState();
+      chrome.alarms.clear('badgeTick');
 
-    // Update stats for focus sessions (this path runs when popup detects completion)
-    // Guard against double-counting if badge handler also fires
-    if (mode === 'focus' && !statsRecordedForCurrentSession) {
-      statsRecordedForCurrentSession = true;
-      (async () => {
-        try {
-          // Increment session count for long break tracking
-          const sessionData = await chrome.storage.local.get(['sessionCount']);
-          const newSessionCount = (sessionData.sessionCount || 0) + 1;
-          await chrome.storage.local.set({ sessionCount: newSessionCount });
-          console.log('[Tempo] Session count incremented to', newSessionCount, '(timerComplete handler)');
-
-          // Compute break info and notify popup
-          // Use template break duration from popup if provided (respects active template),
-          // otherwise fall back to global settings
-          const settingsData = await chrome.storage.sync.get(['settings']);
-          const settings = settingsData.settings || {};
-          const longBreakInterval = settings.longBreakInterval || 4;
-          const longBreakDuration = settings.longBreak || 15;
-          const shortBreakDuration = templateBreakMinutes || settings.shortBreak || 5;
-          const isLongBreak = longBreakInterval > 0 && newSessionCount > 0 && newSessionCount % longBreakInterval === 0;
-          const breakDurationMinutes = isLongBreak ? longBreakDuration : shortBreakDuration;
-          console.log('[Tempo] Break info: sessionCount=', newSessionCount, 'isLongBreak=', isLongBreak, 'breakDuration=', breakDurationMinutes, 'templateBreak=', templateBreakMinutes);
-
-          // Store break info and template focus duration for popup/alarm to read
-          await chrome.storage.local.set({
-            nextBreakDuration: breakDurationMinutes,
-            nextBreakIsLong: isLongBreak,
-            templateFocusMinutes: templateFocusMinutes
-          });
-
-          // Use timerDuration from storage as the authoritative duration
-          // (request.duration from popup may use initialTime which could be stale)
-          const storageData = await chrome.storage.local.get(['stats', 'timerDuration']);
-          const authorativeDuration = storageData.timerDuration || duration;
-          const stats = storageData.stats || {
-            totalSessions: 0,
-            totalFocusMinutes: 0,
-            currentStreak: 0,
-            lastSessionDate: null,
-            weeklyData: {}
-          };
-
-          const today = new Date().toLocaleDateString('en-CA');
-
-          if (stats.lastSessionDate) {
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            const yesterdayStr = yesterday.toLocaleDateString('en-CA');
-
-            if (stats.lastSessionDate === yesterdayStr) {
-              stats.currentStreak = (stats.currentStreak || 0) + 1;
-            } else if (stats.lastSessionDate !== today) {
-              stats.currentStreak = 1;
-            }
-          } else {
-            stats.currentStreak = 1;
-          }
-
-          stats.totalSessions = (stats.totalSessions || 0) + 1;
-          stats.totalFocusMinutes = (stats.totalFocusMinutes || 0) + authorativeDuration;
-          stats.lastSessionDate = today;
-
-          if (!stats.weeklyData) stats.weeklyData = {};
-          stats.weeklyData[today] = (stats.weeklyData[today] || 0) + authorativeDuration;
-
-          await chrome.storage.local.set({ stats });
-          try {
-            await chrome.storage.sync.set({ stats });
-          } catch (e) {
-            console.log('[Tempo] Sync storage save failed:', e);
-          }
-
-          console.log('[Tempo] Stats updated from timerComplete:', stats, 'duration:', authorativeDuration);
-        } catch (e) {
-          console.error('[Tempo] Failed to update stats from timerComplete:', e);
-        }
-
-        // Open the alarm page AFTER break info is stored (avoids race condition)
-        chrome.tabs.create({
-          url: `alarm.html?mode=${mode}&duration=${duration}`,
-          active: true
-        });
-      })();
-    } else {
-      // Break completed or stats already recorded — open alarm immediately
-      chrome.tabs.create({
-        url: `alarm.html?mode=${mode}&duration=${duration}`,
-        active: true
+      await finishSession(expiredTarget, {
+        openAlarmTab: true,
+        mode: request.mode || 'focus',
+        duration: request.duration || 25,
+        templateBreakMinutes: request.templateBreakMinutes || null,
+        templateFocusMinutes: request.templateFocusMinutes || null
       });
-    }
-
-    // Also show a Chrome notification as backup (in case alarm page is blocked)
-    chrome.notifications.create('timerComplete-' + Date.now(), {
-      type: 'basic',
-      iconUrl: 'icons/icon128_v4.png',
-      title: mode === 'break' ? 'Break Complete!' : 'Focus Session Complete!',
-      message: mode === 'break' ? 'Ready for another focus session?' : 'Great work! Time for a break.',
-      priority: 2
-    });
-
-    // Set badge to checkmark
-    chrome.action.setBadgeText({ text: '✓' });
-    chrome.action.setBadgeBackgroundColor({ color: '#22C55E' });
-
-    // Clear badge after 10 seconds
-    setTimeout(() => {
-      chrome.action.setBadgeText({ text: '' });
-    }, 10000);
+    })().catch(e => console.error('[Tempo] Failed to finish session:', e));
 
     sendResponse({ success: true });
     return;
@@ -721,7 +769,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const seconds = request.seconds || (request.minutes || 25) * 60;
     const durationMinutes = Math.round(seconds / 60);
     timerTargetTime = Date.now() + seconds * 1000;
-    statsRecordedForCurrentSession = false; // Reset for new session
+    // Clear any previous completion claim so this new session can be recorded.
+    chrome.storage.local.remove('completedSessionTarget');
     saveTimerState();
     // Only save timerDuration for fresh starts (not restores from popup reopening)
     // When popup restores a timer, it sends remaining seconds which would overwrite
@@ -890,6 +939,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 
   // Set up task reminder check alarm (every 1 minute)
   chrome.alarms.create('taskReminderCheck', { periodInMinutes: 1 });
+  syncHealthAlarms();
 
   ensureOffscreenDocument();
 });
@@ -898,6 +948,7 @@ chrome.runtime.onStartup.addListener(() => {
   ensureOffscreenDocument();
   // Restore timer state on browser startup
   loadTimerState();
+  syncHealthAlarms();
 });
 
 // Also load timer state and ensure offscreen when service worker wakes up

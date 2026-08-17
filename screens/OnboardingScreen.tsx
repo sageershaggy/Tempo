@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Screen } from '../types';
 import { configManager } from '../config';
+import { STORAGE_KEYS } from '../config/constants';
 
 export const OnboardingScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
   const [step, setStep] = useState(0);
@@ -9,11 +10,19 @@ export const OnboardingScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({
   const config = configManager.getConfig();
   const steps = config.onboarding;
 
+  // The tour is only "complete" once the user reaches the end or explicitly
+  // skips it. LoginScreen used to set this flag before the tour was even
+  // shown, so closing the popup mid-tour meant never seeing it again.
+  const finish = () => {
+    localStorage.setItem(STORAGE_KEYS.ONBOARDING_COMPLETE, 'true');
+    setScreen(Screen.TIMER);
+  };
+
   const handleNext = () => {
     if (step < steps.length - 1) {
       setStep(step + 1);
     } else {
-      setScreen(Screen.TIMER);
+      finish();
     }
   };
 
@@ -21,7 +30,7 @@ export const OnboardingScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({
     <div className="h-[600px] w-full flex flex-col bg-background-dark relative">
         {/* Skip Button - Made prominent for easy access */}
         <div className="absolute top-6 right-6 z-20">
-            <button onClick={() => setScreen(Screen.TIMER)} className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-sm font-bold text-white hover:bg-white/20 transition-colors">Skip →</button>
+            <button onClick={finish} className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-sm font-bold text-white hover:bg-white/20 transition-colors">Skip →</button>
         </div>
 
         {/* Content */}

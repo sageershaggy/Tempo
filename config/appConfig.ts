@@ -10,15 +10,14 @@ export interface AppConfig {
   onboarding: OnboardingStepConfig[];
   categories: CategoryConfig;
   social: SocialConfig;
-  admin: AdminAuthConfig;
   pricing: PricingConfig;
   defaults: DefaultsConfig;
 }
 
 export interface AppInfo {
   name: string;
+  /** Injected from package.json at build time — never edit by hand. */
   version: string;
-  build: number;
   chromeWebStoreUrl: string;
 }
 
@@ -106,12 +105,6 @@ export interface LeaderboardUserConfig {
   streak: number;
 }
 
-export interface AdminAuthConfig {
-  // Note: In production, this should use proper authentication
-  // This is a placeholder for secure hash comparison
-  passwordHash: string;
-}
-
 export interface PricingConfig {
   monthly: { price: number; label: string };
   yearly: { price: number; label: string };
@@ -155,8 +148,9 @@ export interface DefaultsConfig {
 export const defaultAppConfig: AppConfig = {
   app: {
     name: 'Tempo Focus',
-    version: '1.0.2',
-    build: 2,
+    // Single source of truth is package.json; Vite substitutes this at build
+    // time. The fallback only applies in non-Vite contexts (e.g. bare tsc).
+    version: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0',
     chromeWebStoreUrl: 'https://chrome.google.com/webstore/detail/ifegjpnhaflnjdjbdijeaghapkfpjbbg',
   },
 
@@ -304,12 +298,6 @@ export const defaultAppConfig: AppConfig = {
     ],
   },
 
-  admin: {
-    // Use a SHA-256 hex hash. Override via VITE_ADMIN_PASSWORD_HASH.
-    // Default hash corresponds to "admin@345" to preserve existing behavior.
-    passwordHash: (import.meta as any).env?.VITE_ADMIN_PASSWORD_HASH?.trim() || '60088172714c7fc576799d095c3868aef3bbbe9d5063681af478b9573ee6a3af',
-  },
-
   pricing: {
     monthly: { price: 1, label: '$1/mo' },
     yearly: { price: 10, label: '$10/yr' },
@@ -411,8 +399,6 @@ class ConfigManager {
       audio: { ...base.audio, ...updates.audio },
       categories: { ...base.categories, ...updates.categories },
       social: { ...base.social, ...updates.social },
-      admin: { ...base.admin, ...updates.admin },
-      pricing: { ...base.pricing, ...updates.pricing },
       defaults: {
         ...base.defaults,
         ...updates.defaults,
@@ -421,8 +407,11 @@ class ConfigManager {
         stats: { ...base.defaults.stats, ...updates.defaults?.stats },
         admin: { ...base.defaults.admin, ...updates.defaults?.admin },
       },
-      // Always use base themes (from code) - don't cache themes in localStorage
+      // Always taken from code, never from localStorage. `tempo_app_config` is
+      // user-writable, so anything trust-bearing (pricing rules, license
+      // patterns) must not be restorable from it.
       themes: base.themes,
+      pricing: base.pricing,
       navigation: updates.navigation || base.navigation,
       onboarding: updates.onboarding || base.onboarding,
     };

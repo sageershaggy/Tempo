@@ -1,12 +1,20 @@
 {
   "name": "tempo-focus",
   "private": true,
-  "version": "1.0.5",
+  "version": "1.1.0",
+  "description": "Tempo Focus — a Chrome extension focus timer with soundscapes, tasks, and stats.",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "icons": "node scripts/generate-icons.mjs",
+    "package": "npm run build && node scripts/package-extension.mjs",
+    "verify": "npm run typecheck && npm run build"
   },
   "dependencies": {
     "@google/genai": "^1.41.0",
@@ -17,8 +25,6 @@
     "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^22.19.11",
     "@vitejs/plugin-react": "^5.1.4",
-    "autoprefixer": "^10.4.24",
-    "postcss": "^8.5.6",
     "sharp": "^0.34.5",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.8.2",

@@ -149,8 +149,20 @@ export const getStats = async (): Promise<UserStats> => {
   return { ...defaults, ...(data.stats || {}) };
 };
 
+/** Keeps only the most recent `days` entries, so the synced copy stays small. */
+const SYNCED_HISTORY_DAYS = 90;
+
+export const pruneWeeklyData = (
+  weeklyData: Record<string, number> | undefined,
+  days: number = SYNCED_HISTORY_DAYS
+): Record<string, number> => {
+  if (!weeklyData) return {};
+  // Keys are 'YYYY-MM-DD', so lexicographic sort is chronological.
+  const recent = Object.keys(weeklyData).sort().slice(-days);
+  return Object.fromEntries(recent.map(date => [date, weeklyData[date]]));
+};
+
 export const updateStats = async (sessionMinutes: number): Promise<void> => {
-  console.log('[Tempo] updateStats called with', sessionMinutes, 'minutes');
   const stats = await getStats();
   // Fix: Use local date string (YYYY-MM-DD) instead of UTC to avoidtimezone issues
   // This ensures sessions late at night count for the "user's today"
@@ -182,19 +194,17 @@ export const updateStats = async (sessionMinutes: number): Promise<void> => {
   }
   stats.weeklyData[today] = (stats.weeklyData[today] || 0) + sessionMinutes;
 
-  console.log('[Tempo] Saving stats:', stats);
-
-  // Save to storage and wait for completion
+  // Full history lives in local storage, which has a much larger quota.
   await storage.local.set({ stats });
 
-  // Also save to sync storage for cross-device access
+  // chrome.storage.sync enforces QUOTA_BYTES_PER_ITEM (8KB). weeklyData grows
+  // by one entry per active day, so an unpruned copy eventually exceeds the
+  // limit and every sync write starts failing silently. Send a trimmed copy.
   try {
-    await storage.sync.set({ stats });
+    await storage.sync.set({ stats: { ...stats, weeklyData: pruneWeeklyData(stats.weeklyData) } });
   } catch (e) {
-    console.log('[Tempo] Sync storage save failed (not critical):', e);
+    console.warn('[Tempo] Cross-device stats sync failed:', e);
   }
-
-  console.log('[Tempo] Stats saved successfully');
 };
 
 // Pro Status
@@ -206,14 +216,17 @@ export const getProStatus = async (): Promise<ProStatus> => {
   const adminData = await storage.local.get('adminConfig');
   const adminConfig = adminData.adminConfig || {};
   if (adminConfig.globalAccessEnabled) {
+    // A grant with no end date used to mean "forever". Require an explicit
+    // future end date so a stray flag cannot unlock Pro permanently.
     const endDate = adminConfig.globalAccessEndDate ? new Date(adminConfig.globalAccessEndDate).getTime() : null;
-    if (!endDate || endDate > now) {
+    if (endDate && endDate > now) {
       return { isPro: true, proExpiry: endDate, licenseKey: null, activatedAt: null, plan: null };
     }
   }
 
-  // Check if pro expired
-  if (data.isPro && data.proExpiry && data.proExpiry < now) {
+  // Treat a missing expiry as "not Pro". Previously `isPro: true` with no
+  // proExpiry skipped this check entirely and never expired.
+  if (data.isPro && (!data.proExpiry || data.proExpiry < now)) {
     await storage.sync.set({ isPro: false });
     return { isPro: false, proExpiry: null, licenseKey: null, activatedAt: null, plan: null };
   }
@@ -297,6 +310,32 @@ export const getAdminConfig = async (): Promise<AdminConfig> => {
 export const saveAdminConfig = async (config: Partial<AdminConfig>): Promise<void> => {
   const current = await getAdminConfig();
   await storage.local.set({ adminConfig: { ...current, ...config } });
+};
+
+// AI (Gemini) API key — user-supplied, device-local.
+//
+// Deliberately stored in `local` rather than `sync`: a credential should not be
+// replicated across every machine signed into the browser profile. The
+// extension ships no key of its own.
+const GEMINI_KEY = 'geminiApiKey';
+
+export const getGeminiApiKey = async (): Promise<string> => {
+  const data = await storage.local.get(GEMINI_KEY);
+  const value = data[GEMINI_KEY];
+  return typeof value === 'string' ? value.trim() : '';
+};
+
+export const setGeminiApiKey = async (key: string): Promise<void> => {
+  const trimmed = key.trim();
+  if (!trimmed) {
+    await storage.local.remove(GEMINI_KEY);
+    return;
+  }
+  await storage.local.set({ [GEMINI_KEY]: trimmed });
+};
+
+export const clearGeminiApiKey = async (): Promise<void> => {
+  await storage.local.remove(GEMINI_KEY);
 };
 
 // Tasks persistence

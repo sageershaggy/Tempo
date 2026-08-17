@@ -23,6 +23,10 @@ export const STORAGE_KEYS = {
   ONBOARDING_COMPLETE: 'tempo_onboarding_complete',
   APP_CONFIG: 'tempo_app_config',
 
+  // Auth
+  LOGIN_METHOD: 'tempo_login_method',
+  AUTH_PROFILE: 'tempo_auth',
+
   // Integrations
   INTEGRATIONS: 'tempo_integrations',
 

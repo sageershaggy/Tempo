@@ -1,19 +1,25 @@
 import path from 'path';
-import { defineConfig, loadEnv } from 'vite';
+import { readFileSync } from 'fs';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
-export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, '.', '');
+const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
+
+export default defineConfig(() => {
     return {
       server: {
+        // Bind to localhost only. '0.0.0.0' exposed the dev server, including
+        // any local state, to every device on the network.
         port: 3000,
-        host: '0.0.0.0',
       },
       plugins: [react(), tailwindcss()],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY)
+        // Single source of truth for the version shown in-app (see package.json).
+        // NOTE: no API keys are injected here. Secrets inlined at build time end
+        // up readable in the shipped bundle — the Gemini key is supplied by the
+        // user at runtime instead. See services/geminiService.ts.
+        __APP_VERSION__: JSON.stringify(pkg.version),
       },
       resolve: {
         alias: {

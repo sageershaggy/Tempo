@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
-import { getSettings, saveSettings, UserSettings, exportUserDataAsCSV, getProStatus } from '../services/storageService';
+import { getSettings, saveSettings, UserSettings, exportUserDataAsCSV, getProStatus, getGeminiApiKey, setGeminiApiKey } from '../services/storageService';
+import { verifyApiKey, resetAiClient } from '../services/geminiService';
+import { authService } from '../services/authService';
 import { configManager } from '../config';
 import { STORAGE_KEYS } from '../config/constants';
 
@@ -26,6 +28,46 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
   const [shortBreak, setShortBreak] = useState(5);
   const [longBreak, setLongBreak] = useState(15);
   const [longBreakInterval, setLongBreakInterval] = useState(4);
+
+  // AI assistant (bring-your-own Gemini key)
+  const [aiKey, setAiKey] = useState('');
+  const [aiKeySaved, setAiKeySaved] = useState(false);
+  const [aiStatus, setAiStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [showAiKey, setShowAiKey] = useState(false);
+
+  useEffect(() => {
+    getGeminiApiKey().then(key => {
+      setAiKey(key);
+      setAiKeySaved(Boolean(key));
+    });
+  }, []);
+
+  const handleSaveAiKey = async () => {
+    setAiStatus('testing');
+    setAiError(null);
+
+    const trimmed = aiKey.trim();
+    if (!trimmed) {
+      await setGeminiApiKey('');
+      resetAiClient();
+      setAiKeySaved(false);
+      setAiStatus('idle');
+      return;
+    }
+
+    const result = await verifyApiKey(trimmed);
+    if (!result.ok) {
+      setAiStatus('error');
+      setAiError(result.error);
+      return;
+    }
+
+    await setGeminiApiKey(trimmed);
+    resetAiClient();
+    setAiKeySaved(true);
+    setAiStatus('ok');
+  };
 
   // Load settings on mount
   useEffect(() => {
@@ -461,19 +503,100 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
           </div>
         </section>
 
+        {/* AI Assistant — bring your own key */}
+        <section>
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">AI Assistant</h3>
+          <div className="bg-surface-dark rounded-2xl border border-white/5 p-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 shrink-0 rounded-xl bg-primary/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-primary">auto_awesome</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold">Magic Enhance</p>
+                <p className="text-[10px] text-muted leading-relaxed">
+                  Turns rough notes into clear task titles. Uses your own Google Gemini
+                  key, stored only on this device — Tempo never sees it.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type={showAiKey ? 'text' : 'password'}
+                  value={aiKey}
+                  onChange={e => { setAiKey(e.target.value); setAiStatus('idle'); setAiError(null); }}
+                  placeholder="Paste your Gemini API key"
+                  spellCheck={false}
+                  autoComplete="off"
+                  className="w-full bg-background-dark border border-white/10 rounded-lg pl-3 pr-9 py-2.5 text-xs text-white placeholder-white/25 focus:border-primary focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAiKey(v => !v)}
+                  aria-label={showAiKey ? 'Hide API key' : 'Show API key'}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-white transition-colors"
+                >
+                  <span className="material-symbols-outlined text-base">
+                    {showAiKey ? 'visibility_off' : 'visibility'}
+                  </span>
+                </button>
+              </div>
+              <button
+                onClick={handleSaveAiKey}
+                disabled={aiStatus === 'testing'}
+                className="px-4 rounded-lg bg-primary hover:bg-primary-light text-white text-xs font-bold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {aiStatus === 'testing' ? 'Testing…' : aiKey.trim() ? 'Save' : 'Clear'}
+              </button>
+            </div>
+
+            {aiStatus === 'ok' && (
+              <p className="text-[10px] text-green-400 flex items-center gap-1">
+                <span className="material-symbols-outlined text-xs">check_circle</span>
+                Key verified. Magic Enhance is ready.
+              </p>
+            )}
+            {aiStatus === 'error' && aiError && (
+              <p role="alert" className="text-[10px] text-red-400 leading-relaxed">{aiError}</p>
+            )}
+            {aiStatus === 'idle' && aiKeySaved && (
+              <p className="text-[10px] text-muted">A key is saved on this device.</p>
+            )}
+
+            <a
+              href="https://aistudio.google.com/app/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline"
+            >
+              Get a free key from Google AI Studio
+              <span className="material-symbols-outlined text-xs">open_in_new</span>
+            </a>
+          </div>
+        </section>
+
         {/* Help & Support */}
         <section>
           <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 ml-1">Help & Support</h3>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => openFeedbackModal('help')}
-              className="bg-surface-dark rounded-xl border border-white/5 p-3 flex flex-col items-center gap-2 hover:bg-white/[0.03] transition-colors"
-            >
-              <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <span className="material-symbols-outlined text-[18px] text-blue-400">help</span>
-              </div>
-              <span className="text-[10px] font-semibold text-white/70">Help</span>
-            </button>
+
+          {/* All three buttons used to open the same feedback form, so a user
+              asking "how do I use this?" was handed a blank text box. */}
+          <button
+            onClick={() => setScreen(Screen.HELP)}
+            className="w-full mb-2 bg-surface-dark rounded-xl border border-white/5 p-4 flex items-center gap-3 hover:bg-white/[0.03] transition-colors text-left"
+          >
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-blue-400">help</span>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold">How Tempo works</p>
+              <p className="text-[10px] text-muted">Presets, sounds, sync, and the mini timer</p>
+            </div>
+            <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
+          </button>
+
+          <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => openFeedbackModal('bug')}
               className="bg-surface-dark rounded-xl border border-white/5 p-3 flex flex-col items-center gap-2 hover:bg-white/[0.03] transition-colors"
@@ -525,11 +648,24 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
             </button>
           </div>
           <div className="flex items-center justify-center gap-3 mb-2">
-            <button onClick={() => setScreen(Screen.LOGIN)} className="text-[10px] font-semibold text-red-400/70 hover:text-red-400 transition-colors">
+            <button
+              onClick={async () => {
+                // This used to only change screens, leaving the session intact:
+                // reopening the popup dropped the user straight back in, still
+                // signed in. signOut() revokes the token and clears the flags.
+                try {
+                  await authService.signOut();
+                } catch (e) {
+                  console.error('[Tempo] Sign out failed:', e);
+                }
+                setScreen(Screen.LOGIN);
+              }}
+              className="text-[10px] font-semibold text-red-400/70 hover:text-red-400 transition-colors"
+            >
               Sign Out
             </button>
           </div>
-          <p className="text-[9px] text-muted/30 text-center">{config.app.name} v{config.app.version} (Build {config.app.build})</p>
+          <p className="text-[9px] text-muted/30 text-center">{config.app.name} v{config.app.version}</p>
         </section>
 
       </div>

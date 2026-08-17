@@ -10,10 +10,12 @@ export interface UserProfile {
 }
 
 const STORAGE_KEY = 'tempo_auth';
-const TOKEN_KEY = 'tempo_google_token';
 
-// Primary Client ID (in manifest.json for getAuthToken)
-const MANIFEST_CLIENT_ID = '747255011734-l7k517kfa2908all500m6cmcs4iq1ugp.apps.googleusercontent.com';
+// NOTE: the OAuth client id used by chrome.identity.getAuthToken comes from
+// public/manifest.json. A second, unreferenced client id constant used to live
+// here and disagreed with the manifest, which made OAuth misconfiguration very
+// hard to diagnose. Change the client id in the manifest, not here.
+
 // Optional Web OAuth client ID for launchWebAuthFlow fallback.
 const WEB_AUTH_FLOW_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_OAUTH_CLIENT_ID?.trim() || '';
 const HAS_WEB_AUTH_FLOW_CLIENT = WEB_AUTH_FLOW_CLIENT_ID.length > 0;
@@ -29,13 +31,14 @@ class AuthService {
   private profile: UserProfile | null = null;
 
   private constructor() {
-    // Load cached token and profile
+    // Only the profile is restored from storage. Access tokens are deliberately
+    // NOT persisted: localStorage is readable by every extension page and by
+    // devtools, and Chrome already caches the token for us — getAuthToken with
+    // interactive:false returns it without prompting.
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const data = JSON.parse(saved);
-        this.profile = data.profile || null;
-        this.token = data.token || null;
+        this.profile = JSON.parse(saved).profile || null;
       }
     } catch (e) { }
   }
@@ -48,7 +51,10 @@ class AuthService {
   }
 
   isAuthenticated(): boolean {
-    return !!this.token && !!this.profile;
+    // Based on the stored profile, not the in-memory token: the token is no
+    // longer persisted, so it is null on every fresh popup open even while the
+    // user is still signed in. Chrome re-issues it on demand.
+    return !!this.profile;
   }
 
   getToken(): string | null {
@@ -255,8 +261,13 @@ class AuthService {
     this.token = null;
     this.profile = null;
     localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem('tempo_onboarding_complete');
+    // 'tempo_login_method' is the flag App.tsx checks to decide whether to show
+    // the login screen. Without clearing it, signing out left the user signed
+    // in on the next popup open. It previously cleared the onboarding flag
+    // instead, which just re-ran the tour.
+    localStorage.removeItem('tempo_login_method');
+    localStorage.removeItem('tempo_user_profile');
+    localStorage.removeItem('tempo_google_token');
     localStorage.removeItem('google_tasks_token');
     localStorage.removeItem('ms_todo_token');
   }
@@ -281,13 +292,8 @@ class AuthService {
   }
 
   private saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      token: this.token,
-      profile: this.profile,
-    }));
-    if (this.token) {
-      localStorage.setItem(TOKEN_KEY, this.token);
-    }
+    // Profile only — see the constructor for why the token is not persisted.
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ profile: this.profile }));
   }
 
 }
