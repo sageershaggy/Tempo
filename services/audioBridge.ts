@@ -3,6 +3,8 @@
 
 import { BinauralRange } from './soundGenerator';
 
+declare var chrome: any;
+
 const isChromeExtension = typeof chrome !== 'undefined' && chrome.runtime?.sendMessage;
 const YOUTUBE_UNAVAILABLE_ERROR = 'YouTube audio is only available in the Chrome extension.';
 
