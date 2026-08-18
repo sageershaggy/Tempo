@@ -2,7 +2,7 @@
 declare var chrome: any;
 
 import { configManager } from '../config';
-import { TIME } from '../config/constants';
+import { TIME, MONETIZATION_ENABLED } from '../config/constants';
 import { HealthSettings, HealthTypeConfig, HealthLog } from '../types';
 
 export interface UserSettings {
@@ -209,6 +209,14 @@ export const updateStats = async (sessionMinutes: number): Promise<void> => {
 
 // Pro Status
 export const getProStatus = async (): Promise<ProStatus> => {
+  // Every feature is currently free for everyone. This is the single gate the
+  // whole app reads, so returning an unlocked status here unlocks themes,
+  // Google Tasks sync and anything else that was behind the paid tier.
+  // Set MONETIZATION_ENABLED = true in config/constants.ts to restore it.
+  if (!MONETIZATION_ENABLED) {
+    return { isPro: true, proExpiry: null, licenseKey: null, activatedAt: null, plan: null };
+  }
+
   const data = await storage.sync.get(['isPro', 'proExpiry', 'licenseKey', 'activatedAt', 'plan']);
   const now = Date.now();
 

@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Screen } from '../types';
+import { configManager } from '../config';
 
 export const SplashScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setScreen }) => {
   useEffect(() => {
@@ -34,7 +35,8 @@ export const SplashScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ set
             <div className="h-full bg-gradient-to-r from-primary to-secondary w-2/3 rounded-full animate-pulse"></div>
         </div>
         <div className="mt-4 text-center">
-            <p className="text-xs text-muted/50">v2.0.0 • Tempo Productivity Inc.</p>
+            {/* Version comes from package.json via __APP_VERSION__; it was hardcoded to v2.0.0 while the extension shipped as 1.0.x. */}
+            <p className="text-xs text-muted/50">v{configManager.getConfig().app.version}</p>
         </div>
       </div>
     </div>

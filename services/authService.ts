@@ -21,6 +21,17 @@ const WEB_AUTH_FLOW_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_OAUTH_CLIE
 const HAS_WEB_AUTH_FLOW_CLIENT = WEB_AUTH_FLOW_CLIENT_ID.length > 0;
 const ENABLE_WEB_AUTH_FLOW_FALLBACK = String((import.meta as any).env?.VITE_ENABLE_WEB_AUTH_FALLBACK || '').trim().toLowerCase() === 'true';
 const CAN_USE_WEB_AUTH_FLOW = HAS_WEB_AUTH_FLOW_CLIENT && ENABLE_WEB_AUTH_FLOW_FALLBACK;
+// Identity-only scopes. Both are classed NON-SENSITIVE by Google, so an app
+// requesting just these does not need OAuth verification and users never see
+// the "Google hasn't verified this app" warning.
+//
+// https://www.googleapis.com/auth/tasks IS sensitive. It is requested lazily,
+// only when the user connects Google Tasks, so it never blocks first sign-in.
+const SIGN_IN_SCOPES = [
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+];
+
 const AUTH_FLOW_TIMEOUT_MS = 120000;
 
 const isChromeExtension = typeof chrome !== 'undefined' && chrome.identity?.getAuthToken;
@@ -141,10 +152,17 @@ class AuthService {
     };
   }
 
+  // Sign-in requests ONLY the two non-sensitive identity scopes.
+  //
+  // Requesting https://www.googleapis.com/auth/tasks here as well (it is still
+  // declared in the manifest) made every first-time sign-in a *sensitive* scope
+  // request, which is what produces Google's "Google hasn't verified this app"
+  // interstitial. The tasks scope is now requested only when the user actually
+  // connects Google Tasks — see services/googleTasks.ts.
   // Primary auth: uses manifest.json client_id + extension ID
   private tryGetAuthToken(): Promise<string> {
     return new Promise((resolve, reject) => {
-      chrome.identity.getAuthToken({ interactive: true }, (token) => {
+      chrome.identity.getAuthToken({ interactive: true, scopes: SIGN_IN_SCOPES }, (token: string) => {
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message));
         } else if (token) {
@@ -165,11 +183,7 @@ class AuthService {
       }
 
       const redirectUrl = chrome.identity.getRedirectURL();
-      const scopes = encodeURIComponent([
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile',
-        'https://www.googleapis.com/auth/tasks'
-      ].join(' '));
+      const scopes = encodeURIComponent(SIGN_IN_SCOPES.join(' '));
 
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(WEB_AUTH_FLOW_CLIENT_ID)}&response_type=token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=${scopes}&prompt=consent&include_granted_scopes=true`;
       const timeoutId = setTimeout(() => {

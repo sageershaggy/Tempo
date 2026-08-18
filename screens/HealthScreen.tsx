@@ -80,7 +80,6 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
         </button>
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-bold">Health & Wellness</h2>
-          <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">Pro</span>
         </div>
         <button
           onClick={() => setScreen(Screen.HEALTH_REMINDERS)}

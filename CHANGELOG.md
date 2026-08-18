@@ -42,13 +42,32 @@ Security, reliability, and a serious pass at making the extension explain itself
   past `chrome.storage.sync`'s 8KB per-item quota, and every write then failed silently.
 - Sign-in failures show the reason instead of just stopping the spinner.
 
+### Pricing
+- **Tempo is now completely free.** The paid tier is gone: all 27 themes, Google Tasks
+  sync, and every other previously gated feature are unlocked for everyone. Removed the
+  PayPal upsell cards, the "Pro" badges, the locked-theme modal, and the
+  "activated within 24 hours" manual fulfilment flow that had no fulfilment behind it.
+- Terms and Privacy Policy no longer describe billing, refunds, or Stripe payment
+  processing — none of which existed in the code.
+- `MONETIZATION_ENABLED` in `config/constants.ts` is the single switch if the paid tier
+  is ever reinstated; `getProStatus()` is the only gate that reads it.
+
+### OAuth
+- **Fixed "Google hasn't verified this app" blocking first sign-in.** Sign-in requested
+  `https://www.googleapis.com/auth/tasks` — a *sensitive* scope requiring Google
+  verification — alongside the two non-sensitive identity scopes. Sign-in now requests
+  identity scopes only; the tasks scope is requested lazily, when someone actually
+  connects Google Tasks. See the README for the Cloud Console steps that clear the
+  warning entirely.
+- Splash screen showed a hardcoded `v2.0.0`; it now reads the real version.
+
 ### Changed
 - **Google sign-in is free.** It was gated behind `isPro`, which is false for every new
   user — so the primary button on the very first screen never signed anyone in, it showed
-  a PayPal upsell. Pro now gates only the sync features themselves.
+  a PayPal upsell. Sign-in now works for everyone immediately.
 - **New "How Tempo works" help screen** covering presets, soundscape jargon, what syncs,
-  the mini timer, and free vs Pro — reachable from Settings, with a "replay the tour"
-  option. The three Help & Support buttons all used to open the same feedback form.
+  and the mini timer — reachable from Settings, with a "replay the tour" option. The
+  three Help & Support buttons all used to open the same feedback form.
 - **Magic Enhance works**; it previously shipped as a permanently disabled "Coming Soon"
   button.
 - Terms and Privacy Policy on the login screen are real links; they were unclickable

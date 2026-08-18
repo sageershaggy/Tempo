@@ -108,13 +108,13 @@ const ENTRIES: HelpEntry[] = [
     ),
   },
   {
-    icon: 'workspace_premium',
-    q: "What's free and what's Pro?",
+    icon: 'lock_open',
+    q: 'Does any of this cost money?',
     a: (
       <>
-        The timer, tasks, stats, health reminders, all soundscapes and Google sign-in are
-        free. Pro adds the extra colour themes and Google Tasks two-way sync. Nothing you
-        rely on day to day is behind the upgrade.
+        No. Every feature is free — the timer, tasks, stats, all 27 themes, every
+        soundscape, health reminders, Google sign-in and Google Tasks sync. There is no
+        paid tier, no trial, and nothing to unlock.
       </>
     ),
   },

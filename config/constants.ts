@@ -389,3 +389,12 @@ export function extractYouTubeId(url: string): string | null {
   const match = value.match(PATTERNS.YOUTUBE_URL);
   return isValidId(match?.[2]) ? match[2] : null;
 }
+
+// ---------------------------------------------------------------------------
+// Monetization
+// ---------------------------------------------------------------------------
+// Tempo currently ships with every feature unlocked for everyone. Flip this to
+// true to re-enable the paid tier; getProStatus() in services/storageService.ts
+// is the single gate that reads it, and the upgrade UI is keyed off the same
+// flag, so nothing else needs to change.
+export const MONETIZATION_ENABLED = false;

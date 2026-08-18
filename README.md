@@ -35,7 +35,7 @@ most common reason people miss them:
 | **How Tempo works (help)** | **Settings → Help & Support → How Tempo works** |
 | Health reminders | **Settings → Health & Wellness** |
 | Google Tasks sync | **Settings → Integrations** |
-| Themes | **Settings → App Theme** |
+| Themes (all 27, free) | **Settings → App Theme** |
 | Export your data (CSV) | **Settings → Export Data** |
 | Magic Enhance (AI) | **Settings → AI Assistant** |
 
@@ -52,10 +52,11 @@ it answers the questions the interface itself doesn't.
 
 None of it is required. Use whatever helps, or nothing.
 
-### Free vs Pro
+### Cost
 
-Free: the timer, tasks, stats, health reminders, every soundscape, Google sign-in,
-and data export. Pro adds extra colour themes and Google Tasks two-way sync.
+Everything is free: the timer, tasks, stats, health reminders, every soundscape,
+all 27 themes, Google sign-in, Google Tasks sync, and data export. There is no paid
+tier and no trial.
 
 ### Your data
 
@@ -159,3 +160,36 @@ Two ways to resolve it:
   `https://<YOUR_EXTENSION_ID>.chromiumapp.org/` as a redirect URI on that client.
 
 Relevant code: `services/authService.ts`, `services/googleTasks.ts`.
+
+### "Google hasn't verified this app"
+
+That interstitial appears when an unverified OAuth consent screen requests a
+**sensitive** scope. Tempo's scopes split like this:
+
+| Scope | Class | Needs verification? |
+| --- | --- | --- |
+| `userinfo.email` | Non-sensitive | No |
+| `userinfo.profile` | Non-sensitive | No |
+| `.../auth/tasks` | **Sensitive** | Yes |
+
+Sign-in used to request all three at once, so **every first-time user hit the warning**
+before they could do anything. Sign-in now requests only the two identity scopes
+(`SIGN_IN_SCOPES` in `services/authService.ts`); the `tasks` scope is requested lazily
+by `services/googleTasks.ts`, only when someone connects Google Tasks.
+
+To clear the warning completely, in **Google Cloud Console → APIs & Services → OAuth
+consent screen**:
+
+1. Set **User type** to *External*.
+2. Fill in app name, support email, developer contact, and an app logo.
+3. Add your **Privacy Policy** and **Terms of Service** URLs (hosted publicly —
+   the in-extension screens do not count).
+4. Set **Publishing status** to **In production**.
+   With only the two non-sensitive scopes, this alone removes the warning and needs
+   no review.
+5. Only if you want Google Tasks sync available to everyone: submit for
+   **OAuth verification** and justify the `tasks` scope. Review typically takes a few
+   days to a few weeks. Until it passes, Google Tasks stays limited to accounts listed
+   under **Test users** — the rest of the extension is unaffected.
+
+While in *Testing*, add any account that needs sign-in under **Audience → Test users**.

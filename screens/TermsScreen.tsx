@@ -31,7 +31,7 @@ export const TermsScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
               <li>Task management and tracking</li>
               <li>Productivity statistics</li>
               <li>Ambient sounds for focus</li>
-              <li>Pro features for subscribed users</li>
+              <li>Every feature, free of charge</li>
             </ul>
           </div>
         </section>
@@ -49,13 +49,12 @@ export const TermsScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
         </section>
 
         <section className="space-y-3">
-          <h3 className="text-sm font-bold text-primary">4. Pro Subscription</h3>
+          <h3 className="text-sm font-bold text-primary">4. Cost</h3>
           <div className="bg-surface-dark rounded-xl p-4 border border-white/5 text-sm text-muted leading-relaxed">
             <ul className="list-disc list-inside space-y-2">
-              <li><span className="text-white">Billing:</span> Pro subscriptions are billed monthly or yearly</li>
-              <li><span className="text-white">Cancellation:</span> You may cancel at any time; access continues until period ends</li>
-              <li><span className="text-white">Refunds:</span> Refunds are provided within 7 days of purchase if requested</li>
-              <li><span className="text-white">Price Changes:</span> We will notify existing subscribers 30 days before any price changes</li>
+              <li><span className="text-white">Free:</span> Every feature is available at no cost. There is no paid tier and no trial.</li>
+              <li><span className="text-white">No payment details:</span> Tempo never asks for, collects, or processes payment information.</li>
+              <li><span className="text-white">Changes:</span> If a paid tier is ever introduced, existing features will not be removed without notice.</li>
             </ul>
           </div>
         </section>
@@ -67,8 +66,6 @@ export const TermsScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
             <ul className="list-disc list-inside space-y-2">
               <li>Reverse engineer or modify the extension</li>
               <li>Use the service for illegal purposes</li>
-              <li>Attempt to bypass subscription requirements</li>
-              <li>Share license keys with unauthorized users</li>
               <li>Automate or script interactions with the extension</li>
             </ul>
           </div>

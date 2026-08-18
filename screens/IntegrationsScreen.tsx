@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
 import { STORAGE_KEYS } from '../config/constants';
 import { googleTasksService } from '../services/googleTasks';
-import { getProStatus } from '../services/storageService';
 import { authService } from '../services/authService';
-import { configManager } from '../config';
 
 interface IntegrationCardProps {
   title: string;
@@ -68,31 +66,9 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({
       )}
 
       {/* Sync Result */}
-      {syncResult && syncResult !== 'premium' && (
+      {syncResult && (
         <div className="mt-3 bg-primary/5 border border-primary/10 rounded-lg px-3 py-2">
           <p className="text-[10px] text-primary font-semibold">{syncResult}</p>
-        </div>
-      )}
-      {syncResult === 'premium' && (
-        <div className="mt-3 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-yellow-400 text-base">workspace_premium</span>
-            <p className="text-[10px] font-bold text-yellow-300">Tempo Pro Feature</p>
-          </div>
-          <p className="text-[10px] text-white/50 leading-relaxed">
-            Google Tasks sync is available to Pro members. Pay via PayPal — your account will be activated within 24 hours.
-          </p>
-          <a
-            href={configManager.getConfig().pricing.paypalUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-[10px] font-bold bg-[#0070BA] text-white hover:bg-[#005ea6] transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106zm14.146-14.42a3.35 3.35 0 0 0-.607-.541c-.013.076-.026.175-.041.254-.59 3.025-2.566 6.082-8.558 6.082H9.819l-1.35 8.568h4.106a.641.641 0 0 0 .634-.55l.025-.13.49-3.098.031-.17a.641.641 0 0 1 .633-.55h.398c2.587 0 4.61-.543 5.655-2.114.478-.718.733-1.587.8-2.614.044-.683-.034-1.27-.219-1.737z"/>
-            </svg>
-            Upgrade with PayPal
-          </a>
         </div>
       )}
 
@@ -156,12 +132,10 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
   const [googleSyncResult, setGoogleSyncResult] = useState<string | null>(null);
   const [googleLastSync, setGoogleLastSync] = useState<string | null>(null);
   const [googleProfile, setGoogleProfile] = useState<{ name: string; email: string; picture?: string } | null>(null);
-  const [isPro, setIsPro] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getProStatus().then(s => setIsPro(s.isPro));
     // Check connection status
     setGoogleConnected(googleTasksService.isConnected());
 
@@ -205,10 +179,6 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
 
   // Google Connect - triggers Google SSO login flow then connects Tasks
   const handleGoogleConnect = async () => {
-    if (!isPro) {
-      setGoogleSyncResult('premium');
-      return;
-    }
     setLoading('google');
     setError(null);
     setGoogleSyncResult(null);
@@ -272,10 +242,6 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
   };
 
   const handleGoogleSync = async () => {
-    if (!isPro) {
-      setGoogleSyncResult('premium');
-      return;
-    }
     setSyncing('google');
     setGoogleSyncResult(null);
     try {

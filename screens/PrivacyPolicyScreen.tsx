@@ -33,7 +33,6 @@ export const PrivacyPolicyScreen: React.FC<{ setScreen: (s: Screen) => void }> =
             <ul className="list-disc list-inside space-y-2">
               <li>To provide and maintain the service</li>
               <li>To sync your data across devices (if enabled)</li>
-              <li>To process payments for Pro subscriptions</li>
               <li>To improve our product based on anonymous usage patterns</li>
             </ul>
           </div>
@@ -56,8 +55,7 @@ export const PrivacyPolicyScreen: React.FC<{ setScreen: (s: Screen) => void }> =
           <div className="bg-surface-dark rounded-xl p-4 border border-white/5 text-sm text-muted leading-relaxed">
             <ul className="list-disc list-inside space-y-2">
               <li><span className="text-white">Google Sign-In:</span> For optional account authentication</li>
-              <li><span className="text-white">Stripe:</span> For secure payment processing (Pro subscriptions)</li>
-              <li><span className="text-white">Google AI:</span> For optional AI-powered task suggestions (data is not stored)</li>
+              <li><span className="text-white">Google Gemini:</span> Only if you add your own API key, and only for the text you choose to enhance</li>
             </ul>
           </div>
         </section>
