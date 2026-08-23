@@ -277,6 +277,7 @@ export const PATTERNS = {
   EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   LICENSE_KEY: /^TEMPO-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-(M|Y)$/,
   YOUTUBE_URL: /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/,
+  YOUTUBE_ID: /^[a-zA-Z0-9_-]{11}$/,
   HEX_COLOR: /^#[0-9A-Fa-f]{6}$/,
 } as const;
 
@@ -350,10 +351,11 @@ export function extractYouTubeId(url: string): string | null {
   if (!value) return null;
 
   const isValidId = (id: string | null | undefined): id is string =>
-    !!id && /^[a-zA-Z0-9_-]{11}$/.test(id);
+    !!id && PATTERNS.YOUTUBE_ID.test(id);
 
-  // Support direct video IDs
-  if (isValidId(value)) {
+  // Support direct video IDs. Tested against the pattern rather than through
+  // isValidId, whose type predicate would narrow `value` to `never` below.
+  if (PATTERNS.YOUTUBE_ID.test(value)) {
     return value;
   }
 

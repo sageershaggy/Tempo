@@ -41,9 +41,13 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
     return days;
   };
 
-  // Build a map of day -> tasks for current month
-  const tasksByDay = useMemo(() => {
-    const map: Record<number, Task[]> = {};
+  // Build a map of day -> tasks for current month.
+  // The return type is annotated because useMemo resolves to `any` (React ships
+  // no types and @types/react is not installed), which would leave the entries
+  // of tasksByDay untyped in dayAchievements below. Keyed by string so
+  // Object.entries can infer the value type; day numbers coerce to string keys.
+  const tasksByDay: Record<string, Task[]> = useMemo(() => {
+    const map: Record<string, Task[]> = {};
     if (!tasks) return map;
 
     tasks.forEach(task => {

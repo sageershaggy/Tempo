@@ -55,7 +55,9 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
     }
 
     const result = await verifyApiKey(trimmed);
-    if (!result.ok) {
+    // `=== false` rather than `!result.ok`: without strictNullChecks the latter
+    // does not narrow the union, so `result.error` would not be visible.
+    if (result.ok === false) {
       setAiStatus('error');
       setAiError(result.error);
       return;
