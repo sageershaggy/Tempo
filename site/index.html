@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tempo Focus — A focus timer for deep work</title>
+<meta name="description" content="Tempo Focus is a Chrome extension focus timer with soundscapes, task management, and productivity stats.">
+<style>
+  :root {
+    --bg: #ffffff; --fg: #16151a; --muted: #5b5966;
+    --card: #f7f6fa; --line: #e6e4ee; --accent: #6d4aff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f0e13; --fg: #f2f1f6; --muted: #a09eae;
+            --card: #1a1922; --line: #272531; --accent: #9b83ff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 56px 24px 72px; }
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 40px; }
+  .mark { width: 44px; height: 44px; border-radius: 12px; flex: none;
+    background: var(--accent); display: grid; place-items: center; color: #fff; font-weight: 700; }
+  h1 { font-size: 1.55rem; margin: 0; letter-spacing: -0.02em; }
+  .tag { color: var(--muted); font-size: 0.95rem; margin-top: 2px; }
+  h2 { font-size: 1.1rem; margin: 40px 0 14px; letter-spacing: -0.01em; }
+  p { margin: 0 0 16px; }
+  .lead { font-size: 1.1rem; color: var(--fg); }
+  ul { margin: 0 0 16px; padding-left: 22px; }
+  li { margin-bottom: 9px; }
+  .card { background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 20px 22px; margin-bottom: 16px; }
+  .card h3 { margin: 0 0 8px; font-size: 0.98rem; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+  a { color: var(--accent); }
+  .cta { display: inline-block; background: var(--accent); color: #fff; text-decoration: none;
+    padding: 12px 22px; border-radius: 10px; font-weight: 600; margin: 8px 0 4px; }
+  footer { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 0.9rem; }
+  footer a { margin-right: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="mark">T</div>
+    <div>
+      <h1>Tempo Focus</h1>
+      <div class="tag">A focus timer for deep work — free Chrome extension</div>
+    </div>
+  </header>
+
+  <p class="lead">Tempo Focus turns your browser into a deep-work hub. Run structured focus
+  sessions, keep your tasks in one place, and see honest statistics about where your
+  attention actually went.</p>
+
+  <a class="cta" href="https://chromewebstore.google.com/detail/lfegjpnhaflnjdjbdijeaghapkfpjbbg">Install from the Chrome Web Store</a>
+
+  <h2>What it does</h2>
+
+  <div class="card">
+    <h3>Focus timer that keeps running</h3>
+    <p>Start a session and close the popup — the timer keeps counting in the background
+    and notifies you the moment it completes.</p>
+  </div>
+
+  <div class="card">
+    <h3>Tasks, with optional Google Tasks sync</h3>
+    <p>Keep a task list beside your timer. If you choose to connect your Google account,
+    your Google Tasks appear in Tempo and completions sync back.</p>
+  </div>
+
+  <div class="card">
+    <h3>Soundscapes and focus audio</h3>
+    <p>Ambient rain, cafe, river, waves, and campfire loops, plus binaural tones and your
+    own YouTube focus tracks — all playing in the background while you work.</p>
+  </div>
+
+  <div class="card">
+    <h3>Statistics and streaks</h3>
+    <p>Session history, daily and weekly breakdowns, and streaks, so progress is measured
+    rather than guessed at.</p>
+  </div>
+
+  <h2>Your data stays yours</h2>
+
+  <p>Tempo Focus has no backend. Your sessions, tasks, and settings live in your own
+  browser storage. We operate no servers that receive your data, we do not sell it, and
+  we show no ads. Read the full <a href="privacy.html">Privacy Policy</a> for details on
+  exactly what is accessed and why.</p>
+
+  <h2>Support</h2>
+
+  <p>Questions, bugs, or feature requests:
+  <a href="mailto:contact@innovistadigi.com">contact@innovistadigi.com</a></p>
+
+  <footer>
+    <a href="privacy.html">Privacy Policy</a>
+    <a href="https://chromewebstore.google.com/detail/lfegjpnhaflnjdjbdijeaghapkfpjbbg">Chrome Web Store</a>
+    <div style="margin-top:12px">© 2026 Innovista Digital Fz LLC</div>
+  </footer>
+
+</div>
+</body>
+</html>
