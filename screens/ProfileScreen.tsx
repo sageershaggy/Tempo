@@ -208,16 +208,6 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
               <p className="text-sm font-semibold">Settings</p>
               <span className="material-symbols-outlined text-muted text-sm ml-auto">chevron_right</span>
             </button>
-            <button
-              onClick={() => setScreen(Screen.ADMIN)}
-              className="w-full flex items-center gap-3 p-3.5 hover:bg-white/[0.02] transition-colors"
-            >
-              <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
-                <span className="material-symbols-outlined text-[16px] text-muted">admin_panel_settings</span>
-              </div>
-              <p className="text-sm font-semibold">Admin</p>
-              <span className="material-symbols-outlined text-muted text-sm ml-auto">chevron_right</span>
-            </button>
           </div>
         </div>
       </div>

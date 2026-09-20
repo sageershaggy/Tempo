@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.2.0] - 2026-09-20
+
+Reliability and AI upgrade so the shipped features actually work on current Gemini.
+
+### Focus Beat
+- **16 sounds** (was 8): Glass, Knock, Marimba, Snap, Shaker, Chirp, Tone, Clap added.
+- **Higher-quality synthesis** — harmonics, filtered noise attacks, FM water drops, beating bowl partials.
+- **Per-hit variation** — pitch/volume/timbre drift slightly so the loop does not sound robotic.
+
+### Admin
+- **Admin panel removed from the app** (Profile entry + screen). Everything stays free for now — all themes and features unlocked via `MONETIZATION_ENABLED = false`.
+
+### AI
+- **Switched to `gemini-3.6-flash`.** `gemini-2.0-flash` was shut down on 2026-06-01, so Magic Enhance and every other Gemini call failed. Settings key verification uses the same model.
+- **Tasks AI is live again.** Priority suggestion and AI Subtasks were stubbed as "Coming Soon" even though the service existed — they now call Gemini with the user's key from Settings → AI Assistant.
+
+### Build
+- **Windows junction-safe Vite root.** Building from `D:\Github\Tempo` (junction → real path) no longer fails with an absolute HTML `fileName` error.
+- Dependency bumps within current majors: React 19.3, Vite 6.4, Tailwind 4.3, `@google/genai` 1.52.
+
+### Still incomplete (intentional / next)
+- **Social / leaderboard** still uses placeholder opponents — multiplayer is not built.
+- Google OAuth Cloud Console setup is still required for unpacked / first-time sign-in (see README).
+
 ## [1.1.0] - 2026-08-17
 
 Security, reliability, and a serious pass at making the extension explain itself.

@@ -15,7 +15,6 @@ import { SocialScreen } from './screens/SocialScreen';
 import { QuickAddScreen } from './screens/QuickAddScreen';
 import { AudioScreen } from './screens/AudioScreen';
 import { MilestonesScreen } from './screens/MilestonesScreen';
-import { AdminScreen } from './screens/AdminScreen';
 import { CalendarScreen } from './screens/CalendarScreen';
 import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen';
 import { TermsScreen } from './screens/TermsScreen';
@@ -314,8 +313,6 @@ const App: React.FC = () => {
         return <AudioScreen {...props} />;
       case Screen.MILESTONES:
         return <MilestonesScreen setScreen={setCurrentScreen} tasks={tasks} />;
-      case Screen.ADMIN:
-        return <AdminScreen setScreen={setCurrentScreen} />;
       case Screen.CALENDAR:
         return <CalendarScreen {...props} />;
       case Screen.PRIVACY_POLICY:
@@ -409,7 +406,15 @@ const App: React.FC = () => {
         ) : (
           <>
             {renderScreen()}
-            <BottomNav currentScreen={currentScreen} setScreen={setCurrentScreen} />
+            {![
+              Screen.SPLASH,
+              Screen.LOGIN,
+              Screen.ONBOARDING,
+              Screen.PRIVACY_POLICY,
+              Screen.TERMS,
+            ].includes(currentScreen) && (
+              <BottomNav currentScreen={currentScreen} setScreen={setCurrentScreen} />
+            )}
           </>
         )}
 

@@ -16,6 +16,7 @@ import {
   getYouTubeOffscreenStatus,
 } from '../services/audioBridge';
 import { googleTasksService } from '../services/googleTasks';
+import { BEAT_SOUND_OPTIONS, playBeatSound } from '../services/beatSounds';
 
 // Use offscreen audio when available (Chrome extension), fallback to direct Web Audio
 const useOffscreen = isOffscreenAvailable();
@@ -165,22 +166,12 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const [beatEnabled, setBeatEnabled] = useState(false);
   const [beatInterval, setBeatInterval] = useState(1); // 1, 2, or 3 seconds
   const [beatCount, setBeatCount] = useState(0);
-  const [beatSoundType, setBeatSoundType] = useState('soft'); // soft, tick, wood, chime, drop, pulse, digital, bowl
+  const [beatSoundType, setBeatSoundType] = useState('soft'); // see BEAT_SOUND_OPTIONS
   const beatIntervalRef = useRef<any>(null);
   const beatAudioCtxRef = useRef<AudioContext | null>(null);
   const stateInitializedRef = useRef(false); // Track if we've done initial load of both timer and beat state
 
-  // Beat sound options - natural and calming sounds
-  const beatSoundOptions = [
-    { id: 'soft', name: 'Soft', icon: 'waves' },
-    { id: 'tick', name: 'Tick', icon: 'timer' },
-    { id: 'wood', name: 'Wood', icon: 'forest' },
-    { id: 'chime', name: 'Bell', icon: 'notifications' },
-    { id: 'drop', name: 'Water', icon: 'water_drop' },
-    { id: 'pulse', name: 'Heart', icon: 'favorite' },
-    { id: 'digital', name: 'Digital', icon: 'memory' },
-    { id: 'bowl', name: 'Bowl', icon: 'self_improvement' },
-  ];
+  const beatSoundOptions = BEAT_SOUND_OPTIONS;
 
   // Quick task state
   const [quickTaskTitle, setQuickTaskTitle] = useState('');
@@ -786,24 +777,15 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     // Only handle LOCAL fallback here. Extension logic is handled in event handlers.
     if (!useOffscreen || !w.chrome?.runtime?.sendMessage) {
       if (isActive && beatEnabled) {
-        const playBeat = () => {
+        const playBeat = async () => {
           setBeatCount(prev => prev + 1);
           try {
             if (!beatAudioCtxRef.current || beatAudioCtxRef.current.state === 'closed') {
               beatAudioCtxRef.current = new AudioContext();
             }
             const ctx = beatAudioCtxRef.current;
-            if (ctx.state === 'suspended') ctx.resume();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.frequency.value = 220;
-            osc.type = 'sine';
-            gain.gain.setValueAtTime(0.4, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.15);
+            if (ctx.state === 'suspended') await ctx.resume();
+            await playBeatSound(ctx, beatSoundType);
           } catch (e) { }
         };
         playBeat();
@@ -822,7 +804,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         }
       };
     }
-  }, [isActive, beatEnabled]);
+  }, [isActive, beatEnabled, beatInterval, beatSoundType]);
 
   // Update timer when template changes — but skip on first mount if we're restoring a timer
   const templateChangeCountRef = useRef(0);
@@ -1848,14 +1830,14 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         </div>
         {beatEnabled && (
           <div className="mt-2 space-y-2">
-            {/* Sound Type Selector - Compact 8 in a row */}
-            <div className="flex gap-1">
+            {/* Sound Type Selector — 16 sounds, 2 rows */}
+            <div className="grid grid-cols-8 gap-1">
               {beatSoundOptions.map((sound) => (
                 <button
                   key={sound.id}
                   onClick={() => handleBeatSoundTypeChange(sound.id)}
                   title={sound.name}
-                  className={`flex-1 flex items-center justify-center p-1.5 rounded-lg transition-all ${beatSoundType === sound.id
+                  className={`flex items-center justify-center p-1.5 rounded-lg transition-all ${beatSoundType === sound.id
                     ? 'bg-primary/20 border border-primary/40 text-primary'
                     : 'bg-white/5 border border-transparent text-muted hover:bg-white/10 hover:text-white'
                     }`}
@@ -1864,6 +1846,10 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 </button>
               ))}
             </div>
+            <p className="text-[9px] text-muted/70 truncate">
+              {beatSoundOptions.find(s => s.id === beatSoundType)?.name || 'Soft'}
+              <span className="text-muted/40"> · each hit varies slightly</span>
+            </p>
             {/* Interval Selector */}
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-muted shrink-0">Every</span>
