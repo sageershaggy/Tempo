@@ -1,7 +1,7 @@
 {
   "name": "tempo-focus",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Tempo Focus — a Chrome extension focus timer with soundscapes, tasks, and stats.",
   "type": "module",
   "engines": {

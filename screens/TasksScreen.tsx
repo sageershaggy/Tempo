@@ -1,9 +1,14 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Screen, Task, Subtask, Milestone, GlobalProps } from '../types';
-// AI features coming soon - Gemini integration disabled for now
 import { configManager } from '../config';
 import { googleTasksService } from '../services/googleTasks';
-import { STORAGE_KEYS } from '../config/constants';
+import { STORAGE_KEYS, generateId } from '../config/constants';
+import {
+    suggestSubtasks,
+    analyzeTaskPriority,
+    isAiConfigured,
+    AiNotConfiguredError,
+} from '../services/geminiService';
 
 export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks }) => {
     // Load real milestones from localStorage
@@ -22,8 +27,14 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
     const [loadingAI, setLoadingAI] = useState<string | null>(null);
     const [analyzingPriority, setAnalyzingPriority] = useState<string | null>(null);
     const [prioritySuggestion, setPrioritySuggestion] = useState<{ taskId: string, suggestion: 'High' | 'Medium' | 'Low' } | null>(null);
+    const [aiReady, setAiReady] = useState(false);
+    const [aiError, setAiError] = useState<string | null>(null);
     const [expandedTask, setExpandedTask] = useState<string | null>(null);
     const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+
+    useEffect(() => {
+        isAiConfigured().then(setAiReady);
+    }, []);
 
     // Bulk Select State
     const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
@@ -193,9 +204,61 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
         }));
     };
 
-    // AI features coming soon - handlers disabled
-    const handleGenerateSubtasks = async (_taskId: string, _taskTitle: string) => {};
-    const handleAnalyzePriority = async (_task: Task) => {};
+    const handleGenerateSubtasks = async (taskId: string, taskTitle: string) => {
+        if (!aiReady) {
+            setAiError('Add your Gemini API key in Settings → AI Assistant to use AI features.');
+            return;
+        }
+        setLoadingAI(taskId);
+        setAiError(null);
+        try {
+            const suggestions = await suggestSubtasks(taskTitle);
+            if (suggestions.length === 0) {
+                setAiError('AI returned no subtasks. Try a clearer task title.');
+                return;
+            }
+            const newSubtasks: Subtask[] = suggestions.map(title => ({
+                id: generateId('sub'),
+                title,
+                completed: false,
+            }));
+            setTasks(prev => prev.map(t => {
+                if (t.id !== taskId) return t;
+                const existing = new Set(t.subtasks.map(s => s.title.toLowerCase()));
+                const unique = newSubtasks.filter(s => !existing.has(s.title.toLowerCase()));
+                return { ...t, subtasks: [...t.subtasks, ...unique], updatedAt: Date.now() };
+            }));
+        } catch (e) {
+            const message = e instanceof AiNotConfiguredError
+                ? e.message
+                : (e instanceof Error ? e.message : 'Could not generate subtasks.');
+            setAiError(message);
+            if (e instanceof AiNotConfiguredError) setAiReady(false);
+        } finally {
+            setLoadingAI(null);
+        }
+    };
+
+    const handleAnalyzePriority = async (task: Task) => {
+        if (!aiReady) {
+            setAiError('Add your Gemini API key in Settings → AI Assistant to use AI features.');
+            return;
+        }
+        setAnalyzingPriority(task.id);
+        setAiError(null);
+        try {
+            const suggestion = await analyzeTaskPriority(task);
+            setPrioritySuggestion({ taskId: task.id, suggestion });
+        } catch (e) {
+            const message = e instanceof AiNotConfiguredError
+                ? e.message
+                : (e instanceof Error ? e.message : 'Could not analyze priority.');
+            setAiError(message);
+            if (e instanceof AiNotConfiguredError) setAiReady(false);
+        } finally {
+            setAnalyzingPriority(null);
+        }
+    };
 
     const handleAddSubtask = (taskId: string, title: string) => {
         if (!title.trim()) return;
@@ -518,11 +581,14 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                                 <option value="Low" className="bg-[#1a1a2e] text-white">Low</option>
                                                             </select>
                                                             <button
-                                                                disabled
-                                                                className="w-9 h-9 bg-primary/20 rounded-lg flex items-center justify-center text-primary/40 border border-primary/30 cursor-not-allowed opacity-60"
-                                                                title="AI Priority - Coming Soon"
+                                                                onClick={() => handleAnalyzePriority(task)}
+                                                                disabled={analyzingPriority === task.id}
+                                                                className="w-9 h-9 bg-primary/20 rounded-lg flex items-center justify-center text-primary border border-primary/30 hover:bg-primary/30 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                                                title={aiReady ? 'Suggest priority with AI' : 'Add a Gemini API key in Settings to use AI'}
                                                             >
-                                                                <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                                                                <span className={`material-symbols-outlined text-sm ${analyzingPriority === task.id ? 'animate-spin' : ''}`}>
+                                                                    {analyzingPriority === task.id ? 'progress_activity' : 'auto_awesome'}
+                                                                </span>
                                                             </button>
                                                         </div>
                                                     </div>
@@ -658,14 +724,21 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                 />
                                             </div>
 
+                                            {aiError && expandedTask === task.id && (
+                                                <p className="text-[10px] text-red-400 mb-2 px-1">{aiError}</p>
+                                            )}
+
                                             <div className="flex gap-2">
                                                 <button
-                                                    disabled
-                                                    className="flex-1 py-2.5 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center gap-2 text-xs font-bold text-primary-light/50 cursor-not-allowed opacity-60"
+                                                    onClick={() => handleGenerateSubtasks(task.id, task.title)}
+                                                    disabled={loadingAI === task.id}
+                                                    className="flex-1 py-2.5 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center gap-2 text-xs font-bold text-primary hover:bg-primary/20 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                                    title={aiReady ? 'Generate subtasks with AI' : 'Add a Gemini API key in Settings to use AI'}
                                                 >
-                                                    <span className="material-symbols-outlined text-sm">auto_awesome</span>
-                                                    AI Subtasks
-                                                    <span className="text-[8px] bg-primary/20 px-1 py-0.5 rounded-full uppercase tracking-wider">Soon</span>
+                                                    <span className={`material-symbols-outlined text-sm ${loadingAI === task.id ? 'animate-spin' : ''}`}>
+                                                        {loadingAI === task.id ? 'progress_activity' : 'auto_awesome'}
+                                                    </span>
+                                                    {loadingAI === task.id ? 'Generating…' : 'AI Subtasks'}
                                                 </button>
                                                 <button
                                                     onClick={() => setScreen(Screen.TIMER)}

@@ -9,7 +9,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { getGeminiApiKey } from './storageService';
 
-const MODEL = 'gemini-2.0-flash';
+const MODEL = 'gemini-3.6-flash';
 
 /** Thrown when the user has not configured a key yet. */
 export class AiNotConfiguredError extends Error {

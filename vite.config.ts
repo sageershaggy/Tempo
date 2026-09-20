@@ -1,13 +1,18 @@
 import path from 'path';
-import { readFileSync } from 'fs';
+import { readFileSync, realpathSync } from 'fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
-const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
+// Resolve through Windows junctions/symlinks so Vite and Rollup agree on the
+// project root. Building from D:\Github\Tempo (junction → E:\AI\Projects\Tempo)
+// otherwise emits an absolute E: HTML path and fails.
+const root = realpathSync(path.resolve(__dirname));
+const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf-8'));
 
 export default defineConfig(() => {
     return {
+      root,
       server: {
         // Bind to localhost only. '0.0.0.0' exposed the dev server, including
         // any local state, to every device on the network.
@@ -23,15 +28,13 @@ export default defineConfig(() => {
       },
       resolve: {
         alias: {
-          '@': path.resolve(__dirname, '.'),
-        }
+          '@': root,
+        },
       },
       build: {
         outDir: 'dist',
+        emptyOutDir: true,
         rollupOptions: {
-          input: {
-            main: path.resolve(__dirname, 'index.html'),
-          },
           output: {
             entryFileNames: 'assets/[name].js',
             chunkFileNames: 'assets/[name].js',
