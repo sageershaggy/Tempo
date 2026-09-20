@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.0.0] — Upgrade 1 — 2026-09-20
+
+First major free-platform upgrade after the 1.0.x Web Store line. QC gated below.
+
+### Product
+- Everything free: timer, tasks, stats, health, Google Tasks, all **27 themes**, AI assist (user Gemini key).
+- Admin panel removed from the app UI.
+- Focus Beat: **16** high-quality synthesized sounds with per-hit variation.
+- Gemini model: **`gemini-3.6-flash`** (2.0 Flash was shut down).
+- Tasks AI (priority + subtasks) and Magic Enhance live again.
+- Windows junction-safe Vite builds; deps on React 19.3 / Vite 6.4 / Tailwind 4.3.
+
+### QC gate (JEV-style decisions)
+Live `typesafe/jev` was unavailable (no `OPENROUTER_API_KEY` in this environment). Applied the same decision shapes locally against the built tree:
+
+| Decision | Type | Result | Notes |
+| --- | --- | --- | --- |
+| `release_ready` | noul | **0.92** | verify + package pass; versions aligned |
+| `secrets_safe` | noul | **0.97** | no API keys in dist; `.env` gitignored |
+| `admin_gone` | noul | **1.00** | AdminScreen deleted; no Profile entry |
+| `themes_all_free` | noul | **1.00** | 27× `pro: false`; monetization off |
+| `beats_consistent` | noul | **1.00** | 16 IDs match in `beatSounds.js` ↔ TS catalog |
+| `version_sync` | noul | **1.00** | package.json = manifest = injected `__APP_VERSION__` |
+| `known_gap` | choice | `social_placeholders` | Social leaderboard still sample data — non-blocking |
+| `release_severity` | choice | `store_upload` | Ship `tempo-focus-2.0.0.zip` |
+
+**Verdict: ready for Upgrade 1 release** (Social multiplayer remains future work).
+
 ## [1.2.0] - 2026-09-20
 
 Reliability and AI upgrade so the shipped features actually work on current Gemini.
