@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Screen, Task, Subtask, Milestone, GlobalProps } from '../types';
 import { configManager } from '../config';
 import { googleTasksService } from '../services/googleTasks';
-import { STORAGE_KEYS, generateId } from '../config/constants';
+import { STORAGE_KEYS, generateId, isPastDueDate, toDateTimeLocalValue } from '../config/constants';
 import {
     suggestSubtasks,
     analyzeTaskPriority,
@@ -490,11 +490,13 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                         </span>
                                                         <input
                                                             type="datetime-local"
-                                                            value={task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 16) : ''}
+                                                            value={task.dueDate ? toDateTimeLocalValue(new Date(task.dueDate)) : ''}
+                                                            min={toDateTimeLocalValue(new Date())}
                                                             onChange={(e) => {
                                                                 if (!e.target.value) return;
                                                                 const d = new Date(e.target.value);
-                                                                if (!isNaN(d.getTime())) {
+                                                                // Due dates can only be moved to now or later.
+                                                                if (!isNaN(d.getTime()) && !isPastDueDate(d)) {
                                                                     handleUpdateTask(task.id, { dueDate: d.toISOString() });
                                                                 }
                                                             }}

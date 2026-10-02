@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.0.1] — 2026-10-02
+
+QA fixes for failed test cases TC-01 – TC-07, plus task picker readability.
+
+### Sound
+- **TC-01 Switching soundscapes** — selecting a new sound while the previous one was still starting could leave nothing playing (the late "failed" reply of the old sound stopped the new one). Stale starts are now ignored, and a spinner shows while a sound loads.
+- **TC-02 Coffee Shop / real recordings** — if a real recording can't be reached within 5 s (offline, blocked, slow), the built-in version plays instead of silence. Coffee Shop's built-in version now has café murmur and cup clinks.
+- **TC-03 Volume controls** — the sound bar has working Mute, Volume down and Volume up buttons (also on the Soundscapes master bar). Starting a sound while muted stays muted.
+- **TC-04 Volume indicator** — browsers give extensions no access to the system volume, so the indicator cannot follow the OS volume keys. It is now labelled as Tempo's own volume, separate from the device volume.
+
+### Timer
+- **TC-05 Editing duration mid-session** — changing the duration (Settings or preset Edit) while a session is running or paused keeps the elapsed time instead of restarting. Paused sessions also survive leaving the Timer screen. The active preset can now be edited while running.
+- **TC-07 Immediate Start** — a task created with Start Timer now begins with the selected default duration (e.g. 5 min) instead of 25 min.
+
+### Tasks
+- **TC-06 Past due dates** — New Task and the task date editor no longer accept a past date (picker minimum + validation message; Create is disabled). The task date editor also shows local time instead of UTC.
+- **Task picker** — long task names wrap (up to 3 lines) with the full name on hover, and due dates show the day (Today / Tomorrow / date) as well as the time.
+
 ## [2.0.0] — Upgrade 1 — 2026-09-20
 
 First major free-platform upgrade after the 1.0.x Web Store line. QC gated below.

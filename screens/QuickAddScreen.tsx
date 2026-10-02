@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, Task, GlobalProps } from '../types';
 import { configManager } from '../config';
-import { generateId } from '../config/constants';
+import { generateId, isPastDueDate, toDateTimeLocalValue } from '../config/constants';
 import { enhanceTaskDescription, isAiConfigured } from '../services/geminiService';
 
 export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, setCurrentTask }) => {
@@ -14,6 +14,7 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
   const [selectedCategory, setSelectedCategory] = useState(defaultCategory);
   const [selectedPriority, setSelectedPriority] = useState<'High' | 'Medium' | 'Low'>('Medium');
   const [dueDate, setDueDate] = useState('');
+  const [dueDateError, setDueDateError] = useState<string | null>(null);
   const [startTimerAfter, setStartTimerAfter] = useState(true);
 
   // Magic Enhance shipped as a permanently disabled "Coming Soon" button. It
@@ -38,8 +39,16 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
     }
   };
 
+  const dueDateIsPast = !!dueDate && isPastDueDate(new Date(dueDate));
+
   const handleCreateTask = () => {
     if (!input.trim()) return;
+    // Re-check at submit time: a date that was valid when picked may have
+    // slipped into the past while the form stayed open.
+    if (dueDate && isPastDueDate(new Date(dueDate))) {
+      setDueDateError('Due date can’t be in the past. Pick a later date or clear it.');
+      return;
+    }
 
     const newTask: Task = {
       id: generateId('task'),
@@ -135,18 +144,34 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
               <input
                 type="datetime-local"
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full bg-surface-dark border border-white/10 rounded-lg px-3.5 py-3 text-sm font-semibold text-white focus:border-primary focus:outline-none cursor-pointer datetime-input"
+                min={toDateTimeLocalValue(new Date())}
+                onChange={(e) => {
+                  setDueDate(e.target.value);
+                  setDueDateError(null);
+                }}
+                aria-invalid={dueDateIsPast}
+                aria-describedby={dueDateIsPast ? 'due-date-error' : undefined}
+                className={`w-full bg-surface-dark border rounded-lg px-3.5 py-3 text-sm font-semibold text-white focus:outline-none cursor-pointer datetime-input ${dueDateIsPast ? 'border-red-500/60 focus:border-red-500' : 'border-white/10 focus:border-primary'}`}
               />
               {dueDate && (
                 <button
-                  onClick={() => setDueDate('')}
+                  onClick={() => {
+                    setDueDate('');
+                    setDueDateError(null);
+                  }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20"
+                  title="Clear due date"
+                  aria-label="Clear due date"
                 >
                   <span className="material-symbols-outlined text-[12px] text-muted">close</span>
                 </button>
               )}
             </div>
+            {(dueDateIsPast || dueDateError) && (
+              <p id="due-date-error" role="alert" className="mt-1 text-[10px] text-red-400 leading-snug">
+                {dueDateError || 'Due date can’t be in the past.'}
+              </p>
+            )}
           </div>
 
           {/* Priority Dropdown */}
@@ -214,8 +239,8 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
       <div className="px-5 py-4 border-t border-white/5 shrink-0">
         <button
           onClick={handleCreateTask}
-          disabled={!input.trim()}
-          className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all ${input.trim()
+          disabled={!input.trim() || dueDateIsPast}
+          className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all ${input.trim() && !dueDateIsPast
               ? 'bg-primary text-white hover:bg-primary-light'
               : 'bg-white/10 text-white/30 cursor-not-allowed'
             }`}

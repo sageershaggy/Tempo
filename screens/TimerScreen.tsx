@@ -17,6 +17,7 @@ import {
 } from '../services/audioBridge';
 import { googleTasksService } from '../services/googleTasks';
 import { BEAT_SOUND_OPTIONS, playBeatSound } from '../services/beatSounds';
+import { VolumeControl } from '../components/VolumeControl';
 
 // Use offscreen audio when available (Chrome extension), fallback to direct Web Audio
 const useOffscreen = isOffscreenAvailable();
@@ -32,6 +33,21 @@ interface TimerPreset {
 const TIMER_PRESETS_STORAGE_KEY = 'tempo_timer_presets_v2';
 const MAX_CUSTOM_TIMER_PRESETS = 4;
 const TIMER_PRESET_SECTION_COLLAPSED_KEY = 'tempo_timer_preset_section_collapsed';
+// Seconds left in a paused session, so it survives leaving the Timer screen.
+const TIMER_PAUSED_REMAINING_KEY = 'tempo_timer_pausedRemaining';
+
+// "Today 14:30", "Tomorrow 09:00" or "Oct 3, 14:30" — a bare time doesn't
+// say which day the task is due, which makes similar tasks hard to tell apart.
+const formatTaskDue = (iso: string): string => {
+  const date = new Date(iso);
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  if (date.toDateString() === today.toDateString()) return `Today ${time}`;
+  if (date.toDateString() === tomorrow.toDateString()) return `Tomorrow ${time}`;
+  return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+};
 const FOCUS_PRESET_MINUTES_STEP = 5;
 const FOCUS_PRESET_MINUTES_MIN = 5;
 const FOCUS_PRESET_MINUTES_MAX = 180;
@@ -156,6 +172,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const [isStartingYouTube, setIsStartingYouTube] = useState(false);
   const [audioStatusHydrated, setAudioStatusHydrated] = useState(!useOffscreen);
   const hasHandledInitialAudioEffect = useRef(false);
+  const playRequestRef = useRef(0);
+  const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null);
 
   // Task Selector State
   const [showTaskSelector, setShowTaskSelector] = useState(false);
@@ -303,6 +321,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       localStorage.setItem('tempo_timer_initialTime', String(focusSeconds));
       localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
       localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+      localStorage.removeItem(TIMER_PAUSED_REMAINING_KEY);
     }
     return true;
   };
@@ -324,11 +343,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     const preset = templates.find(t => t.id === presetId);
     if (!preset || preset.id === 'default') return;
 
-    if (isActive && activeTemplateId === presetId) {
-      setPresetNotice('Pause timer before editing active preset');
-      return;
-    }
-
+    // Editing the active preset mid-session is allowed: the running session
+    // is resized and keeps its elapsed time (see resizeSessionInProgress).
     setPresetModalMode('edit');
     setEditingPresetId(presetId);
     setNewPresetFocusMinutes(normalizeFocusPresetMinutes(preset.focusMinutes, preset.focusMinutes));
@@ -464,6 +480,14 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const [timerMode, setTimerMode] = useState<'focus' | 'break'>(savedTimerMode === 'break' ? 'break' : 'focus');
   // Track whether initial timer state has been loaded (prevents template change from clobbering active timer)
   const timerRestoredRef = useRef(false);
+  // Presets start from built-in defaults until the user's saved settings load,
+  // and a running/paused session is restored asynchronously. Nothing that
+  // resizes or starts the timer may act before both are known.
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [timerHydrated, setTimerHydrated] = useState(false);
+  // Read once: QuickAdd asks for the timer to start for a newly created task.
+  const [autoStartRequested] = useState(() => localStorage.getItem('tempo_autoStartTimer') === 'true');
+  const autoStartHandledRef = useRef(false);
 
   // Load user settings for ticking and restore focus beat state
   useEffect(() => {
@@ -523,6 +547,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
       // Mark state as fully initialized after settings are loaded
       stateInitializedRef.current = true;
+      setSettingsLoaded(true);
     };
     loadUserSettings();
   }, []);
@@ -541,34 +566,62 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, activeTemplateId);
   }, [templates, activeTemplateId]);
 
-  // If timer presets change while idle, keep focus duration aligned with the selected preset.
+  // Changes the length of the current session while keeping the time already
+  // spent, so editing the duration mid-session never restarts the timer.
+  const resizeSessionInProgress = (newTotalSeconds: number) => {
+    const elapsed = Math.max(0, initialTime - timeLeft);
+    // If more time has passed than the new length, finish on the next tick.
+    const remaining = Math.max(1, newTotalSeconds - elapsed);
+
+    setInitialTime(newTotalSeconds);
+    setTimeLeft(remaining);
+    localStorage.setItem('tempo_timer_initialTime', String(newTotalSeconds));
+
+    if (isActive) {
+      localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(Date.now() + remaining * 1000));
+      try {
+        const w = window as any;
+        if (w.chrome?.runtime?.sendMessage) {
+          w.chrome.runtime.sendMessage({
+            action: 'startTimer',
+            seconds: remaining,
+            mode: timerMode,
+            isRestore: true,
+            durationSeconds: newTotalSeconds,
+          });
+        }
+      } catch (e) { }
+    } else {
+      localStorage.setItem(TIMER_PAUSED_REMAINING_KEY, String(remaining));
+    }
+
+    setPresetNotice(`Session updated to ${Math.round(newTotalSeconds / 60)} min — progress kept`);
+  };
+
+  // Keep the focus session aligned with the selected preset. A session that
+  // hasn't started snaps to the new length; one in progress (running or
+  // paused) keeps its elapsed time.
   useEffect(() => {
-    if (!templates.length || isActive) return;
-    if (localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true') return;
+    if (!templates.length || !settingsLoaded || !timerHydrated) return;
     if (timerMode !== 'focus') return;
 
     const expectedFocusSeconds = getTimeForTemplate(activeTemplateId);
+    if (initialTime === expectedFocusSeconds) return;
 
-    // Fix stale timer state where selected preset is 25/5 but a previous 5/5 value remained.
-    if (initialTime !== expectedFocusSeconds) {
-      setInitialTime(expectedFocusSeconds);
-      setTimeLeft(expectedFocusSeconds);
-      localStorage.setItem('tempo_timer_mode', 'focus');
-      localStorage.setItem('tempo_timer_initialTime', String(expectedFocusSeconds));
-      localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
-      localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+    const sessionInProgress = isActive || timeLeft < initialTime;
+    if (sessionInProgress) {
+      resizeSessionInProgress(expectedFocusSeconds);
       return;
     }
 
-    // Preserve paused value when it already matches the selected preset duration.
-    if (timeLeft !== initialTime) return;
-
-    if (expectedFocusSeconds !== timeLeft) {
-      setInitialTime(expectedFocusSeconds);
-      setTimeLeft(expectedFocusSeconds);
-      localStorage.setItem('tempo_timer_initialTime', String(expectedFocusSeconds));
-    }
-  }, [templates, activeTemplateId, timerMode, isActive, timeLeft, initialTime]);
+    setInitialTime(expectedFocusSeconds);
+    setTimeLeft(expectedFocusSeconds);
+    localStorage.setItem('tempo_timer_mode', 'focus');
+    localStorage.setItem('tempo_timer_initialTime', String(expectedFocusSeconds));
+    localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
+    localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+    localStorage.removeItem(TIMER_PAUSED_REMAINING_KEY);
+  }, [templates, activeTemplateId, timerMode, isActive, timeLeft, initialTime, settingsLoaded, timerHydrated]);
 
   useEffect(() => {
     if (!presetNotice) return;
@@ -576,31 +629,24 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     return () => clearTimeout(timeout);
   }, [presetNotice]);
 
-  // Auto-start timer when coming from QuickAdd with "Start Timer" toggle on
+  // Auto-start timer when coming from QuickAdd with "Start Timer" toggle on.
+  // Waits for the user's saved durations; starting earlier used the built-in
+  // 25-minute default instead of the duration the user selected.
   useEffect(() => {
-    const autoStart = localStorage.getItem('tempo_autoStartTimer');
-    if (autoStart === 'true') {
-      localStorage.removeItem('tempo_autoStartTimer');
-      setTimeout(() => {
-        let secondsToRun = timeLeft;
-        if (timerMode === 'focus') {
-          const expectedFocusSeconds = getTimeForTemplate(activeTemplateId);
-          if (expectedFocusSeconds !== timeLeft || expectedFocusSeconds !== initialTime) {
-            secondsToRun = expectedFocusSeconds;
-            setInitialTime(expectedFocusSeconds);
-            setTimeLeft(expectedFocusSeconds);
-            localStorage.setItem('tempo_timer_initialTime', String(expectedFocusSeconds));
-          }
-        }
+    if (!autoStartRequested || autoStartHandledRef.current) return;
+    if (!settingsLoaded || !timerHydrated) return;
+    autoStartHandledRef.current = true;
+    localStorage.removeItem('tempo_autoStartTimer');
 
-        setIsActive(true);
-        const target = Date.now() + (secondsToRun * 1000);
-        localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(target));
-        localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'true');
-        localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, activeTemplateId);
-      }, 100);
-    }
-  }, []);
+    // Never restart a session that is already running.
+    if (isActive) return;
+
+    const focusSeconds = getTimeForTemplate(activeTemplateId);
+    setTimerMode('focus');
+    setInitialTime(focusSeconds);
+    setTimeLeft(focusSeconds);
+    startCountdown(focusSeconds, focusSeconds, 'focus');
+  }, [autoStartRequested, settingsLoaded, timerHydrated]);
 
   // Ticking sound effect
   useEffect(() => {
@@ -820,6 +866,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     setTimeLeft(newTime);
     localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
     localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+    localStorage.removeItem(TIMER_PAUSED_REMAINING_KEY);
     localStorage.setItem('tempo_timer_mode', 'focus');
     localStorage.removeItem('tempo_timer_initialTime');
   }, [activeTemplateId]);
@@ -832,6 +879,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       const savedIsActive = localStorage.getItem(STORAGE_KEYS.TIMER_ACTIVE) === 'true';
       const savedTimerModeVal = localStorage.getItem('tempo_timer_mode') as 'focus' | 'break' | null;
       const savedInitialTime = localStorage.getItem('tempo_timer_initialTime');
+      const savedPausedRemaining = localStorage.getItem(TIMER_PAUSED_REMAINING_KEY);
 
       // Also check chrome.storage.local for timer started from alarm page
       const w = window as any;
@@ -941,10 +989,21 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             setTimeLeft(focusTime);
           }
         }
+      } else if (!savedIsActive && savedPausedRemaining && savedInitialTime) {
+        // Restore a paused session exactly where it was left.
+        const remaining = parseInt(savedPausedRemaining, 10);
+        const initial = parseInt(savedInitialTime, 10);
+        if (remaining > 0 && remaining < initial) {
+          if (savedTimerModeVal) setTimerMode(savedTimerModeVal);
+          setInitialTime(initial);
+          setTimeLeft(remaining);
+        } else {
+          localStorage.removeItem(TIMER_PAUSED_REMAINING_KEY);
+        }
       }
     };
 
-    loadTimerState();
+    loadTimerState().finally(() => setTimerHydrated(true));
 
     // Listen for timer started from alarm page while popup is open
     const w = window as any;
@@ -988,6 +1047,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       setIsActive(false);
       localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
       localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+      localStorage.removeItem(TIMER_PAUSED_REMAINING_KEY);
 
       if (timerMode === 'focus') {
         // Focus session completed - stats are recorded by background.js (single source of truth)
@@ -1125,6 +1185,45 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
     return () => clearInterval(interval);
   }, [isActive, timeLeft]);
 
+  // Starts (or resumes) the countdown and tells the background worker.
+  const startCountdown = (secondsToRun: number, initialSeconds: number, mode: 'focus' | 'break') => {
+    const w = window as any;
+    const isExtension = useOffscreen && w.chrome?.runtime?.sendMessage;
+
+    setIsActive(true);
+    localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'true');
+    localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, activeTemplateId);
+    localStorage.setItem('tempo_timer_mode', mode);
+    localStorage.setItem('tempo_timer_initialTime', String(initialSeconds));
+    localStorage.removeItem(TIMER_PAUSED_REMAINING_KEY);
+
+    const target = Date.now() + (secondsToRun * 1000);
+    localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(target));
+
+    // Update extension badge with timer
+    try {
+      if (w.chrome?.runtime?.sendMessage) {
+        w.chrome.runtime.sendMessage({
+          action: 'startTimer',
+          seconds: secondsToRun,
+          mode,
+          isRestore: secondsToRun < initialSeconds,
+          durationSeconds: initialSeconds,
+        });
+      }
+    } catch (e) { }
+
+    // Start Focus Beat if enabled
+    if (beatEnabled && isExtension) {
+      setBeatCount(0);
+      w.chrome.runtime.sendMessage({
+        action: 'focusBeat-start',
+        intervalSeconds: beatInterval,
+        soundType: beatSoundType
+      });
+    }
+  };
+
   const toggleTimer = () => {
     const w = window as any;
     const isExtension = useOffscreen && w.chrome?.runtime?.sendMessage;
@@ -1146,43 +1245,16 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         }
       }
 
-      setIsActive(true);
-      localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'true');
-      localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, activeTemplateId);
-      localStorage.setItem('tempo_timer_mode', timerMode);
-      localStorage.setItem('tempo_timer_initialTime', String(initialSeconds));
-
-      const target = Date.now() + (secondsToRun * 1000);
-      localStorage.setItem(STORAGE_KEYS.TIMER_TARGET, String(target));
-
-      // Update extension badge with timer
-      try {
-        if (w.chrome?.runtime?.sendMessage) {
-          w.chrome.runtime.sendMessage({
-            action: 'startTimer',
-            seconds: secondsToRun,
-            mode: timerMode,
-            isRestore: secondsToRun < initialSeconds,
-          });
-        }
-      } catch (e) { }
-
-      // Start Focus Beat if enabled
-      if (beatEnabled && isExtension) {
-        setBeatCount(0);
-        w.chrome.runtime.sendMessage({
-          action: 'focusBeat-start',
-          intervalSeconds: beatInterval,
-          soundType: beatSoundType
-        });
-      }
-
+      startCountdown(secondsToRun, initialSeconds, timerMode);
     } else {
       setIsActive(false);
       localStorage.setItem(STORAGE_KEYS.TIMER_ACTIVE, 'false');
       localStorage.setItem(STORAGE_KEYS.TIMER_TEMPLATE, activeTemplateId);
       localStorage.setItem('tempo_timer_mode', timerMode);
       localStorage.setItem('tempo_timer_initialTime', String(initialTime));
+      // Remember where the session was paused so leaving the screen (e.g. to
+      // edit the duration in Settings) doesn't throw the progress away.
+      localStorage.setItem(TIMER_PAUSED_REMAINING_KEY, String(timeLeft));
       localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
 
       // Clear extension badge
@@ -1292,8 +1364,12 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   // Handle toggling a track
   const handleToggleTrack = async (track: AudioTrackConfig) => {
     setAudioError(null);
+    // Each click supersedes any earlier one that is still starting, so a slow
+    // or failed earlier start can never stop the sound picked after it.
+    const requestId = ++playRequestRef.current;
     const isCurrent = audioState.activeTrackId === track.id && audioState.isPlaying;
     if (isCurrent) {
+      setLoadingTrackId(null);
       if (useOffscreen) {
         await stopOffscreen();
         await stopYouTubeOffscreen();
@@ -1302,22 +1378,28 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       }
       setAudioState(prev => ({ ...prev, isPlaying: false, activeTrackId: null }));
     } else {
+      setLoadingTrackId(track.id);
       if (useOffscreen) {
         await stopOffscreen();
         await stopYouTubeOffscreen();
       } else {
         stopSound();
       }
+      if (requestId !== playRequestRef.current) return;
       let started = false;
       if (isBuiltInTrack(track.id)) {
+        // Respect mute: a muted player starts the new sound silently.
         const vol = (audioState.trackSettings[track.id]?.volume ?? 50) / 100 * (audioState.volume / 100);
         if (useOffscreen) {
-          started = await playOffscreen(track.id, Math.max(0.01, vol));
+          started = await playOffscreen(track.id, vol);
         } else {
-          await playSound(track.id, Math.max(0.01, vol));
+          await playSound(track.id, vol);
           started = true;
         }
       }
+
+      if (requestId !== playRequestRef.current) return;
+      setLoadingTrackId(null);
 
       if (!started) {
         setAudioError(`Could not start "${track.name}".`);
@@ -1352,6 +1434,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       return;
     }
 
+    // Cancel any built-in sound that is still starting.
+    playRequestRef.current++;
+    setLoadingTrackId(null);
     setIsStartingYouTube(true);
     try {
       // Stop any currently playing sound first
@@ -1442,8 +1527,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       >
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isTrackActive ? 'bg-primary text-white' : 'bg-white/5 text-muted'
           }`}>
-          <span className="material-symbols-outlined text-sm">
-            {isTrackActive ? 'pause' : track.icon}
+          <span className={`material-symbols-outlined text-sm ${loadingTrackId === track.id ? 'animate-spin' : ''}`}>
+            {loadingTrackId === track.id ? 'progress_activity' : isTrackActive ? 'pause' : track.icon}
           </span>
         </div>
         <div className="min-w-0 flex-1">
@@ -1642,13 +1727,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 {!isDefaultPreset && (
                   <button
                     onClick={() => handleOpenEditPresetModal(preset.id)}
-                    disabled={deleteDisabled}
-                    className={`mr-1 w-4 h-4 rounded-full flex items-center justify-center transition-colors ${
-                      deleteDisabled
-                        ? 'text-muted/40 cursor-not-allowed'
-                        : 'text-muted hover:text-white hover:bg-white/10'
-                    }`}
-                    title={deleteDisabled ? 'Pause timer before editing active preset' : `Edit ${preset.label}`}
+                    className="mr-1 w-4 h-4 rounded-full flex items-center justify-center transition-colors text-muted hover:text-white hover:bg-white/10"
+                    title={`Edit ${preset.label}`}
                   >
                     <span className="material-symbols-outlined text-[11px]">edit</span>
                   </button>
@@ -1793,6 +1873,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 setTimeLeft(newTime);
                 localStorage.removeItem(STORAGE_KEYS.TIMER_TARGET);
                 localStorage.removeItem(STORAGE_KEYS.TIMER_ACTIVE);
+                localStorage.removeItem(TIMER_PAUSED_REMAINING_KEY);
                 localStorage.setItem('tempo_timer_mode', 'focus');
                 localStorage.setItem('tempo_timer_initialTime', String(newTime));
                 try {
@@ -1918,14 +1999,14 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               <span className="material-symbols-outlined text-[12px] text-transparent group-hover:text-green-500 transition-colors">check</span>
             </button>
           )}
-          <div className="flex-1 min-w-0 mr-3 cursor-pointer" onClick={() => setShowTaskSelector(true)}>
+          <div className="flex-1 min-w-0 mr-3 cursor-pointer" onClick={() => setShowTaskSelector(true)} title={currentTask?.title}>
             <p className="text-[9px] font-semibold text-gray-500 dark:text-muted uppercase tracking-wider mb-0.5">Current Task</p>
-            <h3 className="text-gray-900 dark:text-white text-xs font-bold truncate">{currentTask?.title || 'No task selected'}</h3>
+            <h3 className="text-gray-900 dark:text-white text-xs font-bold leading-snug break-words line-clamp-2">{currentTask?.title || 'No task selected'}</h3>
             {currentTask?.dueDate && (
-              <div className="flex items-center gap-1 mt-1 text-secondary">
+              <div className={`flex items-center gap-1 mt-1 ${new Date(currentTask.dueDate) < new Date() ? 'text-red-400' : 'text-secondary'}`}>
                 <span className="material-symbols-outlined text-[10px]">event</span>
                 <span className="text-[10px] font-medium">
-                  {new Date(currentTask.dueDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {formatTaskDue(currentTask.dueDate)}
                   {new Date(currentTask.dueDate) < new Date() ? ' (Overdue)' : ''}
                 </span>
               </div>
@@ -1980,24 +2061,29 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 <span className="text-xs font-medium">No Task</span>
               </button>
 
-              {tasks.filter(t => !t.completed).map(task => (
-                <button
-                  key={task.id}
-                  onClick={() => { setCurrentTask(task); setShowTaskSelector(false); }}
-                  className={`w-full text-left px-3 py-2.5 rounded-lg border border-transparent transition-all hover:bg-white/5 group ${currentTask?.id === task.id ? 'bg-primary/10 border-primary/20' : ''}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className={`text-xs font-medium truncate ${currentTask?.id === task.id ? 'text-primary' : 'text-white'}`}>
+              {tasks.filter(t => !t.completed).map(task => {
+                const isOverdueTask = !!task.dueDate && new Date(task.dueDate) < new Date();
+                return (
+                  <button
+                    key={task.id}
+                    onClick={() => { setCurrentTask(task); setShowTaskSelector(false); }}
+                    title={task.title}
+                    className={`w-full text-left px-3 py-2.5 rounded-lg border border-transparent transition-all hover:bg-white/5 group ${currentTask?.id === task.id ? 'bg-primary/10 border-primary/20' : ''}`}
+                  >
+                    {/* Long titles wrap (up to 3 lines) instead of being cut to one line */}
+                    <span className={`text-xs font-medium leading-snug break-words line-clamp-3 ${currentTask?.id === task.id ? 'text-primary' : 'text-white'}`}>
                       {task.title}
                     </span>
                     {task.dueDate && (
-                      <span className={`text-[10px] ${new Date(task.dueDate) < new Date() ? 'text-red-400' : 'text-muted'}`}>
-                        {new Date(task.dueDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <span className={`mt-0.5 flex items-center gap-1 text-[10px] ${isOverdueTask ? 'text-red-400' : 'text-muted'}`}>
+                        <span className="material-symbols-outlined text-[11px]">event</span>
+                        {formatTaskDue(task.dueDate)}
+                        {isOverdueTask ? ' · Overdue' : ''}
                       </span>
                     )}
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
 
               {tasks.filter(t => !t.completed).length === 0 && (
                 <div className="text-center py-8 text-muted">
@@ -2027,10 +2113,14 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               </span>
               <button
                 onClick={() => {
+                  playRequestRef.current++;
+                  setLoadingTrackId(null);
                   stopSound();
                   setAudioState(prev => ({ ...prev, isPlaying: false, activeTrackId: null }));
                 }}
                 className="ml-1 w-5 h-5 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10"
+                title="Stop sound"
+                aria-label="Stop sound"
               >
                 <span className="material-symbols-outlined text-[10px] text-muted">close</span>
               </button>
@@ -2099,20 +2189,11 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
         {/* Volume Control (shows when something is playing) */}
         {(audioState.isPlaying && (audioState.activeTrackId || audioState.youtubeId)) && (
-          <div className="mt-2 flex items-center gap-2 bg-surface-dark/80 rounded-lg border border-white/5 px-3 py-2">
-            <span className="material-symbols-outlined text-xs text-muted">volume_down</span>
-            <input
-              type="range"
-              min="0" max="100" step="5"
-              value={audioState.volume}
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                setAudioState(prev => ({ ...prev, volume: val }));
-              }}
-              className="flex-1 h-1 bg-white/20 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary cursor-pointer"
-            />
-            <span className="text-[10px] font-mono text-muted w-7 text-right">{audioState.volume}%</span>
-          </div>
+          <VolumeControl
+            volume={audioState.volume}
+            onChange={(volume) => setAudioState(prev => ({ ...prev, volume }))}
+            className="mt-2 bg-surface-dark/80 rounded-lg border border-white/5 px-2 py-1.5"
+          />
         )}
 
         {/* YouTube URL Input */}

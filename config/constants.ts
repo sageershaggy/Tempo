@@ -330,6 +330,25 @@ export function calculateProgress(elapsed: number, total: number): number {
 }
 
 /**
+ * Format a date as the local-time value a datetime-local input expects
+ * (toISOString() would give UTC and shift the shown time).
+ */
+export function toDateTimeLocalValue(date: Date): string {
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * Whether a due date lies in the past. Compared at minute precision, the
+ * resolution of the date picker, so "now" itself still counts as valid.
+ */
+export function isPastDueDate(date: Date, now: Date = new Date()): boolean {
+  const startOfThisMinute = new Date(now);
+  startOfThisMinute.setSeconds(0, 0);
+  return date.getTime() < startOfThisMinute.getTime();
+}
+
+/**
  * Generate a unique ID
  */
 export function generateId(prefix: string = 'id'): string {

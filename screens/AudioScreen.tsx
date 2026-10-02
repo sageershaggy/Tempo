@@ -15,6 +15,7 @@ import {
   playYouTubeOffscreen,
   stopYouTubeOffscreen,
 } from '../services/audioBridge';
+import { VolumeControl } from '../components/VolumeControl';
 
 const useOffscreen = isOffscreenAvailable();
 
@@ -27,6 +28,8 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
   const [isStartingYouTube, setIsStartingYouTube] = useState(false);
   const [audioStatusHydrated, setAudioStatusHydrated] = useState(!useOffscreen);
   const hasHandledInitialAudioEffect = useRef(false);
+  const playRequestRef = useRef(0);
+  const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null);
   // Track active binaural range per track for UI updates
   const [rangeLabels, setRangeLabels] = useState<Record<string, string>>({});
 
@@ -52,8 +55,12 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
   const toggleTrack = async (track: AudioTrackConfig) => {
       setTrackError(null);
+      // Each click supersedes any earlier one that is still starting, so a
+      // slow or failed earlier start can never stop the sound picked after it.
+      const requestId = ++playRequestRef.current;
       const isCurrent = audioState.activeTrackId === track.id;
       if (isCurrent && audioState.isPlaying) {
+          setLoadingTrackId(null);
           if (useOffscreen) {
             await stopOffscreen();
             await stopYouTubeOffscreen();
@@ -62,12 +69,14 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           }
           setAudioState(prev => ({ ...prev, isPlaying: false }));
       } else {
+          setLoadingTrackId(track.id);
           if (useOffscreen) {
             await stopOffscreen();
             await stopYouTubeOffscreen();
           } else {
             stopSound();
           }
+          if (requestId !== playRequestRef.current) return;
           const trackVolume = (audioState.trackSettings[track.id]?.volume ?? 50) / 100 * (audioState.volume / 100);
           let started = false;
           if (useOffscreen) {
@@ -76,6 +85,9 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             await playSound(track.id, trackVolume);
             started = true;
           }
+
+          if (requestId !== playRequestRef.current) return;
+          setLoadingTrackId(null);
 
           if (!started) {
             setTrackError(`"${track.name}" is not available yet.`);
@@ -173,6 +185,9 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         return;
       }
 
+      // Cancel any built-in sound that is still starting.
+      playRequestRef.current++;
+      setLoadingTrackId(null);
       setIsStartingYouTube(true);
       try {
         // Stop any currently playing sound first
@@ -387,7 +402,11 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                         >
                             <div className="flex items-center gap-4">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isActive && audioState.isPlaying ? 'bg-primary text-white' : 'bg-white/5 text-muted'}`}>
-                                    <span className="material-symbols-outlined">{isActive && audioState.isPlaying ? 'pause' : 'play_arrow'}</span>
+                                    {loadingTrackId === track.id ? (
+                                      <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                                    ) : (
+                                      <span className="material-symbols-outlined">{isActive && audioState.isPlaying ? 'pause' : 'play_arrow'}</span>
+                                    )}
                                 </div>
                                 <div>
                                     <p className={`font-bold text-sm ${isActive ? 'text-white' : 'text-gray-300'}`}>{track.name}</p>
@@ -478,14 +497,12 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
 
         {/* Master Controls */}
         <div className="absolute bottom-0 w-full bg-surface-dark/95 backdrop-blur-xl border-t border-white/10 p-6 rounded-t-3xl z-20 pb-8">
-            <div className="flex items-center gap-4 mb-4">
+            <div className="mb-4">
                 <span className="text-[10px] font-bold uppercase text-muted">Master</span>
-                <input
-                    type="range"
-                    min="0" max="100"
-                    value={audioState.volume}
-                    onChange={(e) => setAudioState(prev => ({ ...prev, volume: Number(e.target.value) }))}
-                    className="flex-1 h-1.5 bg-surface-light rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white cursor-pointer"
+                <VolumeControl
+                    volume={audioState.volume}
+                    onChange={(volume) => setAudioState(prev => ({ ...prev, volume }))}
+                    className="mt-1"
                 />
             </div>
              <button

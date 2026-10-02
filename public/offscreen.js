@@ -10,6 +10,7 @@ let currentVolume = 0.5;
 let activeMediaElement = null;
 let playRequestToken = 0;
 let lofiIntervalId = null;
+let ambienceIntervalId = null;
 
 // Authentic ambience sources (real recordings).
 // Use direct media URLs first, then Special:FilePath as backup.
@@ -411,6 +412,60 @@ function createLofiBeat(ctx, gainNode) {
   );
 }
 
+// Built-in café ambience used when the real recording can't be reached:
+// a soft room murmur plus the occasional cup/spoon clink.
+function createCafeAmbience(ctx, gainNode) {
+  createNoise(ctx, gainNode, 'brown', { highpass: 120, lowpass: 900, level: 0.22 });
+
+  // Voice-band murmur whose level drifts like a room full of conversations.
+  const murmur = createNoiseBuffer(ctx, 'pink');
+  const voiceBand = ctx.createBiquadFilter();
+  voiceBand.type = 'bandpass';
+  voiceBand.frequency.value = 520;
+  voiceBand.Q.value = 0.9;
+  const murmurGain = ctx.createGain();
+  murmurGain.gain.value = 0.16;
+  const drift = ctx.createOscillator();
+  drift.type = 'sine';
+  drift.frequency.value = 0.17;
+  const driftDepth = ctx.createGain();
+  driftDepth.gain.value = 0.05;
+  drift.connect(driftDepth);
+  driftDepth.connect(murmurGain.gain);
+  murmur.connect(voiceBand);
+  voiceBand.connect(murmurGain);
+  murmurGain.connect(gainNode);
+  murmur.start();
+  drift.start();
+
+  const clinkBus = ctx.createGain();
+  clinkBus.gain.value = 0.05;
+  clinkBus.connect(gainNode);
+
+  function playClink() {
+    const t = ctx.currentTime + 0.02;
+    const base = 1800 + Math.random() * 1600;
+    [1, 2.76].forEach((ratio) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = base * ratio;
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(ratio === 1 ? 0.6 : 0.25, t);
+      env.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      osc.connect(env);
+      env.connect(clinkBus);
+      osc.start(t);
+      osc.stop(t + 0.4);
+    });
+  }
+
+  ambienceIntervalId = setInterval(() => {
+    if (Math.random() < 0.35) playClink();
+  }, 1400);
+
+  activeNodes.push(murmur, voiceBand, murmurGain, drift, driftDepth, clinkBus);
+}
+
 function disposeMediaElement(media) {
   if (!media) return;
   try {
@@ -442,20 +497,40 @@ function clearActiveTrackRouting(gainNode, compressor, trackId) {
   if (currentTrackId === trackId) currentTrackId = null;
 }
 
+// A remote recording that has not started within this window (across all
+// candidate URLs) is treated as unavailable so the user hears the built-in
+// version instead of silence.
+const AUTHENTIC_START_BUDGET_MS = 5000;
+
+function playWithTimeout(media, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Recording took too long to start')), timeoutMs);
+    media.play().then(
+      () => { clearTimeout(timer); resolve(); },
+      (err) => { clearTimeout(timer); reject(err); }
+    );
+  });
+}
+
 async function playAuthenticTrack(trackId, volume, requestToken) {
   const sources = getAuthenticSourceCandidates(trackId);
   if (!sources.length) return false;
 
   let lastError = null;
+  const deadline = Date.now() + AUTHENTIC_START_BUDGET_MS;
   for (const sourceUrl of sources) {
+    if (requestToken !== playRequestToken) return false;
+    const timeLeftMs = deadline - Date.now();
+    if (timeLeftMs <= 0) break;
     let media = null;
     try {
+      // No crossOrigin: the element plays directly (not through Web Audio),
+      // so requiring CORS would only add a way for the request to fail.
       media = new Audio(sourceUrl);
       media.loop = true;
       media.preload = 'auto';
-      media.crossOrigin = 'anonymous';
       media.volume = Math.max(0, Math.min(1, volume));
-      await media.play();
+      await playWithTimeout(media, timeLeftMs);
       if (requestToken !== playRequestToken) {
         disposeMediaElement(media);
         return false;
@@ -464,15 +539,7 @@ async function playAuthenticTrack(trackId, volume, requestToken) {
       return true;
     } catch (err) {
       lastError = err;
-      try {
-        if (media) {
-          disposeMediaElement(media);
-        }
-        if (activeMediaElement) {
-          disposeMediaElement(activeMediaElement);
-          activeMediaElement = null;
-        }
-      } catch (e) {}
+      if (media) disposeMediaElement(media);
     }
   }
 
@@ -486,6 +553,9 @@ async function playAuthenticTrack(trackId, volume, requestToken) {
   );
   return false;
 }
+
+// Returned by playTrack when a newer play/stop request replaced this one.
+const SUPERSEDED = 'superseded';
 
 async function playTrack(trackId, volume, range) {
   const requestToken = ++playRequestToken;
@@ -509,24 +579,17 @@ async function playTrack(trackId, volume, range) {
   currentVolume = volume;
   activeNodes.push(compressor);
 
-  const hasAuthenticSources = getAuthenticSourceCandidates(trackId).length > 0;
-
-  // Authentic ambience (real recordings) when available.
+  // Authentic ambience (real recordings) when available. If the recording
+  // can't be reached (offline, blocked, slow), fall through to the built-in
+  // generated version below so selecting a sound never results in silence.
   const authenticStarted = await playAuthenticTrack(trackId, volume, requestToken);
   if (requestToken !== playRequestToken) {
     clearActiveTrackRouting(gainNode, compressor, trackId);
-    return false;
+    return SUPERSEDED;
   }
   if (authenticStarted) {
     isPlaying = true;
     return true;
-  }
-
-  // For tracks marked as authentic recordings, fail fast instead of
-  // playing a synthetic fallback that sounds incorrect.
-  if (hasAuthenticSources) {
-    clearActiveTrackRouting(gainNode, compressor, trackId);
-    return false;
   }
 
   // Binaural tracks
@@ -546,7 +609,7 @@ async function playTrack(trackId, volume, range) {
     case '5': createTone(ctx, gainNode, 528); break;
     // Ambience + music (procedural fallback generation)
     case '6': createNoise(ctx, gainNode, 'pink', { highpass: 80, lowpass: 3600, level: 0.36 }); break;   // Heavy Rain
-    case '7': createNoise(ctx, gainNode, 'brown', { highpass: 100, lowpass: 1800, level: 0.30 }); break; // Coffee Shop
+    case '7': createCafeAmbience(ctx, gainNode); break; // Coffee Shop
     case '11': createNoise(ctx, gainNode, 'pink', { highpass: 160, lowpass: 4200, level: 0.28 }); break; // Forest Stream
     case '12': createNoise(ctx, gainNode, 'brown', { highpass: 50, lowpass: 1300, level: 0.36 }); break; // Ocean Waves
     case '13': createNoise(ctx, gainNode, 'pink', { highpass: 240, lowpass: 5200, level: 0.24 }); break; // Crackling Fire
@@ -566,6 +629,7 @@ async function playTrack(trackId, volume, range) {
 
 function stopSound() {
   if (lofiIntervalId) { clearInterval(lofiIntervalId); lofiIntervalId = null; }
+  if (ambienceIntervalId) { clearInterval(ambienceIntervalId); ambienceIntervalId = null; }
   stopAuthenticTrack();
   activeNodes.forEach(node => {
     try {
@@ -630,8 +694,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.action) {
     case 'play':
       console.log('[Tempo Offscreen] Playing track:', message.trackId, 'volume:', message.volume);
-      playTrack(message.trackId, message.volume || 0.5, message.range)
+      playTrack(message.trackId, typeof message.volume === 'number' ? message.volume : 0.5, message.range)
         .then((started) => {
+          if (started === SUPERSEDED) {
+            // A newer selection replaced this one; the popup must not treat
+            // this as a failure (that would stop the newly selected sound).
+            sendResponse({ success: false, superseded: true });
+            return;
+          }
           if (!started) {
             sendResponse({ success: false, error: 'This sound is not available yet.' });
             return;

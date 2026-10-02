@@ -779,6 +779,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const saveData = { timerDuration: durationMinutes };
       if (request.mode) saveData.timerMode = request.mode;
       chrome.storage.local.set(saveData);
+    } else if (request.durationSeconds > 0) {
+      // Resumed or resized session: the popup sends the full session length
+      // so stats credit the duration actually chosen, not the time remaining.
+      const saveData = { timerDuration: Math.round(request.durationSeconds / 60) };
+      if (request.mode) saveData.timerMode = request.mode;
+      chrome.storage.local.set(saveData);
     }
     // Alarm fires every 30 seconds to update badge (Chrome MV3 min ~30s)
     chrome.alarms.create('badgeTick', { periodInMinutes: 0.5 });
