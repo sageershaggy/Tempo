@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Screen, GlobalProps } from '../types';
 import { getStats, UserStats } from '../services/storageService';
-import { configManager } from '../config';
 import { STORAGE_KEYS } from '../config/constants';
 
 type TimePeriod = 'daily' | 'weekly' | 'monthly';
@@ -15,14 +14,6 @@ interface LeaderboardUser {
   me?: boolean;
 }
 
-// Rank bonus points (awarded based on leaderboard position)
-const RANK_BONUS = [
-  { label: 'Top 3', maxRank: 3, bonus: 100 },
-  { label: 'Top 10', maxRank: 10, bonus: 50 },
-  { label: 'Top 25', maxRank: 25, bonus: 35 },
-  { label: 'Top 50', maxRank: 50, bonus: 20 },
-];
-
 // Calculate points from focus time:
 // - 1 point per 10 minutes
 // - +2 bonus points per full hour
@@ -32,19 +23,6 @@ const calculatePointsFromMinutes = (minutes: number): number => {
   return basePoints + hourBonus;
 };
 
-const getRankBonus = (rank: number): number => {
-  for (const tier of RANK_BONUS) {
-    if (rank <= tier.maxRank) return tier.bonus;
-  }
-  return 0;
-};
-
-const getTierForRank = (rank: number): string => {
-  for (const tier of RANK_BONUS) {
-    if (rank <= tier.maxRank) return tier.label;
-  }
-  return 'Top 100';
-};
 
 // Format minutes as "Xh Ym" or "Ym"
 const formatTime = (minutes: number): string => {
@@ -85,86 +63,88 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
     localStorage.setItem('tempo_gamification', String(newVal));
   };
 
-  const config = configManager.getConfig();
-  const mockLeaderboard = config.social.mockLeaderboard;
   const myStreak = stats?.currentStreak || 0;
 
-  // Calculate user's minutes for the selected period - recalculates when period or stats change
-  const myMinutes = useMemo(() => {
-    if (!stats?.weeklyData) return 0;
+  // How many days make up one unit of the selected period.
+  const PERIOD_DAYS: Record<TimePeriod, number> = { daily: 1, weekly: 7, monthly: 30 };
 
+  /** Sums real focus minutes over one period window, `offset` periods back. */
+  const sumPeriod = (
+    weekly: Record<string, number> | undefined,
+    days: number,
+    offset: number
+  ): number => {
+    if (!weekly) return 0;
     const today = new Date();
-    const todayStr = today.toLocaleDateString('en-CA');
-
-    if (period === 'daily') {
-      // Just today's minutes
-      return stats.weeklyData[todayStr] || 0;
-    } else if (period === 'weekly') {
-      // Last 7 days
-      let total = 0;
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toLocaleDateString('en-CA');
-        total += stats.weeklyData[dateStr] || 0;
-      }
-      return total;
-    } else {
-      // Monthly - last 30 days
-      let total = 0;
-      for (let i = 0; i < 30; i++) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toLocaleDateString('en-CA');
-        total += stats.weeklyData[dateStr] || 0;
-      }
-      return total;
+    let total = 0;
+    for (let i = offset * days; i < offset * days + days; i++) {
+      const day = new Date(today);
+      day.setDate(day.getDate() - i);
+      total += weekly[day.toLocaleDateString('en-CA')] || 0;
     }
-  }, [period, stats]);
+    return total;
+  };
+
+  const myMinutes = useMemo(
+    () => sumPeriod(stats?.weeklyData, PERIOD_DAYS[period], 0),
+    [period, stats]
+  );
 
   const myPoints = calculatePointsFromMinutes(myMinutes);
 
-  // Build leaderboard with period-adjusted minutes - recalculates when period changes
+  const periodLabel = (offset: number): string => {
+    if (period === 'daily') {
+      return offset === 0 ? 'Today' : offset === 1 ? 'Yesterday' : `${offset} days ago`;
+    }
+    if (period === 'weekly') {
+      return offset === 0 ? 'This week' : offset === 1 ? 'Last week' : `${offset} weeks ago`;
+    }
+    return offset === 0 ? 'This month' : offset === 1 ? 'Last month' : `${offset} months ago`;
+  };
+
+  // You are ranked against your own history, because that is the only real data
+  // that exists. Tempo has no server, so it cannot know what anyone else has
+  // focused. This board used to mix the user's genuine minutes with six invented
+  // people hard-coded in config/appConfig.ts, which made the rank meaningless.
+  const HISTORY_LENGTH = 6;
+
   const { sortedUsers, yourRank, yourTotalPoints, yourTier } = useMemo(() => {
-    const allUsers: LeaderboardUser[] = [
-      ...mockLeaderboard.map((u) => {
-        const baseHours = parseInt(u.hours) || 0;
-        const baseMinutes = baseHours * 60;
-        // Adjust mock data for period - daily gets ~1/30, weekly gets ~1/4 of monthly
-        const adjustedMinutes = period === 'daily'
-          ? Math.max(30, Math.floor(baseMinutes / 30)) // At least 30 mins for daily
-          : period === 'weekly'
-            ? Math.max(60, Math.floor(baseMinutes / 4)) // At least 1h for weekly
-            : baseMinutes;
-        return {
-          rank: 0,
-          name: u.name,
-          minutes: adjustedMinutes,
-          streak: u.streak,
-          points: calculatePointsFromMinutes(adjustedMinutes),
-        };
-      }),
-      { rank: 0, name: userName, minutes: myMinutes, streak: myStreak, points: myPoints, me: true },
-    ];
+    const days = PERIOD_DAYS[period];
 
-    // Sort by points (which reflects time spent)
-    const sorted = allUsers
-      .sort((a, b) => b.points - a.points)
-      .map((u, idx) => ({
-        ...u,
-        rank: idx + 1,
-        // Add rank bonus to points
-        points: u.points + getRankBonus(idx + 1)
-      }));
+    const rows: LeaderboardUser[] = Array.from({ length: HISTORY_LENGTH }, (_, offset) => {
+      const minutes = sumPeriod(stats?.weeklyData, days, offset);
+      return {
+        rank: 0,
+        name: periodLabel(offset),
+        minutes,
+        streak: offset === 0 ? myStreak : 0,
+        points: calculatePointsFromMinutes(minutes),
+        me: offset === 0,
+      };
+    });
 
-    const yourEntry = sorted.find(u => u.me);
+    const sorted = [...rows]
+      .sort((a, b) => b.minutes - a.minutes)
+      .map((u, idx) => ({ ...u, rank: idx + 1 }));
+
+    const mine = sorted.find((u) => u.me);
+    const rank = mine?.rank || HISTORY_LENGTH;
+    const best = Math.max(...rows.map((r) => r.minutes), 0);
+    const unit = period === 'daily' ? 'days' : period === 'weekly' ? 'weeks' : 'months';
+    const one = unit.slice(0, -1);
+
     return {
       sortedUsers: sorted,
-      yourRank: yourEntry?.rank || sorted.length,
-      yourTotalPoints: yourEntry?.points || myPoints,
-      yourTier: getTierForRank(yourEntry?.rank || sorted.length)
+      yourRank: rank,
+      // Points come straight from real minutes. The old board added a rank
+      // bonus for outscoring people who do not exist.
+      yourTotalPoints: myPoints,
+      yourTier:
+        best > 0 && rank === 1
+          ? `Your best ${one} yet`
+          : `#${rank} of your last ${HISTORY_LENGTH} ${unit}`,
     };
-  }, [period, mockLeaderboard, userName, myMinutes, myStreak, myPoints]);
+  }, [period, stats, myStreak, myPoints]);
 
   const getInitials = (name: string) =>
     name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -183,7 +163,7 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
         <button onClick={() => setScreen(Screen.TIMER)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-white hover:bg-white/5 transition-all">
           <span className="material-symbols-outlined text-[18px]">arrow_back</span>
         </button>
-        <h2 className="font-bold text-sm">Compete</h2>
+        <h2 className="font-bold text-sm">Progress</h2>
         <div className="w-8"></div>
       </div>
 
@@ -199,8 +179,8 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                 <span className="material-symbols-outlined text-[18px] text-primary">trophy</span>
               </div>
               <div>
-                <p className="text-sm font-bold">Compete Mode</p>
-                <p className="text-[10px] text-muted">Share daily hours & compete with others</p>
+                <p className="text-sm font-bold">Track Progress</p>
+                <p className="text-xs text-muted">Rank each day, week and month against your own best</p>
               </div>
             </div>
             <div className={`w-10 h-6 rounded-full relative transition-colors ${gamificationEnabled ? 'bg-primary' : 'bg-surface-light'}`}>
@@ -220,17 +200,17 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                   </div>
                   <div>
                     <p className="text-sm font-bold">{userName}</p>
-                    <p className="text-[10px] text-muted">Rank #{yourRank} · {yourTier}</p>
+                    <p className="text-xs text-muted">{yourTier}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <p className="text-base font-black text-primary">{formatTime(myMinutes)}</p>
-                    <p className="text-[9px] text-muted uppercase">Focus</p>
+                    <p className="text-xs text-muted uppercase">Focus</p>
                   </div>
                   <div className="text-right">
                     <p className="text-base font-black text-secondary">{yourTotalPoints}</p>
-                    <p className="text-[9px] text-muted uppercase">Pts</p>
+                    <p className="text-xs text-muted uppercase">Pts</p>
                   </div>
                 </div>
               </div>
@@ -242,7 +222,7 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                 <button
                   key={p}
                   onClick={() => setPeriod(p)}
-                  className={`flex-1 py-2 rounded-md text-[11px] font-semibold transition-all capitalize ${
+                  className={`flex-1 py-2 rounded-md text-xs font-semibold transition-all capitalize ${
                     period === p ? 'bg-primary text-white shadow-md shadow-primary/25' : 'text-muted hover:text-white/70'
                   }`}
                 >
@@ -253,8 +233,8 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
 
             {/* Points Info */}
             <div className="bg-surface-dark rounded-xl border border-white/5 p-3">
-              <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">How Points Work</p>
-              <div className="grid grid-cols-2 gap-2 text-[10px]">
+              <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2">How Points Work</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="flex items-center gap-2">
                   <span className="w-5 h-5 rounded bg-primary/20 flex items-center justify-center text-primary font-bold">1</span>
                   <span className="text-white/70">per 10 min focused</span>
@@ -265,21 +245,10 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                 </div>
               </div>
             </div>
-
-            {/* Rank Bonus Tiers */}
-            <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
-              {RANK_BONUS.map((tier) => (
-                <div key={tier.label} className="flex-1 min-w-0 bg-surface-dark rounded-lg border border-white/5 p-2 text-center">
-                  <p className="text-xs font-black text-white">+{tier.bonus}</p>
-                  <p className="text-[8px] text-muted uppercase tracking-wider">{tier.label}</p>
-                </div>
-              ))}
-            </div>
-
             {/* Leaderboard */}
             <div>
-              <h3 className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2 ml-0.5">
-                {period === 'daily' ? "Today's" : period === 'weekly' ? 'This Week' : 'This Month'} Rankings
+              <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-2 ml-0.5">
+                Your last 6 {period === 'daily' ? 'days' : period === 'weekly' ? 'weeks' : 'months'}
               </h3>
               <div className="bg-surface-dark rounded-xl border border-white/5 divide-y divide-white/5">
                 {sortedUsers.map((user) => {
@@ -299,7 +268,7 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                             <span className="text-sm font-black text-muted">{user.rank}</span>
                           )}
                         </div>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                           user.me
                             ? 'bg-gradient-to-br from-teal-400 to-blue-500'
                             : 'bg-white/10'
@@ -308,9 +277,9 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                         </div>
                         <div className="min-w-0">
                           <p className={`text-xs font-semibold truncate ${user.me ? 'text-white' : 'text-white/80'}`}>
-                            {user.name} {user.me && <span className="text-[10px] text-primary font-bold">(you)</span>}
+                            {user.name} {user.me && <span className="text-xs text-primary font-bold">(you)</span>}
                           </p>
-                          <p className="text-[10px] text-muted">{formatTime(user.minutes)} focused</p>
+                          <p className="text-xs text-muted">{formatTime(user.minutes)} focused</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -318,11 +287,11 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                           <span className={`material-symbols-outlined text-xs ${user.streak > 0 ? 'text-secondary' : 'text-muted/30'}`}>
                             local_fire_department
                           </span>
-                          <span className={`text-[10px] font-bold ${user.streak > 0 ? 'text-secondary' : 'text-muted/30'}`}>
+                          <span className={`text-xs font-bold ${user.streak > 0 ? 'text-secondary' : 'text-muted/30'}`}>
                             {user.streak}
                           </span>
                         </div>
-                        <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                        <span className="text-xs font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
                           +{user.points}
                         </span>
                       </div>
@@ -338,22 +307,22 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
             <div className="w-16 h-16 rounded-full bg-surface-dark border border-white/5 flex items-center justify-center mb-4">
               <span className="material-symbols-outlined text-3xl text-muted">leaderboard</span>
             </div>
-            <h3 className="text-sm font-bold mb-1">Competition Off</h3>
-            <p className="text-[11px] text-muted max-w-[220px] leading-relaxed">
-              Enable Compete Mode to share your focus hours and compete with other Tempo users on daily, weekly, and monthly leaderboards.
+            <h3 className="text-sm font-bold mb-1">Progress Tracking Off</h3>
+            <p className="text-xs text-muted max-w-[220px] leading-relaxed">
+              Turn this on to rank your focus time against your own recent history and see your best day, week and month.
             </p>
             <div className="mt-5 grid grid-cols-3 gap-2 w-full max-w-[260px]">
               <div className="bg-surface-dark rounded-lg border border-white/5 p-2.5 text-center">
                 <span className="material-symbols-outlined text-yellow-400 text-base">emoji_events</span>
-                <p className="text-[9px] text-muted mt-1">Daily</p>
+                <p className="text-xs text-muted mt-1">Daily</p>
               </div>
               <div className="bg-surface-dark rounded-lg border border-white/5 p-2.5 text-center">
                 <span className="material-symbols-outlined text-primary text-base">calendar_month</span>
-                <p className="text-[9px] text-muted mt-1">Weekly</p>
+                <p className="text-xs text-muted mt-1">Weekly</p>
               </div>
               <div className="bg-surface-dark rounded-lg border border-white/5 p-2.5 text-center">
                 <span className="material-symbols-outlined text-secondary text-base">star</span>
-                <p className="text-[9px] text-muted mt-1">Monthly</p>
+                <p className="text-xs text-muted mt-1">Monthly</p>
               </div>
             </div>
           </div>
@@ -364,9 +333,9 @@ export const SocialScreen: React.FC<GlobalProps> = ({ setScreen }) => {
           <div className="flex items-start gap-3">
             <span className="material-symbols-outlined text-muted text-base mt-0.5">info</span>
             <div>
-              <p className="text-xs font-semibold text-white/70 mb-0.5">Demo Mode</p>
-              <p className="text-[10px] text-muted leading-relaxed">
-                Social features use sample data. Your stats are real - leaderboard opponents are placeholders. Multiplayer coming soon.
+              <p className="text-xs font-semibold text-white/70 mb-0.5">How this works</p>
+              <p className="text-xs text-muted leading-relaxed">
+                Tempo has no server, so it cannot see other people. You are ranked against your own recent history &mdash; every number here is yours and real.
               </p>
             </div>
           </div>

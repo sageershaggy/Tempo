@@ -213,7 +213,7 @@ export const StatsScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
 
             return (
               <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group cursor-pointer">
-                <div className="opacity-0 group-hover:opacity-100 text-[10px] text-muted font-bold transition-opacity">
+                <div className="opacity-0 group-hover:opacity-100 text-xs text-muted font-bold transition-opacity">
                   {timeStr}
                 </div>
                 <div className="w-full relative rounded-t-lg overflow-hidden bg-surface-light group-hover:bg-surface-light/80 transition-all flex-1">
@@ -263,15 +263,15 @@ export const StatsScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
               <p className="text-2xl font-black text-white">{stats?.totalSessions || 0}</p>
-              <p className="text-[10px] text-muted">Sessions</p>
+              <p className="text-xs text-muted">Sessions</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-black text-white">{Math.floor((stats?.totalFocusMinutes || 0) / 60)}</p>
-              <p className="text-[10px] text-muted">Hours</p>
+              <p className="text-xs text-muted">Hours</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-black text-white">{stats?.currentStreak || 0}</p>
-              <p className="text-[10px] text-muted">Day Streak</p>
+              <p className="text-xs text-muted">Day Streak</p>
             </div>
           </div>
         </div>

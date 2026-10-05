@@ -96,7 +96,7 @@ export const HealthRemindersScreen: React.FC<GlobalProps> = ({ setScreen }) => {
       <div className="p-6 space-y-5">
         <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3 flex items-start gap-2">
           <span className="material-symbols-outlined text-blue-300 text-sm mt-0.5">tips_and_updates</span>
-          <p className="text-[11px] text-blue-100/80 leading-relaxed">
+          <p className="text-xs text-blue-100/80 leading-relaxed">
             Configure once and reminders will run in the background while you focus.
           </p>
         </div>
@@ -105,7 +105,7 @@ export const HealthRemindersScreen: React.FC<GlobalProps> = ({ setScreen }) => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-bold">Health Reminders</p>
-              <p className="text-[10px] text-muted">
+              <p className="text-xs text-muted">
                 {settings.enabled
                   ? `${enabledTypesCount}/${HEALTH_TYPES.length} reminder types enabled`
                   : 'All reminders paused'}
@@ -123,10 +123,10 @@ export const HealthRemindersScreen: React.FC<GlobalProps> = ({ setScreen }) => {
               <button
                 key={preset.id}
                 onClick={() => applyPreset(preset)}
-                className="py-2 rounded-lg text-[10px] font-bold border border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
+                className="py-2 rounded-lg text-xs font-bold border border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
               >
                 <span className="block text-white">{preset.label}</span>
-                <span className="block text-muted text-[9px] mt-0.5">{preset.reminderCount} x {preset.intervalMinutes}m</span>
+                <span className="block text-muted text-xs mt-0.5">{preset.reminderCount} x {preset.intervalMinutes}m</span>
               </button>
             ))}
           </div>
@@ -145,7 +145,7 @@ export const HealthRemindersScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                     </div>
                     <div>
                       <p className="text-sm font-bold">{type.label}</p>
-                      <p className="text-[10px] text-muted">
+                      <p className="text-xs text-muted">
                         {typeConfig.enabled
                           ? `${typeConfig.reminderCount} reminders, every ${typeConfig.intervalMinutes}m`
                           : 'Disabled'}
@@ -161,7 +161,7 @@ export const HealthRemindersScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                     </div>
                     <button
                       onClick={() => setExpandedType(isExpanded ? null : type.id)}
-                      className="px-2.5 py-1 rounded-md text-[10px] font-semibold border border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
+                      className="px-2.5 py-1 rounded-md text-xs font-semibold border border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
                     >
                       {isExpanded ? 'Done' : 'Edit'}
                     </button>
@@ -204,7 +204,7 @@ export const HealthRemindersScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                           <button
                             key={opt.value}
                             onClick={() => handleTypeConfig(type.id, 'intervalMinutes', opt.value)}
-                            className={`py-2 rounded-lg text-[11px] font-bold transition-all border ${
+                            className={`py-2 rounded-lg text-xs font-bold transition-all border ${
                               typeConfig.intervalMinutes === opt.value
                                 ? 'bg-primary/20 border-primary text-white'
                                 : 'bg-white/5 border-white/10 text-muted hover:border-white/20'

@@ -292,14 +292,14 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                  <div className="absolute top-3 left-4 z-20">
                     <div className="flex items-center gap-2">
                          <span className={`w-2 h-2 rounded-full ${audioState.isPlaying ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-                         <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
+                         <span className="text-xs font-bold uppercase tracking-wider text-muted">
                             {audioState.youtubeId ? 'YouTube Stream' : (audioState.activeTrackId ? TRACKS.find(t=>t.id===audioState.activeTrackId)?.name : 'Not Playing')}
                          </span>
                     </div>
                     {/* Show current binaural range info */}
                     {audioState.activeTrackId && isBinauralTrack(audioState.activeTrackId) && (
                       <div className="mt-1">
-                        <span className="text-[9px] text-secondary font-semibold">
+                        <span className="text-xs text-secondary font-semibold">
                           {rangeLabels[audioState.activeTrackId] || (() => {
                             const range = getBinauralRange(audioState.activeTrackId!);
                             const info = getBinauralRangeInfo(audioState.activeTrackId!, range);
@@ -381,7 +381,7 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                     </button>
                  </div>
                  {youtubeError && (
-                   <p className="mt-2 text-[10px] text-red-400">{youtubeError}</p>
+                   <p className="mt-2 text-xs text-red-400">{youtubeError}</p>
                  )}
              </div>
 
@@ -410,7 +410,7 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                                 </div>
                                 <div>
                                     <p className={`font-bold text-sm ${isActive ? 'text-white' : 'text-gray-300'}`}>{track.name}</p>
-                                    <p className="text-[10px] text-muted">
+                                    <p className="text-xs text-muted">
                                       {track.category}
                                       {isBinaural && currentRange && (
                                         <span className="text-secondary ml-1">
@@ -424,9 +424,9 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                                 </div>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
-                              {REAL_RECORDING_TRACK_IDS.has(track.id) && <span className="text-[8px] font-bold text-cyan-300 bg-cyan-400/10 px-1.5 py-0.5 rounded uppercase">Real</span>}
-                              {isBuiltInTrack(track.id) && <span className="text-[8px] font-bold text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded uppercase">Built-in</span>}
-                              {track.hz && <span className="text-[10px] font-bold text-secondary bg-secondary/10 px-2 py-0.5 rounded">{track.hz}</span>}
+                              {REAL_RECORDING_TRACK_IDS.has(track.id) && <span className="text-xs font-bold text-cyan-300 bg-cyan-400/10 px-1.5 py-0.5 rounded uppercase">Real</span>}
+                              {isBuiltInTrack(track.id) && <span className="text-xs font-bold text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded uppercase">Built-in</span>}
+                              {track.hz && <span className="text-xs font-bold text-secondary bg-secondary/10 px-2 py-0.5 rounded">{track.hz}</span>}
                             </div>
                         </div>
 
@@ -469,7 +469,7 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                                                     e.stopPropagation();
                                                     handleRangeSwitch(track.id, r);
                                                   }}
-                                                  className={`flex-1 py-1.5 text-[10px] font-bold border rounded transition-all ${
+                                                  className={`flex-1 py-1.5 text-xs font-bold border rounded transition-all ${
                                                     isActiveRange
                                                       ? 'bg-primary/20 border-primary/40 text-primary'
                                                       : 'border-white/10 text-muted hover:bg-white/10 hover:text-white'
@@ -478,7 +478,7 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                                               >
                                                   {r} Range
                                                   {isActiveRange && (
-                                                    <span className="block text-[8px] text-secondary mt-0.5">{info?.label}</span>
+                                                    <span className="block text-xs text-secondary mt-0.5">{info?.label}</span>
                                                   )}
                                               </button>
                                             );
@@ -491,14 +491,14 @@ export const AudioScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 );
             })}
             {trackError && (
-              <p className="text-[10px] text-red-400 px-1">{trackError}</p>
+              <p className="text-xs text-red-400 px-1">{trackError}</p>
             )}
         </div>
 
         {/* Master Controls */}
         <div className="absolute bottom-0 w-full bg-surface-dark/95 backdrop-blur-xl border-t border-white/10 p-6 rounded-t-3xl z-20 pb-8">
             <div className="mb-4">
-                <span className="text-[10px] font-bold uppercase text-muted">Master</span>
+                <span className="text-xs font-bold uppercase text-muted">Master</span>
                 <VolumeControl
                     volume={audioState.volume}
                     onChange={(volume) => setAudioState(prev => ({ ...prev, volume }))}

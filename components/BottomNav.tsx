@@ -31,7 +31,7 @@ export const BottomNav: React.FC<NavProps> = ({ currentScreen, setScreen }) => {
               <span className={`material-symbols-outlined text-2xl ${isActive ? 'fill-current' : ''}`}>
                 {item.icon}
               </span>
-              <span className={`text-[10px] font-medium ${isActive ? 'font-bold' : ''}`}>
+              <span className={`text-xs font-medium ${isActive ? 'font-bold' : ''}`}>
                 {item.label}
               </span>
               {isActive && (

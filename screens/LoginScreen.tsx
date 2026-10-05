@@ -89,14 +89,14 @@ export const LoginScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
             )}
           </button>
 
-          <p className="text-[10px] text-muted text-center">
+          <p className="text-xs text-muted text-center">
             Syncs your tasks and stats across devices.
           </p>
 
           {/* Divider */}
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-white/10"></div>
-            <span className="text-[10px] text-muted">or</span>
+            <span className="text-xs text-muted">or</span>
             <div className="flex-1 h-px bg-white/10"></div>
           </div>
 
@@ -108,14 +108,14 @@ export const LoginScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
             Continue without an account
           </button>
 
-          <p className="text-[10px] text-muted text-center pt-1">
+          <p className="text-xs text-muted text-center pt-1">
             Everything works offline. You can sign in later from Settings.
           </p>
 
           {error && (
             <div
               role="alert"
-              className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-[11px] text-red-200 leading-relaxed"
+              className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-200 leading-relaxed"
             >
               {error}
             </div>
@@ -123,7 +123,7 @@ export const LoginScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setS
         </div>
 
         <div className="mt-6 text-center">
-          <p className="text-[10px] text-muted">
+          <p className="text-xs text-muted">
             By continuing, you agree to our{' '}
             <button
               type="button"

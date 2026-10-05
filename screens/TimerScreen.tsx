@@ -1532,13 +1532,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           </span>
         </div>
         <div className="min-w-0 flex-1">
-          <p className={`text-[11px] font-semibold truncate ${isTrackActive ? 'text-white' : 'text-white/80'}`}>
+          <p className={`text-xs font-semibold truncate ${isTrackActive ? 'text-white' : 'text-white/80'}`}>
             {track.name}
           </p>
           {track.hz ? (
-            <p className="text-[9px] font-bold text-secondary">{track.hz}</p>
+            <p className="text-xs font-bold text-secondary">{track.hz}</p>
           ) : (
-            <p className="text-[9px] text-muted">
+            <p className="text-xs text-muted">
               {track.category}{REAL_RECORDING_TRACK_IDS.has(track.id) ? ' - Real recording' : ''}
             </p>
           )}
@@ -1556,7 +1556,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             <img src="./icons/icon16_v4.png" alt="" className="w-4 h-4" />
             <h1 className="text-base font-bold tracking-tight leading-tight">Tempo Focus</h1>
           </div>
-          <p className="text-[9px] font-bold text-primary uppercase tracking-widest">
+          <p className="text-xs font-bold text-primary uppercase tracking-widest">
             {(templates.find(t => t.id === activeTemplateId)?.label || `${userFocusDuration}/${userBreakDuration}`) + ' Timer'}
           </p>
         </div>
@@ -1568,14 +1568,15 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 const w = window as any;
                 // Position in top-right corner of screen
                 const top = 30;
-                const left = screen.availWidth - 220;
+                const left = screen.availWidth - 320;
 
                 if (w.chrome?.windows?.create) {
                   w.chrome.windows.create({
                     url: w.chrome.runtime.getURL('mini-timer.html'),
                     type: 'popup',
-                    width: 220,
-                    height: 56,
+                    // Sized for the larger clock face in mini-timer.html.
+                    width: 300,
+                    height: 104,
                     top: top,
                     left: left,
                     focused: true
@@ -1584,7 +1585,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                   window.open(
                     (w.chrome?.runtime?.getURL?.('mini-timer.html')) || 'mini-timer.html',
                     'TempoMini',
-                    `width=200,height=70,top=${top},left=${left},toolbar=no,menubar=no,location=no,status=no,resizable=no`
+                    `width=300,height=104,top=${top},left=${left},toolbar=no,menubar=no,location=no,status=no,resizable=no`
                   );
                 }
               } catch (e) {
@@ -1615,8 +1616,8 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       {isPresetSectionCollapsed ? (
         <div className="mb-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[9px] font-semibold uppercase tracking-wider text-muted">Preset Controls Hidden</p>
-            <p className="text-[10px] font-semibold text-white/80 truncate">{activePresetLabel} active</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted">Preset Controls Hidden</p>
+            <p className="text-xs font-semibold text-white/80 truncate">{activePresetLabel} active</p>
           </div>
           <button
             onClick={togglePresetSectionVisibility}
@@ -1643,7 +1644,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                         }}
                         disabled={isDisabled}
                         title={`${tmpl.label} (${tmpl.focusMinutes}/${tmpl.breakMinutes})`}
-                        className={`shrink-0 min-w-[78px] px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap ${isCurrentTemplate ? 'bg-primary text-white shadow-md shadow-primary/25' : isDisabled ? 'text-muted/40 cursor-not-allowed' : 'text-muted hover:text-white/70'}`}
+                        className={`shrink-0 min-w-[78px] px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${isCurrentTemplate ? 'bg-primary text-white shadow-md shadow-primary/25' : isDisabled ? 'text-muted/40 cursor-not-allowed' : 'text-muted hover:text-white/70'}`}
                       >
                         {tmpl.label}
                       </button>
@@ -1664,10 +1665,10 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
       <div className="w-full mb-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold text-white/85">
+            <p className="text-xs font-semibold text-white/85">
               Default timer: {userFocusDuration} / {userBreakDuration} min
             </p>
-            <p className="text-[9px] text-muted">
+            <p className="text-xs text-muted">
               One default timer is always available. Add and remove extra presets anytime.
             </p>
           </div>
@@ -1687,7 +1688,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               }
             >
               <span className="material-symbols-outlined text-[14px]">add</span>
-              <span className="text-[10px] font-bold uppercase tracking-wide">Add</span>
+              <span className="text-xs font-bold uppercase tracking-wide">Add</span>
             </button>
             <button
               onClick={() => setScreen(Screen.SETTINGS)}
@@ -1717,7 +1718,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                       setActiveTemplateId(preset.id);
                     }
                   }}
-                  className={`px-2.5 py-1 text-[10px] font-semibold ${
+                  className={`px-2.5 py-1 text-xs font-semibold ${
                     isPresetActive ? 'text-white' : 'text-muted hover:text-white/80'
                   }`}
                   title={`${preset.label} preset`}
@@ -1730,7 +1731,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                     className="mr-1 w-4 h-4 rounded-full flex items-center justify-center transition-colors text-muted hover:text-white hover:bg-white/10"
                     title={`Edit ${preset.label}`}
                   >
-                    <span className="material-symbols-outlined text-[11px]">edit</span>
+                    <span className="material-symbols-outlined text-xs">edit</span>
                   </button>
                 )}
                 {!isDefaultPreset && (
@@ -1753,9 +1754,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         </div>
 
         {presetNotice && (
-          <p className="mt-1.5 text-[9px] font-semibold text-primary">{presetNotice}</p>
+          <p className="mt-1.5 text-xs font-semibold text-primary">{presetNotice}</p>
         )}
-        <p className="mt-1 text-[9px] text-muted">
+        <p className="mt-1 text-xs text-muted">
           Custom presets: {customPresetCount}/{MAX_CUSTOM_TIMER_PRESETS}
         </p>
       </div>
@@ -1768,13 +1769,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             <p className="text-sm font-bold text-white">
               {presetModalMode === 'edit' ? 'Edit Timer Preset' : 'Add Timer Preset'}
             </p>
-            <p className="text-[10px] text-muted mt-1">
+            <p className="text-xs text-muted mt-1">
               {presetModalMode === 'edit' ? 'Update focus/break values for this preset.' : 'Create a new focus/break preset.'}
             </p>
 
             <div className="mt-3 grid grid-cols-2 gap-2.5">
               <label className="block">
-                <span className="text-[10px] font-semibold text-white/80">Focus (min)</span>
+                <span className="text-xs font-semibold text-white/80">Focus (min)</span>
                 <input
                   type="number"
                   min={FOCUS_PRESET_MINUTES_MIN}
@@ -1790,7 +1791,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 />
               </label>
               <label className="block">
-                <span className="text-[10px] font-semibold text-white/80">Break (min)</span>
+                <span className="text-xs font-semibold text-white/80">Break (min)</span>
                 <input
                   type="number"
                   min={BREAK_PRESET_MINUTES_MIN}
@@ -1810,13 +1811,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             <div className="mt-4 flex items-center justify-end gap-2">
               <button
                 onClick={handleClosePresetModal}
-                className="h-8 px-3 rounded-md border border-white/10 text-[10px] font-semibold text-muted hover:text-white hover:bg-white/5 transition-colors"
+                className="h-8 px-3 rounded-md border border-white/10 text-xs font-semibold text-muted hover:text-white hover:bg-white/5 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmAddPreset}
-                className="h-8 px-3 rounded-md border border-primary/30 bg-primary/15 text-[10px] font-bold text-primary hover:bg-primary/20 transition-colors"
+                className="h-8 px-3 rounded-md border border-primary/30 bg-primary/15 text-xs font-bold text-primary hover:bg-primary/20 transition-colors"
               >
                 {presetModalMode === 'edit' ? 'Save Changes' : 'Add Preset'}
               </button>
@@ -1843,7 +1844,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           </svg>
           <div className="absolute flex flex-col items-center">
             <span className="text-5xl font-black tracking-tight tabular-nums leading-none">{formatTimer(timeLeft)}</span>
-            <span className="text-[10px] font-bold text-muted mt-1.5 uppercase tracking-[0.2em]">
+            <span className="text-xs font-bold text-muted mt-1.5 uppercase tracking-[0.2em]">
               {isActive
                 ? (timerMode === 'focus' ? 'Focusing' : 'On Break')
                 : (timerMode === 'focus' ? 'Ready' : 'Break Ready')}
@@ -1897,9 +1898,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-sm text-primary">music_note</span>
-            <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Focus Beat</span>
+            <span className="text-xs font-bold text-muted uppercase tracking-wider">Focus Beat</span>
             {isActive && beatEnabled && (
-              <span className="text-[10px] font-bold text-primary tabular-nums">{beatCount}</span>
+              <span className="text-xs font-bold text-primary tabular-nums">{beatCount}</span>
             )}
           </div>
           <button
@@ -1927,13 +1928,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 </button>
               ))}
             </div>
-            <p className="text-[9px] text-muted/70 truncate">
+            <p className="text-xs text-muted/70 truncate">
               {beatSoundOptions.find(s => s.id === beatSoundType)?.name || 'Soft'}
               <span className="text-muted/40"> · each hit varies slightly</span>
             </p>
             {/* Interval Selector */}
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-muted shrink-0">Every</span>
+              <span className="text-xs text-muted shrink-0">Every</span>
               <div className="relative">
                 <select
                   value={beatInterval}
@@ -1944,9 +1945,9 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                     <option key={s} value={s} className="bg-surface-dark text-white">{s}s</option>
                   ))}
                 </select>
-                <span className="material-symbols-outlined text-[10px] text-muted absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span>
+                <span className="material-symbols-outlined text-xs text-muted absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span>
               </div>
-              <span className="text-[10px] text-muted">sec</span>
+              <span className="text-xs text-muted">sec</span>
             </div>
           </div>
         )}
@@ -2000,12 +2001,12 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             </button>
           )}
           <div className="flex-1 min-w-0 mr-3 cursor-pointer" onClick={() => setShowTaskSelector(true)} title={currentTask?.title}>
-            <p className="text-[9px] font-semibold text-gray-500 dark:text-muted uppercase tracking-wider mb-0.5">Current Task</p>
-            <h3 className="text-gray-900 dark:text-white text-xs font-bold leading-snug break-words line-clamp-2">{currentTask?.title || 'No task selected'}</h3>
+            <p className="text-xs font-semibold text-gray-500 dark:text-muted uppercase tracking-wider mb-0.5">Current Task</p>
+            <h3 className="text-gray-900 dark:text-white text-sm font-bold leading-snug break-words line-clamp-2">{currentTask?.title || 'No task selected'}</h3>
             {currentTask?.dueDate && (
               <div className={`flex items-center gap-1 mt-1 ${new Date(currentTask.dueDate) < new Date() ? 'text-red-400' : 'text-secondary'}`}>
-                <span className="material-symbols-outlined text-[10px]">event</span>
-                <span className="text-[10px] font-medium">
+                <span className="material-symbols-outlined text-xs">event</span>
+                <span className="text-xs font-medium">
                   {formatTaskDue(currentTask.dueDate)}
                   {new Date(currentTask.dueDate) < new Date() ? ' (Overdue)' : ''}
                 </span>
@@ -2039,7 +2040,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                   value={newTaskTitle}
                   onChange={(e) => setNewTaskTitle(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleCreateTask()}
-                  className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-xs focus:border-primary/50 outline-none"
+                  className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary/50 outline-none"
                   autoFocus
                 />
                 <button
@@ -2058,7 +2059,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-white/5 ${!currentTask ? 'bg-primary/10 text-primary' : 'text-muted'}`}
               >
                 <span className="material-symbols-outlined text-sm">block</span>
-                <span className="text-xs font-medium">No Task</span>
+                <span className="text-sm font-medium">No Task</span>
               </button>
 
               {tasks.filter(t => !t.completed).map(task => {
@@ -2071,12 +2072,12 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                     className={`w-full text-left px-3 py-2.5 rounded-lg border border-transparent transition-all hover:bg-white/5 group ${currentTask?.id === task.id ? 'bg-primary/10 border-primary/20' : ''}`}
                   >
                     {/* Long titles wrap (up to 3 lines) instead of being cut to one line */}
-                    <span className={`text-xs font-medium leading-snug break-words line-clamp-3 ${currentTask?.id === task.id ? 'text-primary' : 'text-white'}`}>
+                    <span className={`text-sm font-medium leading-snug break-words line-clamp-3 ${currentTask?.id === task.id ? 'text-primary' : 'text-white'}`}>
                       {task.title}
                     </span>
                     {task.dueDate && (
-                      <span className={`mt-0.5 flex items-center gap-1 text-[10px] ${isOverdueTask ? 'text-red-400' : 'text-muted'}`}>
-                        <span className="material-symbols-outlined text-[11px]">event</span>
+                      <span className={`mt-0.5 flex items-center gap-1 text-xs ${isOverdueTask ? 'text-red-400' : 'text-muted'}`}>
+                        <span className="material-symbols-outlined text-[13px]">event</span>
                         {formatTaskDue(task.dueDate)}
                         {isOverdueTask ? ' · Overdue' : ''}
                       </span>
@@ -2088,7 +2089,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               {tasks.filter(t => !t.completed).length === 0 && (
                 <div className="text-center py-8 text-muted">
                   <span className="material-symbols-outlined text-2xl mb-1 opacity-50">inbox</span>
-                  <p className="text-[10px]">No active tasks found</p>
+                  <p className="text-xs">No active tasks found</p>
                 </div>
               )}
             </div>
@@ -2102,13 +2103,13 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-sm text-primary">graphic_eq</span>
-            <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Focus Sounds</p>
+            <p className="text-xs font-bold text-muted uppercase tracking-wider">Focus Sounds</p>
           </div>
           {/* Now Playing indicator */}
           {audioState.isPlaying && audioState.activeTrackId && (
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-              <span className="text-[9px] font-semibold text-green-400">
+              <span className="text-xs font-semibold text-green-400">
                 {TRACKS.find(t => t.id === audioState.activeTrackId)?.name}
               </span>
               <button
@@ -2122,7 +2123,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
                 title="Stop sound"
                 aria-label="Stop sound"
               >
-                <span className="material-symbols-outlined text-[10px] text-muted">close</span>
+                <span className="material-symbols-outlined text-xs text-muted">close</span>
               </button>
             </div>
           )}
@@ -2134,7 +2135,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             <button
               key={cat}
               onClick={() => setSoundFilter(cat)}
-              className={`px-3 py-1 rounded-full text-[10px] font-bold whitespace-nowrap transition-colors border ${soundFilter === cat
+              className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${soundFilter === cat
                 ? 'bg-white text-black border-white'
                 : 'bg-white/5 text-muted border-white/5 hover:bg-white/10'
                 }`}
@@ -2150,7 +2151,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             <div>
               <div className="flex items-center gap-1.5 mb-1.5">
                 <span className="material-symbols-outlined text-[14px] text-blue-300">psychology</span>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200">Binaural Beats</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-200">Binaural Beats</p>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {visibleBinauralTracks.map(renderSoundCard)}
@@ -2160,7 +2161,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
             <div>
               <div className="flex items-center gap-1.5 mb-1.5">
                 <span className="material-symbols-outlined text-[14px] text-cyan-300">music_note</span>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-200">Soundscapes</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-cyan-200">Soundscapes</p>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {visibleAmbientAndToneTracks.map(renderSoundCard)}
@@ -2177,14 +2178,14 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
         {canToggleShowAllTracks && (
           <button
             onClick={() => setShowAllSounds(!showAllSounds)}
-            className="w-full mt-2 py-1.5 text-[10px] font-semibold text-primary hover:text-primary-light transition-colors flex items-center justify-center gap-1"
+            className="w-full mt-2 py-1.5 text-xs font-semibold text-primary hover:text-primary-light transition-colors flex items-center justify-center gap-1"
           >
             {showAllSounds ? 'Show Less' : `Show All (${filteredTracks.length})`}
             <span className="material-symbols-outlined text-xs">{showAllSounds ? 'expand_less' : 'expand_more'}</span>
           </button>
         )}
         {audioError && (
-          <p className="mt-2 text-[10px] text-red-400">{audioError}</p>
+          <p className="mt-2 text-xs text-red-400">{audioError}</p>
         )}
 
         {/* Volume Control (shows when something is playing) */}
@@ -2207,7 +2208,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               if (youtubeError) setYoutubeError(null);
             }}
             onKeyDown={(e) => e.key === 'Enter' && handleYoutubePlay()}
-            className="flex-1 bg-surface-dark border border-white/5 rounded-lg px-3 py-2 text-[11px] text-white placeholder-muted/50 focus:outline-none focus:border-primary/40 transition-colors"
+            className="flex-1 bg-surface-dark border border-white/5 rounded-lg px-3 py-2 text-xs text-white placeholder-muted/50 focus:outline-none focus:border-primary/40 transition-colors"
           />
           <button
             onClick={handleYoutubeToggle}
@@ -2227,7 +2228,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           </button>
         </div>
         {youtubeError && (
-          <p className="mt-1 text-[10px] text-red-400">{youtubeError}</p>
+          <p className="mt-1 text-xs text-red-400">{youtubeError}</p>
         )}
 
         {/* YouTube Now Playing */}
@@ -2235,7 +2236,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
           <div className="mt-2 flex items-center gap-2 bg-red-500/5 rounded-lg border border-red-500/10 px-3 py-2">
             <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse shrink-0"></span>
             <span className="material-symbols-outlined text-xs text-red-400">smart_display</span>
-            <span className="text-[10px] font-semibold text-white/70 flex-1">YouTube Audio Playing</span>
+            <span className="text-xs font-semibold text-white/70 flex-1">YouTube Audio Playing</span>
             <button
               onClick={async () => {
                 // Stop YouTube in offscreen document
@@ -2247,7 +2248,7 @@ export const TimerScreen: React.FC<GlobalProps> = ({ setScreen, audioState, setA
               }}
               className="w-5 h-5 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10"
             >
-              <span className="material-symbols-outlined text-[10px] text-muted">close</span>
+              <span className="material-symbols-outlined text-xs text-muted">close</span>
             </button>
           </div>
         )}

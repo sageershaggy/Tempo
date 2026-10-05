@@ -398,6 +398,24 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // service worker, driven by chrome.alarms, which survive popup closure and
 // browser restarts.
 
+// Mirrors defaultHealthSettings in services/storageService.ts.
+//
+// chrome.storage.sync only contains healthSettings once the user has saved the
+// Health screen. Until then the popup falls back to these defaults while the
+// worker saw `undefined` and created no alarms at all, so reminders never fired
+// on a fresh install. Keep the two in step.
+const DEFAULT_HEALTH_TYPE = { enabled: true, reminderCount: 3, intervalMinutes: 30 };
+const DEFAULT_HEALTH_SETTINGS = {
+  enabled: true,
+  types: {
+    screen_break: { ...DEFAULT_HEALTH_TYPE },
+    water: { ...DEFAULT_HEALTH_TYPE },
+    stretch: { ...DEFAULT_HEALTH_TYPE },
+    eye_rest: { ...DEFAULT_HEALTH_TYPE },
+    posture: { ...DEFAULT_HEALTH_TYPE }
+  }
+};
+
 const HEALTH_ALARM_PREFIX = 'health:';
 
 const HEALTH_TIPS = {
@@ -419,8 +437,9 @@ async function syncHealthAlarms() {
         .map(a => chrome.alarms.clear(a.name))
     );
 
-    const { healthSettings } = await chrome.storage.sync.get('healthSettings');
-    if (!healthSettings || healthSettings.enabled === false) return;
+    const stored = (await chrome.storage.sync.get('healthSettings')).healthSettings;
+    const healthSettings = stored || DEFAULT_HEALTH_SETTINGS;
+    if (healthSettings.enabled === false) return;
 
     for (const [typeId, config] of Object.entries(healthSettings.types || {})) {
       if (!config?.enabled || !HEALTH_TIPS[typeId]) continue;
@@ -441,9 +460,10 @@ async function fireHealthReminder(typeId) {
     const tip = HEALTH_TIPS[typeId];
     if (!tip) return;
 
-    const { healthSettings } = await chrome.storage.sync.get('healthSettings');
-    const config = healthSettings?.types?.[typeId];
-    if (!healthSettings?.enabled || !config?.enabled) return;
+    const stored = (await chrome.storage.sync.get('healthSettings')).healthSettings;
+    const healthSettings = stored || DEFAULT_HEALTH_SETTINGS;
+    const config = healthSettings.types?.[typeId];
+    if (healthSettings.enabled === false || !config?.enabled) return;
 
     // Counts reset each day so "3 reminders" means 3 per day, not 3 ever.
     const today = new Date().toLocaleDateString('en-CA');
@@ -951,6 +971,9 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
+  // chrome.alarms survive restarts, but re-creating is idempotent and repairs
+  // a profile whose alarm was lost. onInstalled alone did not cover that.
+  chrome.alarms.create('taskReminderCheck', { periodInMinutes: 1 });
   ensureOffscreenDocument();
   // Restore timer state on browser startup
   loadTimerState();

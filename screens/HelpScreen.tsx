@@ -152,7 +152,7 @@ export const HelpScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setSc
         </button>
         <div>
           <h1 className="text-lg font-bold leading-tight">How Tempo works</h1>
-          <p className="text-[10px] text-muted">Short answers to the common questions</p>
+          <p className="text-xs text-muted">Short answers to the common questions</p>
         </div>
       </header>
 
@@ -180,7 +180,7 @@ export const HelpScreen: React.FC<{ setScreen: (s: Screen) => void }> = ({ setSc
                 </span>
               </button>
               {isOpen && (
-                <p className="px-4 pb-4 pl-15 text-[11px] text-muted leading-relaxed">{entry.a}</p>
+                <p className="px-4 pb-4 pl-15 text-xs text-muted leading-relaxed">{entry.a}</p>
               )}
             </div>
           );

@@ -35,13 +35,13 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-sm">{title}</h3>
               {isConnected && (
-                <span className="flex items-center gap-1 text-[9px] font-bold text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded-full">
+                <span className="flex items-center gap-1 text-xs font-bold text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded-full">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
                   Connected
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-muted mt-0.5">{description}</p>
+            <p className="text-xs text-muted mt-0.5">{description}</p>
           </div>
         </div>
       </div>
@@ -53,14 +53,14 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({
             <img src={userProfile.picture} alt="" className="w-7 h-7 rounded-full border border-white/10" />
           ) : (
             <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
-              <span className="text-[10px] font-bold text-primary">
+              <span className="text-xs font-bold text-primary">
                 {userProfile.name?.charAt(0)?.toUpperCase() || '?'}
               </span>
             </div>
           )}
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-white truncate">{userProfile.name}</p>
-            <p className="text-[9px] text-muted truncate">{userProfile.email}</p>
+            <p className="text-xs font-semibold text-white truncate">{userProfile.name}</p>
+            <p className="text-xs text-muted truncate">{userProfile.email}</p>
           </div>
         </div>
       )}
@@ -68,13 +68,13 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({
       {/* Sync Result */}
       {syncResult && (
         <div className="mt-3 bg-primary/5 border border-primary/10 rounded-lg px-3 py-2">
-          <p className="text-[10px] text-primary font-semibold">{syncResult}</p>
+          <p className="text-xs text-primary font-semibold">{syncResult}</p>
         </div>
       )}
 
       {/* Last Sync */}
       {isConnected && lastSync && (
-        <p className="text-[9px] text-muted mt-2">Last synced: {lastSync}</p>
+        <p className="text-xs text-muted mt-2">Last synced: {lastSync}</p>
       )}
     </div>
 
@@ -291,7 +291,7 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
             <span className="material-symbols-outlined text-blue-400 text-base mt-0.5">sync</span>
             <div>
               <h3 className="font-bold text-xs text-blue-200">Bidirectional Sync</h3>
-              <p className="text-[10px] text-blue-200/60 leading-relaxed mt-0.5">
+              <p className="text-xs text-blue-200/60 leading-relaxed mt-0.5">
                 Sign in with Google to sync tasks both ways.
               </p>
             </div>
@@ -302,7 +302,7 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
         {error && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-center gap-2">
             <span className="material-symbols-outlined text-red-400 text-sm">error</span>
-            <p className="text-[11px] text-red-400 flex-1">{error}</p>
+            <p className="text-xs text-red-400 flex-1">{error}</p>
             <button onClick={() => setError(null)} className="text-red-400/50 hover:text-red-400">
               <span className="material-symbols-outlined text-sm">close</span>
             </button>
@@ -338,7 +338,7 @@ export const IntegrationsScreen: React.FC<GlobalProps> = ({ setScreen, tasks, se
           <div className="flex items-start gap-3">
             <span className="material-symbols-outlined text-muted text-base mt-0.5">info</span>
             <div>
-              <p className="text-[10px] text-muted leading-relaxed">
+              <p className="text-xs text-muted leading-relaxed">
                 Clicking "Sign in" will open a secure login window from Google.
                 Your credentials are handled directly by their servers — Tempo never sees your password.
               </p>

@@ -93,7 +93,7 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
       <div className="p-6 space-y-6">
         <div className="bg-gradient-to-r from-yellow-500/10 to-amber-500/5 rounded-xl border border-yellow-500/10 px-4 py-2.5 flex items-center gap-2">
           <span className="material-symbols-outlined text-sm text-yellow-400">celebration</span>
-          <p className="text-[11px] font-semibold text-yellow-300/80">Free during launch period</p>
+          <p className="text-xs font-semibold text-yellow-300/80">Free during launch period</p>
         </div>
 
         <section>
@@ -101,7 +101,7 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-bold">Reminder Settings</p>
-                <p className="text-[10px] text-muted">
+                <p className="text-xs text-muted">
                   {settings.enabled
                     ? `${enabledTypesCount}/${HEALTH_TYPES.length} types enabled - avg ${averageInterval}m interval`
                     : 'All health reminders are paused'}
@@ -109,7 +109,7 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
               </div>
               <button
                 onClick={() => setScreen(Screen.HEALTH_REMINDERS)}
-                className="px-3 py-1.5 rounded-lg text-[10px] font-bold bg-primary/15 border border-primary/30 text-primary hover:bg-primary/20 transition-colors"
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-primary/15 border border-primary/30 text-primary hover:bg-primary/20 transition-colors"
               >
                 Open Settings
               </button>
@@ -117,7 +117,7 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
             <div className="bg-black/20 rounded-lg border border-white/5 px-3 py-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-green-400 text-sm">health_and_safety</span>
-                <span className="text-[11px] font-semibold">Master Reminders</span>
+                <span className="text-xs font-semibold">Master Reminders</span>
               </div>
               <div
                 className={`w-10 h-6 rounded-full relative transition-colors cursor-pointer ${settings.enabled ? 'bg-green-500' : 'bg-surface-light'}`}
@@ -134,7 +134,7 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-sm font-bold text-white">Today's Health Score</h3>
-                <p className="text-[10px] text-muted mt-0.5">Track your wellness habits</p>
+                <p className="text-xs text-muted mt-0.5">Track your wellness habits</p>
               </div>
               <div className="w-14 h-14 rounded-full bg-green-500/20 border-2 border-green-500/40 flex items-center justify-center">
                 <span className="text-lg font-black text-green-400">{totalToday}</span>
@@ -153,15 +153,15 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                     <div className={`w-8 h-8 rounded-lg ${type.bg} flex items-center justify-center group-hover:scale-110 transition-transform`}>
                       <span className={`material-symbols-outlined text-sm ${type.color}`}>{type.icon}</span>
                     </div>
-                    <span className="text-[8px] font-bold text-muted leading-tight text-center">{type.label.split(' ')[0]}</span>
+                    <span className="text-xs font-bold text-muted leading-tight text-center">{type.label.split(' ')[0]}</span>
                     {count > 0 && (
-                      <span className="text-[9px] font-bold text-green-400">{count}x</span>
+                      <span className="text-xs font-bold text-green-400">{count}x</span>
                     )}
                   </button>
                 );
               })}
             </div>
-            <p className="text-[10px] text-muted text-center mt-3">Tap to log a completed activity</p>
+            <p className="text-xs text-muted text-center mt-3">Tap to log a completed activity</p>
           </div>
         </section>
 
@@ -175,7 +175,7 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                 const isToday = day.date === new Date().toLocaleDateString('en-CA');
                 return (
                   <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-[9px] font-bold text-muted tabular-nums">{day.total || ''}</span>
+                    <span className="text-xs font-bold text-muted tabular-nums">{day.total || ''}</span>
                     <div
                       className={`w-full rounded-t-md transition-all ${isToday ? 'bg-green-500' : day.total > 0 ? 'bg-green-500/40' : 'bg-white/5'}`}
                       style={{ height: `${height}px` }}
@@ -186,7 +186,7 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
             </div>
             <div className="flex justify-between">
               {weeklyData.map(day => (
-                <span key={day.date} className="flex-1 text-center text-[9px] font-semibold text-muted">{day.label}</span>
+                <span key={day.date} className="flex-1 text-center text-xs font-semibold text-muted">{day.label}</span>
               ))}
             </div>
           </div>
@@ -206,7 +206,7 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                   <div className="text-center py-6">
                     <span className="material-symbols-outlined text-3xl text-muted/30 mb-2">eco</span>
                     <p className="text-xs text-muted">No health activities logged today</p>
-                    <p className="text-[10px] text-muted/60 mt-1">Use the quick actions above to log activity</p>
+                    <p className="text-xs text-muted/60 mt-1">Use the quick actions above to log activity</p>
                   </div>
                 );
               }
@@ -225,7 +225,7 @@ export const HealthScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-semibold text-white/80">{type.label}</p>
                         </div>
-                        <span className="text-[10px] text-muted font-mono">{time}</span>
+                        <span className="text-xs text-muted font-mono">{time}</span>
                         <span className="material-symbols-outlined text-sm text-green-400">check_circle</span>
                       </div>
                     );

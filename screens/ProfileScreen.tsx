@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, GlobalProps } from '../types';
-import { getStats, exportUserData, exportUserDataAsCSV, UserStats } from '../services/storageService';
+import { getStats, exportUserData, exportUserDataAsCSV, UserStats, getStorageUsage, formatBytes, StorageUsage } from '../services/storageService';
 
 interface UserProfile {
   displayName: string;
@@ -11,6 +11,7 @@ interface UserProfile {
 export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [stats, setStats] = useState<UserStats | null>(null);
+  const [storage, setStorage] = useState<StorageUsage | null>(null);
   const [syncEnabled, setSyncEnabled] = useState(true);
   const [profile, setProfile] = useState<UserProfile>({
     displayName: 'Tempo User',
@@ -24,6 +25,7 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
     const loadData = async () => {
       const statsData = await getStats();
       setStats(statsData);
+      setStorage(await getStorageUsage());
 
       // Load profile from localStorage
       const savedProfile = localStorage.getItem('tempo_userProfile');
@@ -78,8 +80,9 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
   const displayValue = totalMinutes < 60 ? totalMinutes : (totalMinutes / 60).toFixed(1);
   const displayLabel = totalMinutes < 60 ? 'Minutes' : 'Hours';
 
-  const storageUsed = ((stats?.totalSessions || 0) * 0.1).toFixed(1);
-  const storagePercent = Math.min((stats?.totalSessions || 0) * 0.5, 100);
+  // Measured from chrome.storage, not guessed from session count.
+  const storageUsed = storage ? formatBytes(storage.bytes) : '…';
+  const storagePercent = storage ? storage.percent : 0;
 
   return (
     <div className="h-full flex flex-col bg-background-dark pb-24 overflow-y-auto no-scrollbar">
@@ -126,21 +129,21 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
         <div className="grid grid-cols-3 gap-2.5">
           <div className="bg-surface-dark rounded-xl p-3 border border-white/5 text-center">
             <p className="text-xl font-black text-primary leading-none mb-1">{stats?.totalSessions || 0}</p>
-            <p className="text-[9px] text-muted uppercase tracking-wider font-semibold">Sessions</p>
+            <p className="text-xs text-muted uppercase tracking-wider font-semibold">Sessions</p>
           </div>
           <div className="bg-surface-dark rounded-xl p-3 border border-white/5 text-center">
             <p className="text-xl font-black text-secondary leading-none mb-1">{displayValue}</p>
-            <p className="text-[9px] text-muted uppercase tracking-wider font-semibold">{displayLabel}</p>
+            <p className="text-xs text-muted uppercase tracking-wider font-semibold">{displayLabel}</p>
           </div>
           <div className="bg-surface-dark rounded-xl p-3 border border-white/5 text-center">
             <p className="text-xl font-black text-amber-400 leading-none mb-1">{stats?.currentStreak || 0}</p>
-            <p className="text-[9px] text-muted uppercase tracking-wider font-semibold">Streak</p>
+            <p className="text-xs text-muted uppercase tracking-wider font-semibold">Streak</p>
           </div>
         </div>
 
         {/* Data & Sync */}
         <div>
-          <h4 className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2 ml-0.5">Data & Sync</h4>
+          <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2 ml-0.5">Data & Sync</h4>
           <div className="bg-surface-dark rounded-xl border border-white/5 divide-y divide-white/5">
             {/* Chrome Sync */}
             <div
@@ -153,7 +156,7 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                 </div>
                 <div>
                   <p className="text-sm font-semibold">Chrome Sync</p>
-                  <p className="text-[10px] text-muted flex items-center gap-1">
+                  <p className="text-xs text-muted flex items-center gap-1">
                     <span className={`w-1 h-1 rounded-full ${syncEnabled ? 'bg-green-500' : 'bg-gray-500'}`}></span>
                     {syncEnabled ? 'Active' : 'Disabled'}
                   </p>
@@ -173,7 +176,7 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
                   </div>
                   <p className="text-sm font-semibold">Local Storage</p>
                 </div>
-                <span className="text-[10px] font-bold text-muted">{storageUsed} KB</span>
+                <span className="text-xs font-bold text-muted">{storageUsed}</span>
               </div>
               <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden ml-11">
                 <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.max(storagePercent, 2)}%` }}></div>
@@ -196,7 +199,7 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
 
         {/* Quick Actions */}
         <div>
-          <h4 className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2 ml-0.5">More</h4>
+          <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2 ml-0.5">More</h4>
           <div className="bg-surface-dark rounded-xl border border-white/5 divide-y divide-white/5">
             <button
               onClick={() => setScreen(Screen.SETTINGS)}
@@ -241,7 +244,7 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
               </div>
 
               <div>
-                <label className="text-[10px] font-bold uppercase text-muted mb-1 block tracking-wider">Display Name</label>
+                <label className="text-xs font-bold uppercase text-muted mb-1 block tracking-wider">Display Name</label>
                 <input
                   type="text"
                   value={editForm.displayName}
@@ -252,7 +255,7 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
               </div>
 
               <div>
-                <label className="text-[10px] font-bold uppercase text-muted mb-1 block tracking-wider">Email</label>
+                <label className="text-xs font-bold uppercase text-muted mb-1 block tracking-wider">Email</label>
                 <input
                   type="email"
                   value={editForm.email}
@@ -263,7 +266,7 @@ export const ProfileScreen: React.FC<GlobalProps> = ({ setScreen }) => {
               </div>
 
               <div>
-                <label className="text-[10px] font-bold uppercase text-muted mb-1 block tracking-wider">Avatar URL</label>
+                <label className="text-xs font-bold uppercase text-muted mb-1 block tracking-wider">Avatar URL</label>
                 <input
                   type="url"
                   value={editForm.avatarUrl}

@@ -79,11 +79,11 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({ volume, onChange, 
         >
           <span className="material-symbols-outlined text-[16px]">add</span>
         </button>
-        <span className="text-[10px] font-mono text-muted w-10 text-right shrink-0" aria-live="polite">
+        <span className="text-xs font-mono text-muted w-10 text-right shrink-0" aria-live="polite">
           {isMuted ? 'Muted' : `${volume}%`}
         </span>
       </div>
-      <p className="mt-1 text-[9px] text-muted/70">
+      <p className="mt-1 text-xs text-muted/70">
         Tempo volume — mixes with your device volume, which is set by your system.
       </p>
     </div>

@@ -183,7 +183,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </div>
                 <div>
                   <p className="text-sm font-bold">Focus Duration</p>
-                  <p className="text-[10px] text-muted">Minutes per focus session</p>
+                  <p className="text-xs text-muted">Minutes per focus session</p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
@@ -219,7 +219,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </div>
                 <div>
                   <p className="text-sm font-bold">Short Break</p>
-                  <p className="text-[10px] text-muted">Minutes per short break</p>
+                  <p className="text-xs text-muted">Minutes per short break</p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
@@ -255,7 +255,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </div>
                 <div>
                   <p className="text-sm font-bold">Long Break</p>
-                  <p className="text-[10px] text-muted">Minutes per long break</p>
+                  <p className="text-xs text-muted">Minutes per long break</p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
@@ -291,7 +291,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </div>
                 <div>
                   <p className="text-sm font-bold">Long Break After</p>
-                  <p className="text-[10px] text-muted">Sessions before a long break</p>
+                  <p className="text-xs text-muted">Sessions before a long break</p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
@@ -341,7 +341,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </div>
                 <div>
                   <p className="text-sm font-bold">Notifications</p>
-                  <p className="text-[10px] text-muted">Alert when timer ends</p>
+                  <p className="text-xs text-muted">Alert when timer ends</p>
                 </div>
               </div>
               <div className={`w-10 h-6 rounded-full relative transition-colors ${notifications ? 'bg-primary' : 'bg-surface-light'}`}>
@@ -364,7 +364,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </div>
                 <div>
                   <p className="text-sm font-bold">Auto-start Breaks</p>
-                  <p className="text-[10px] text-muted">Automatically start break after focus</p>
+                  <p className="text-xs text-muted">Automatically start break after focus</p>
                 </div>
               </div>
               <div className={`w-10 h-6 rounded-full relative transition-colors ${autoStartBreaks ? 'bg-primary' : 'bg-surface-light'}`}>
@@ -387,7 +387,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </div>
                 <div>
                   <p className="text-sm font-bold">Auto-start Pomodoros</p>
-                  <p className="text-[10px] text-muted">Seamlessly start next session</p>
+                  <p className="text-xs text-muted">Seamlessly start next session</p>
                 </div>
               </div>
               <div className={`w-10 h-6 rounded-full relative transition-colors ${autoStartPomos ? 'bg-primary' : 'bg-surface-light'}`}>
@@ -410,7 +410,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </div>
                 <div>
                   <p className="text-sm font-bold">Dark Mode</p>
-                  <p className="text-[10px] text-muted">System appearance preference</p>
+                  <p className="text-xs text-muted">System appearance preference</p>
                 </div>
               </div>
               <div className={`w-10 h-6 rounded-full relative transition-colors ${darkMode ? 'bg-primary' : 'bg-surface-light'}`}>
@@ -436,7 +436,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </div>
                 <div>
                   <p className="text-sm font-bold">Health Reminder Settings</p>
-                  <p className="text-[10px] text-muted">Configure intervals, counts, and wellness reminders</p>
+                  <p className="text-xs text-muted">Configure intervals, counts, and wellness reminders</p>
                 </div>
               </div>
               <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
@@ -453,7 +453,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </div>
                 <div>
                   <p className="text-sm font-bold">Integrations & Sync</p>
-                  <p className="text-[10px] text-muted">Google Tasks, Microsoft To Do</p>
+                  <p className="text-xs text-muted">Google Tasks, Microsoft To Do</p>
                 </div>
               </div>
               <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
@@ -470,7 +470,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </div>
                 <div>
                   <p className="text-sm font-bold">App Theme</p>
-                  <p className="text-[10px] text-muted">Choose from {THEMES.length} themes</p>
+                  <p className="text-xs text-muted">Choose from {THEMES.length} themes</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -490,7 +490,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 </div>
                 <div>
                   <p className="text-sm font-bold">Export Data</p>
-                  <p className="text-[10px] text-muted">Download as CSV/Excel</p>
+                  <p className="text-xs text-muted">Download as CSV/Excel</p>
                 </div>
               </div>
               <span className="material-symbols-outlined text-muted text-sm">download</span>
@@ -508,7 +508,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-bold">Magic Enhance</p>
-                <p className="text-[10px] text-muted leading-relaxed">
+                <p className="text-xs text-muted leading-relaxed">
                   Turns rough notes into clear task titles. Uses your own Google Gemini
                   key, stored only on this device — Tempo never sees it.
                 </p>
@@ -547,23 +547,23 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
             </div>
 
             {aiStatus === 'ok' && (
-              <p className="text-[10px] text-green-400 flex items-center gap-1">
+              <p className="text-xs text-green-400 flex items-center gap-1">
                 <span className="material-symbols-outlined text-xs">check_circle</span>
                 Key verified. Magic Enhance is ready.
               </p>
             )}
             {aiStatus === 'error' && aiError && (
-              <p role="alert" className="text-[10px] text-red-400 leading-relaxed">{aiError}</p>
+              <p role="alert" className="text-xs text-red-400 leading-relaxed">{aiError}</p>
             )}
             {aiStatus === 'idle' && aiKeySaved && (
-              <p className="text-[10px] text-muted">A key is saved on this device.</p>
+              <p className="text-xs text-muted">A key is saved on this device.</p>
             )}
 
             <a
               href="https://aistudio.google.com/app/apikey"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
             >
               Get a free key from Google AI Studio
               <span className="material-symbols-outlined text-xs">open_in_new</span>
@@ -586,7 +586,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
             </div>
             <div className="flex-1">
               <p className="text-sm font-bold">How Tempo works</p>
-              <p className="text-[10px] text-muted">Presets, sounds, sync, and the mini timer</p>
+              <p className="text-xs text-muted">Presets, sounds, sync, and the mini timer</p>
             </div>
             <span className="material-symbols-outlined text-muted text-sm">chevron_right</span>
           </button>
@@ -599,7 +599,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
               <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center">
                 <span className="material-symbols-outlined text-[18px] text-red-400">bug_report</span>
               </div>
-              <span className="text-[10px] font-semibold text-white/70">Bug</span>
+              <span className="text-xs font-semibold text-white/70">Bug</span>
             </button>
             <button
               onClick={() => openFeedbackModal('feedback')}
@@ -608,7 +608,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
               <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
                 <span className="material-symbols-outlined text-[18px] text-primary">chat_bubble</span>
               </div>
-              <span className="text-[10px] font-semibold text-white/70">Feedback</span>
+              <span className="text-xs font-semibold text-white/70">Feedback</span>
             </button>
           </div>
           {/* Rate Us Banner */}
@@ -621,7 +621,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
             </div>
             <div className="flex-1 text-left">
               <p className="text-xs font-bold text-white/90">Enjoying Tempo?</p>
-              <p className="text-[10px] text-muted">Rate us on Chrome Web Store</p>
+              <p className="text-xs text-muted">Rate us on Chrome Web Store</p>
             </div>
             <span className="material-symbols-outlined text-sm text-muted">open_in_new</span>
           </button>
@@ -630,15 +630,15 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
         {/* Footer: Legal + Account */}
         <section className="pt-2">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <button onClick={() => setScreen(Screen.PRIVACY_POLICY)} className="text-[10px] font-semibold text-muted hover:text-white/70 transition-colors">
+            <button onClick={() => setScreen(Screen.PRIVACY_POLICY)} className="text-xs font-semibold text-muted hover:text-white/70 transition-colors">
               Privacy Policy
             </button>
-            <span className="text-[10px] text-white/10">·</span>
-            <button onClick={() => setScreen(Screen.TERMS)} className="text-[10px] font-semibold text-muted hover:text-white/70 transition-colors">
+            <span className="text-xs text-white/10">·</span>
+            <button onClick={() => setScreen(Screen.TERMS)} className="text-xs font-semibold text-muted hover:text-white/70 transition-colors">
               Terms of Service
             </button>
-            <span className="text-[10px] text-white/10">·</span>
-            <button onClick={() => setScreen(Screen.PROFILE)} className="text-[10px] font-semibold text-muted hover:text-white/70 transition-colors">
+            <span className="text-xs text-white/10">·</span>
+            <button onClick={() => setScreen(Screen.PROFILE)} className="text-xs font-semibold text-muted hover:text-white/70 transition-colors">
               Account
             </button>
           </div>
@@ -655,12 +655,12 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                 }
                 setScreen(Screen.LOGIN);
               }}
-              className="text-[10px] font-semibold text-red-400/70 hover:text-red-400 transition-colors"
+              className="text-xs font-semibold text-red-400/70 hover:text-red-400 transition-colors"
             >
               Sign Out
             </button>
           </div>
-          <p className="text-[9px] text-muted/30 text-center">{config.app.name} v{config.app.version}</p>
+          <p className="text-xs text-muted/30 text-center">{config.app.name} v{config.app.version}</p>
         </section>
 
       </div>
@@ -763,7 +763,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
             <div className="flex items-center justify-between p-4 border-b border-white/5 shrink-0">
               <div>
                 <h3 className="text-lg font-bold">App Theme</h3>
-                <p className="text-[10px] text-muted">{THEMES.length} themes available</p>
+                <p className="text-xs text-muted">{THEMES.length} themes available</p>
               </div>
               <button
                 onClick={() => setShowThemeModal(false)}
@@ -778,9 +778,9 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
               {/* All themes — every theme is free */}
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">All themes</span>
+                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">All themes</span>
                   <div className="flex-1 h-px bg-white/5"></div>
-                  <span className="text-[10px] text-muted">{THEMES.length} themes</span>
+                  <span className="text-xs text-muted">{THEMES.length} themes</span>
                 </div>
                 <div className="grid grid-cols-4 gap-3">
                   {THEMES.map(theme => {
@@ -805,7 +805,7 @@ export const SettingsScreen: React.FC<GlobalProps> = ({ setScreen, audioState, s
                             </div>
                           )}
                         </div>
-                        <span className={`text-[10px] font-semibold leading-tight text-center ${isActive ? 'text-white' : 'text-muted'
+                        <span className={`text-xs font-semibold leading-tight text-center ${isActive ? 'text-white' : 'text-muted'
                           }`}>{theme.name}</span>
                       </button>
                     );

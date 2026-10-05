@@ -325,10 +325,10 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                 title={`Sync Interval: ${syncInterval === 'Off' ? 'Manual' : syncInterval + 'm'}${lastAutoSync ? ` | Last: ${new Date(lastAutoSync).toLocaleTimeString()}` : ''}`}
                             >
                                 <div className="flex flex-col items-center leading-none">
-                                    <span className="text-[9px] font-bold uppercase text-muted mb-[1px]">
+                                    <span className="text-xs font-bold uppercase text-muted mb-[1px]">
                                         {autoSyncStatus === 'syncing' ? 'SYNC' : 'Sync'}
                                     </span>
-                                    <span className="text-[10px] font-bold">{syncInterval === 'Off' ? 'Off' : `${syncInterval}m`}</span>
+                                    <span className="text-xs font-bold">{syncInterval === 'Off' ? 'Off' : `${syncInterval}m`}</span>
                                 </div>
                             </button>
                         </div>
@@ -395,7 +395,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                         {filteredTasks.length > 0 && (
                             <button
                                 onClick={() => setTasks(prev => prev.filter(t => !t.completed))}
-                                className="text-[10px] font-bold text-red-400/70 hover:text-red-400 px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
+                                className="text-xs font-bold text-red-400/70 hover:text-red-400 px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
                             >
                                 Clear All
                             </button>
@@ -465,8 +465,8 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                 <h3 className={`text-sm font-medium break-words leading-tight pr-2 ${task.completed ? 'line-through text-muted' : 'text-white'}`}>
                                                     {task.title}
                                                 </h3>
-                                                <div className={`flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider ${getPriorityColor(task.priority)}`}>
-                                                    {task.priority === 'High' && <span className="material-symbols-outlined text-[10px]">priority_high</span>}
+                                                <div className={`flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-bold uppercase tracking-wider ${getPriorityColor(task.priority)}`}>
+                                                    {task.priority === 'High' && <span className="material-symbols-outlined text-xs">priority_high</span>}
                                                     {task.priority}
                                                 </div>
                                             </div>
@@ -519,7 +519,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                     <select
                                                         value={task.category || ''}
                                                         onChange={(e) => handleUpdateTask(task.id, { category: e.target.value })}
-                                                        className="appearance-none bg-[#1a1a2e] border border-white/10 text-[10px] font-bold text-muted hover:text-white rounded-lg pl-3 pr-6 py-1.5 focus:outline-none focus:border-primary/50 transition-colors cursor-pointer w-full [color-scheme:dark]"
+                                                        className="appearance-none bg-[#1a1a2e] border border-white/10 text-xs font-bold text-muted hover:text-white rounded-lg pl-3 pr-6 py-1.5 focus:outline-none focus:border-primary/50 transition-colors cursor-pointer w-full [color-scheme:dark]"
                                                     >
                                                         <option value="" className="bg-[#1a1a2e] text-white">No Category</option>
                                                         {categories.map(c => (
@@ -544,7 +544,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                             <span className="text-xs font-bold text-white flex items-center gap-1">
                                                                 <span className="material-symbols-outlined text-sm text-secondary">flag</span> {linkedMilestone.title}
                                                             </span>
-                                                            <span className="text-[10px] text-muted font-bold">{linkedMilestone.progress}% Complete</span>
+                                                            <span className="text-xs text-muted font-bold">{linkedMilestone.progress}% Complete</span>
                                                         </div>
                                                         <div className="w-full bg-black/50 h-1.5 rounded-full overflow-hidden">
                                                             <div className={`h-full ${linkedMilestone.color}`} style={{ width: `${linkedMilestone.progress}%` }}></div>
@@ -555,7 +555,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                 {/* Milestone & Priority Selectors */}
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <div>
-                                                        <label className="text-[10px] uppercase font-bold text-muted block mb-1">Milestone Link</label>
+                                                        <label className="text-xs uppercase font-bold text-muted block mb-1">Milestone Link</label>
                                                         <div className="relative">
                                                             <select
                                                                 value={task.milestoneId || ''}
@@ -571,7 +571,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                         </div>
                                                     </div>
                                                     <div>
-                                                        <label className="text-[10px] uppercase font-bold text-muted block mb-1">Priority</label>
+                                                        <label className="text-xs uppercase font-bold text-muted block mb-1">Priority</label>
                                                         <div className="flex gap-2 items-center">
                                                             <select
                                                                 value={task.priority}
@@ -605,7 +605,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                                 handleUpdateTask(task.id, { priority: prioritySuggestion.suggestion });
                                                                 setPrioritySuggestion(null);
                                                             }}
-                                                            className="text-[10px] bg-primary text-white px-2 py-1 rounded font-bold hover:bg-primary-light transition-colors"
+                                                            className="text-xs bg-primary text-white px-2 py-1 rounded font-bold hover:bg-primary-light transition-colors"
                                                         >
                                                             Apply
                                                         </button>
@@ -629,18 +629,18 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                         </div>
                                                         {task.reminderEnabled && (
                                                             <div className="space-y-2">
-                                                                <p className="text-[10px] text-muted">
+                                                                <p className="text-xs text-muted">
                                                                     You'll be notified when this task is due or overdue.
                                                                 </p>
                                                                 {task.snoozedUntil && new Date(task.snoozedUntil) > new Date() && (
                                                                     <div className="flex items-center justify-between bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2">
-                                                                        <span className="text-[10px] text-orange-400 flex items-center gap-1">
+                                                                        <span className="text-xs text-orange-400 flex items-center gap-1">
                                                                             <span className="material-symbols-outlined text-xs">snooze</span>
                                                                             Snoozed until {new Date(task.snoozedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                         </span>
                                                                         <button
                                                                             onClick={() => handleUpdateTask(task.id, { snoozedUntil: undefined })}
-                                                                            className="text-[10px] text-orange-400 hover:text-orange-300 font-bold"
+                                                                            className="text-xs text-orange-400 hover:text-orange-300 font-bold"
                                                                         >
                                                                             Cancel
                                                                         </button>
@@ -652,7 +652,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                                             const snoozeUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
                                                                             handleUpdateTask(task.id, { snoozedUntil: snoozeUntil });
                                                                         }}
-                                                                        className="flex-1 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold text-muted hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-1"
+                                                                        className="flex-1 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-bold text-muted hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-1"
                                                                     >
                                                                         <span className="material-symbols-outlined text-xs">snooze</span>
                                                                         15 min
@@ -662,7 +662,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                                             const snoozeUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
                                                                             handleUpdateTask(task.id, { snoozedUntil: snoozeUntil });
                                                                         }}
-                                                                        className="flex-1 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold text-muted hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-1"
+                                                                        className="flex-1 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-bold text-muted hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-1"
                                                                     >
                                                                         <span className="material-symbols-outlined text-xs">snooze</span>
                                                                         1 hour
@@ -674,7 +674,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                                             tomorrow.setHours(9, 0, 0, 0);
                                                                             handleUpdateTask(task.id, { snoozedUntil: tomorrow.toISOString() });
                                                                         }}
-                                                                        className="flex-1 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold text-muted hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-1"
+                                                                        className="flex-1 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-bold text-muted hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-1"
                                                                     >
                                                                         <span className="material-symbols-outlined text-xs">snooze</span>
                                                                         Tomorrow
@@ -686,7 +686,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                 )}
 
                                                 <div>
-                                                    <label className="text-[10px] uppercase font-bold text-muted block mb-1">Notes</label>
+                                                    <label className="text-xs uppercase font-bold text-muted block mb-1">Notes</label>
                                                     <textarea
                                                         value={task.notes || ''}
                                                         onChange={(e) => handleUpdateTask(task.id, { notes: e.target.value })}
@@ -704,7 +704,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                                             onClick={() => handleToggleSubtask(task.id, st.id)}
                                                             className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${st.completed ? 'bg-white/40 border-transparent' : 'border-white/20 hover:border-white/50'}`}
                                                         >
-                                                            {st.completed && <span className="material-symbols-outlined text-black text-[10px] font-bold">check</span>}
+                                                            {st.completed && <span className="material-symbols-outlined text-black text-xs font-bold">check</span>}
                                                         </button>
                                                         <span className={`text-sm flex-1 transition-colors ${st.completed ? 'text-muted line-through' : 'text-gray-300'}`}>{st.title}</span>
                                                     </div>
@@ -727,7 +727,7 @@ export const TasksScreen: React.FC<GlobalProps> = ({ setScreen, tasks, setTasks 
                                             </div>
 
                                             {aiError && expandedTask === task.id && (
-                                                <p className="text-[10px] text-red-400 mb-2 px-1">{aiError}</p>
+                                                <p className="text-xs text-red-400 mb-2 px-1">{aiError}</p>
                                             )}
 
                                             <div className="flex gap-2">

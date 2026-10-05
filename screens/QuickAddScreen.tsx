@@ -88,7 +88,7 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
       <div className="flex-1 overflow-y-auto no-scrollbar px-5 py-4 space-y-4">
         {/* Task Title */}
         <div>
-          <label className="text-[10px] font-bold uppercase text-muted tracking-wider mb-1.5 block">Task</label>
+          <label className="text-xs font-bold uppercase text-muted tracking-wider mb-1.5 block">Task</label>
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -100,7 +100,7 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
 
         {/* Notes */}
         <div>
-          <label className="text-[10px] font-bold uppercase text-muted tracking-wider mb-1.5 block">Notes</label>
+          <label className="text-xs font-bold uppercase text-muted tracking-wider mb-1.5 block">Notes</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -124,13 +124,13 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
               </span>
               {enhancing ? 'Enhancing…' : 'Magic Enhance'}
               {!aiReady && (
-                <span className="text-[9px] bg-primary/20 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="text-xs bg-primary/20 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
                   Set up
                 </span>
               )}
             </button>
             {enhanceError && (
-              <p role="alert" className="text-[10px] text-red-400 leading-relaxed px-1">{enhanceError}</p>
+              <p role="alert" className="text-xs text-red-400 leading-relaxed px-1">{enhanceError}</p>
             )}
           </div>
         )}
@@ -139,7 +139,7 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
         <div className="grid grid-cols-2 gap-3">
           {/* Due Date Picker */}
           <div>
-            <label className="text-[10px] font-bold uppercase text-muted tracking-wider mb-1.5 block">Due Date</label>
+            <label className="text-xs font-bold uppercase text-muted tracking-wider mb-1.5 block">Due Date</label>
             <div className="relative">
               <input
                 type="datetime-local"
@@ -168,7 +168,7 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
               )}
             </div>
             {(dueDateIsPast || dueDateError) && (
-              <p id="due-date-error" role="alert" className="mt-1 text-[10px] text-red-400 leading-snug">
+              <p id="due-date-error" role="alert" className="mt-1 text-xs text-red-400 leading-snug">
                 {dueDateError || 'Due date can’t be in the past.'}
               </p>
             )}
@@ -176,7 +176,7 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
 
           {/* Priority Dropdown */}
           <div>
-            <label className="text-[10px] font-bold uppercase text-muted tracking-wider mb-1.5 block">Priority</label>
+            <label className="text-xs font-bold uppercase text-muted tracking-wider mb-1.5 block">Priority</label>
             <div className="relative">
               <select
                 value={selectedPriority}
@@ -196,7 +196,7 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
 
         {/* Project Category Dropdown */}
         <div>
-          <label className="text-[10px] font-bold uppercase text-muted tracking-wider mb-1.5 block">Project</label>
+          <label className="text-xs font-bold uppercase text-muted tracking-wider mb-1.5 block">Project</label>
           <div className="relative">
             <select
               value={selectedCategory}
@@ -226,7 +226,7 @@ export const QuickAddScreen: React.FC<GlobalProps> = ({ setScreen, setTasks, set
             </div>
             <div>
               <p className="text-sm font-semibold">Start Timer</p>
-              <p className="text-[10px] text-muted">Begin immediately after creating</p>
+              <p className="text-xs text-muted">Begin immediately after creating</p>
             </div>
           </div>
           <div className={`w-10 h-6 rounded-full relative transition-colors ${startTimerAfter ? 'bg-secondary' : 'bg-surface-light'}`}>

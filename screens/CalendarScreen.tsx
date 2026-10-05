@@ -170,7 +170,7 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
             <button onClick={goToPrevMonth} className="w-7 h-7 rounded-lg bg-surface-light flex items-center justify-center hover:bg-white/10 transition-colors">
               <span className="material-symbols-outlined text-xs">chevron_left</span>
             </button>
-            <button onClick={goToToday} className="px-2.5 h-7 rounded-lg bg-primary/20 text-primary text-[10px] font-bold hover:bg-primary/30 transition-colors">
+            <button onClick={goToToday} className="px-2.5 h-7 rounded-lg bg-primary/20 text-primary text-xs font-bold hover:bg-primary/30 transition-colors">
               Today
             </button>
             <button onClick={goToNextMonth} className="w-7 h-7 rounded-lg bg-surface-light flex items-center justify-center hover:bg-white/10 transition-colors">
@@ -182,7 +182,7 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
         {/* Day names */}
         <div className="grid grid-cols-7 mb-2">
           {dayNames.map((d, idx) => (
-            <div key={`day-${idx}`} className="text-center text-[10px] font-bold text-muted py-1.5">{d}</div>
+            <div key={`day-${idx}`} className="text-center text-xs font-bold text-muted py-1.5">{d}</div>
           ))}
         </div>
 
@@ -206,7 +206,7 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
                     {/* Achievement flag - all tasks completed */}
                     {achievement?.allDone && (
                       <div className="absolute -top-0.5 -right-0.5 z-10">
-                        <span className="text-[10px]">🏆</span>
+                        <span className="text-xs">🏆</span>
                       </div>
                     )}
 
@@ -226,7 +226,7 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
                     {/* Hover tooltip */}
                     {isHovered && dayTaskList.length > 0 && (
                       <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 z-50 w-44 bg-surface-dark border border-white/10 rounded-lg shadow-xl p-2 pointer-events-none animate-fade-in">
-                        <div className="text-[9px] font-bold text-muted uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <div className="text-xs font-bold text-muted uppercase tracking-wider mb-1.5 flex items-center justify-between">
                           <span>{dayTaskList.length} task{dayTaskList.length > 1 ? 's' : ''}</span>
                           {achievement?.allDone && <span className="text-green-400">✓ All done!</span>}
                         </div>
@@ -234,13 +234,13 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
                           {dayTaskList.slice(0, 4).map(task => (
                             <div key={task.id} className="flex items-center gap-1.5">
                               <div className={`w-1 h-1 rounded-full shrink-0 ${PRIORITY_COLORS[getPriorityKey(task.priority)] || 'bg-white/30'}`}></div>
-                              <span className={`text-[10px] truncate ${task.completed ? 'line-through text-muted' : 'text-white/90'}`}>
+                              <span className={`text-xs truncate ${task.completed ? 'line-through text-muted' : 'text-white/90'}`}>
                                 {task.title}
                               </span>
                             </div>
                           ))}
                           {dayTaskList.length > 4 && (
-                            <p className="text-[9px] text-muted">+{dayTaskList.length - 4} more</p>
+                            <p className="text-xs text-muted">+{dayTaskList.length - 4} more</p>
                           )}
                         </div>
                         {/* Tooltip arrow */}
@@ -258,29 +258,29 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
         <div className="flex items-center gap-4 mt-3 mb-5">
           <div className="flex items-center gap-1">
             <div className="w-1.5 h-1.5 rounded-full bg-red-400"></div>
-            <span className="text-[9px] text-muted">High</span>
+            <span className="text-xs text-muted">High</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-1.5 h-1.5 rounded-full bg-orange-400"></div>
-            <span className="text-[9px] text-muted">Medium</span>
+            <span className="text-xs text-muted">Medium</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
-            <span className="text-[9px] text-muted">Low</span>
+            <span className="text-xs text-muted">Low</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
-            <span className="text-[9px] text-muted">Done</span>
+            <span className="text-xs text-muted">Done</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="text-[9px]">🏆</span>
-            <span className="text-[9px] text-muted">All clear</span>
+            <span className="text-xs">🏆</span>
+            <span className="text-xs text-muted">All clear</span>
           </div>
         </div>
 
         {/* Selected day tasks */}
         <div>
-          <h3 className="text-[10px] font-bold text-muted uppercase tracking-wider mb-3">
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3">
             {formatSelectedDate()}
             {dayAchievements[selectedDay]?.allDone && (
               <span className="ml-2 text-green-400 normal-case">🏆 All tasks completed!</span>
@@ -304,16 +304,16 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
                       {task.title}
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
                         getPriorityKey(task.priority) === 'high' ? 'bg-red-400/10 text-red-400' :
                         getPriorityKey(task.priority) === 'medium' ? 'bg-orange-400/10 text-orange-400' :
                         'bg-blue-400/10 text-blue-400'
                       }`}>
                         {task.priority}
                       </span>
-                      <span className="text-[9px] text-muted">{task.category}</span>
+                      <span className="text-xs text-muted">{task.category}</span>
                       {task.subtasks?.length > 0 && (
-                        <span className="text-[9px] text-muted">
+                        <span className="text-xs text-muted">
                           {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length} subtasks
                         </span>
                       )}
@@ -330,7 +330,7 @@ export const CalendarScreen: React.FC<GlobalProps> = ({ setScreen, tasks }) => {
                 <p className="text-xs">No tasks for this day</p>
                 <button
                   onClick={() => setScreen(Screen.QUICK_ADD)}
-                  className="mt-2 text-primary text-[10px] font-bold hover:underline"
+                  className="mt-2 text-primary text-xs font-bold hover:underline"
                 >
                   + Add a task
                 </button>

@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tempo</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" />
+  <!--
+    No remote stylesheet. This window previously pulled Material Symbols from
+    fonts.googleapis.com on every open, which cost a network round-trip, broke
+    offline, and widened the CSP. The two icons are inline SVG instead.
+  -->
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body {
       background: transparent !important;
@@ -26,17 +26,15 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 0;
-      margin: 0;
     }
 
     .container {
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 8px 12px 8px 14px;
+      gap: 12px;
+      padding: 10px 12px 10px 16px;
       background: linear-gradient(135deg, #19142d 0%, #0f0c1e 100%);
-      border-radius: 28px;
+      border-radius: 20px;
       cursor: move;
       -webkit-app-region: drag;
       width: 100%;
@@ -47,13 +45,14 @@
     .timer-section {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 11px;
       flex: 1;
+      min-width: 0;
     }
 
     .pulse-dot {
-      width: 8px;
-      height: 8px;
+      width: 10px;
+      height: 10px;
       background: var(--theme-color, #7F13EC);
       border-radius: 50%;
       box-shadow: 0 0 6px var(--theme-color, #7F13EC);
@@ -70,6 +69,7 @@
     .pulse-dot.break-mode {
       background: #22C55E;
       box-shadow: 0 0 8px #22C55E;
+      animation: pulse-break 1.5s ease-in-out infinite;
     }
 
     @keyframes pulse {
@@ -82,103 +82,88 @@
       50% { opacity: 0.6; box-shadow: 0 0 16px #22C55E; }
     }
 
-    .pulse-dot.break-mode {
-      animation: pulse-break 1.5s ease-in-out infinite;
-    }
+    .readout { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 
-    .pin-btn {
-      width: 22px;
-      height: 22px;
-      border: none;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 50%;
-      color: rgba(255, 255, 255, 0.35);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.15s ease;
-      flex-shrink: 0;
-      -webkit-app-region: no-drag;
-    }
-
-    .pin-btn:hover {
-      background: rgba(255, 255, 255, 0.15);
-      color: rgba(255, 255, 255, 0.8);
-    }
-
-    .pin-btn.pinned {
-      background: rgba(127, 19, 236, 0.35);
-      color: #a855f7;
-    }
-
-    .pin-btn .material-symbols-outlined {
-      font-size: 13px;
-    }
-
+    /* Was 22px in a 220x56 window and hard to read at a glance across the room.
+       The window is now 300x104, so the clock can carry real weight. */
     .timer-display {
-      font-size: 22px;
+      font-size: 38px;
       font-weight: 700;
+      line-height: 1;
       letter-spacing: 0.5px;
       font-variant-numeric: tabular-nums;
       font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
     }
 
-    .timer-display.active {
-      color: white;
+    .timer-display.active { color: #ffffff; }
+    .timer-display.paused { color: rgba(255, 255, 255, 0.4); }
+
+    .mode-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      color: var(--theme-color, #7F13EC);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .timer-display.paused {
-      color: rgba(255, 255, 255, 0.35);
-    }
+    .mode-label.paused { color: rgba(255, 255, 255, 0.35); }
+    .mode-label.break-mode { color: #22C55E; }
 
-    .close-btn {
-      width: 22px;
-      height: 22px;
+    .actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+
+    .icon-btn {
+      width: 26px;
+      height: 26px;
       border: none;
       background: rgba(255, 255, 255, 0.08);
       border-radius: 50%;
-      color: rgba(255, 255, 255, 0.35);
+      color: rgba(255, 255, 255, 0.45);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       transition: all 0.15s ease;
-      flex-shrink: 0;
       -webkit-app-region: no-drag;
+      padding: 0;
     }
 
-    .close-btn:hover {
-      background: rgba(239, 68, 68, 0.2);
-      color: #ef4444;
-    }
+    .icon-btn:hover { background: rgba(255, 255, 255, 0.16); color: rgba(255, 255, 255, 0.9); }
+    .icon-btn svg { width: 14px; height: 14px; display: block; }
+    .icon-btn.pinned { background: rgba(127, 19, 236, 0.35); color: #c084fc; }
+    .close-btn:hover { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
 
-    .close-btn .material-symbols-outlined {
-      font-size: 14px;
-    }
+    .no-timer { opacity: 0.6; }
+    .no-timer .timer-display { font-size: 24px; letter-spacing: 0; }
 
-    .no-timer {
-      opacity: 0.5;
-    }
-
-    .no-timer .timer-display {
-      font-size: 14px;
-      letter-spacing: 0;
-    }
+    /* Inside a Document Picture-in-Picture window the container is the whole
+       surface, so drop the rounded corners and let it fill edge to edge. */
+    body.pip-host .container { border-radius: 0; }
   </style>
 </head>
 <body>
   <div class="container" id="container">
     <div class="timer-section">
       <div class="pulse-dot" id="pulseDot"></div>
-      <div class="timer-display active" id="timer">--:--</div>
+      <div class="readout">
+        <div class="timer-display active" id="timer">--:--</div>
+        <div class="mode-label" id="modeLabel">Ready</div>
+      </div>
     </div>
-    <button class="pin-btn" id="pinBtn" title="Always on top">
-      <span class="material-symbols-outlined">push_pin</span>
-    </button>
-    <button class="close-btn" id="closeBtn" title="Close">
-      <span class="material-symbols-outlined">close</span>
-    </button>
+    <div class="actions">
+      <button class="icon-btn pin-btn" id="pinBtn" title="Keep on top of other windows" aria-label="Keep on top of other windows">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M16 9V4h1a1 1 0 0 0 0-2H7a1 1 0 0 0 0 2h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/>
+        </svg>
+      </button>
+      <button class="icon-btn close-btn" id="closeBtn" title="Close" aria-label="Close mini timer">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </button>
+    </div>
   </div>
   <script src="mini-timer.js"></script>
 </body>

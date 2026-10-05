@@ -9,7 +9,6 @@ export interface AppConfig {
   navigation: NavItemConfig[];
   onboarding: OnboardingStepConfig[];
   categories: CategoryConfig;
-  social: SocialConfig;
   pricing: PricingConfig;
   defaults: DefaultsConfig;
 }
@@ -86,24 +85,6 @@ export interface CategoryConfig {
   colorPalette: string[];
 }
 
-export interface SocialConfig {
-  mockLeaderboard: LeaderboardUserConfig[];
-  mockMilestones: MilestoneConfig[];
-}
-
-export interface MilestoneConfig {
-  id: string;
-  title: string;
-  progress: number;
-  color: string;
-}
-
-export interface LeaderboardUserConfig {
-  name: string;
-  hours: string;
-  img: number;
-  streak: number;
-}
 
 export interface PricingConfig {
   monthly: { price: number; label: string };
@@ -281,26 +262,13 @@ export const defaultAppConfig: AppConfig = {
     ],
   },
 
-  social: {
-    mockLeaderboard: [
-      { name: 'Sarah', hours: '48h', img: 1027, streak: 12 },
-      { name: 'Mike', hours: '32h', img: 1012, streak: 8 },
-      { name: 'Jess', hours: '28h', img: 1011, streak: 5 },
-      { name: 'Alex Chen', hours: '42h', img: 1005, streak: 4 },
-      { name: 'Jordan Lee', hours: '38h', img: 1014, streak: 3 },
-      { name: 'Casey West', hours: '12h', img: 1024, streak: 0 },
-    ],
-    mockMilestones: [
-      { id: 'm1', title: 'Launch MVP Beta', progress: 75, color: 'bg-primary' },
-      { id: 'm2', title: 'Complete User Research', progress: 100, color: 'bg-secondary' },
-      { id: 'm3', title: 'Design System v2', progress: 30, color: 'bg-blue-500' },
-    ],
-  },
-
   pricing: {
     monthly: { price: 1, label: '$1/mo' },
     yearly: { price: 10, label: '$10/yr' },
-    paypalUrl: 'https://paypal.me/sageeramber?locale.x=en_GB&country.x=IN',
+    // Deliberately blank. A personal paypal.me link used to ship inside the
+    // bundle of a free extension, where anyone could read it. Tempo takes no
+    // payments; set this only if a paid tier is ever reinstated.
+    paypalUrl: '',
     testLicenseKeys: ['TEST-KEY-2024', 'TEMPO-TEST-KEY-2024'],
     licensePattern: /^TEMPO-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-(M|Y)$/,
   },
@@ -397,7 +365,9 @@ class ConfigManager {
       timer: { ...base.timer, ...updates.timer },
       audio: { ...base.audio, ...updates.audio },
       categories: { ...base.categories, ...updates.categories },
-      social: { ...base.social, ...updates.social },
+      // NOTE: no `social` key. The invented leaderboard and milestone data that
+      // used to live here was deleted; SocialScreen now ranks the user against
+      // their own stored history, and MilestonesScreen reads real user milestones.
       defaults: {
         ...base.defaults,
         ...updates.defaults,

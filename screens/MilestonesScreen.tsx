@@ -128,7 +128,7 @@ export const MilestonesScreen: React.FC<MilestonesScreenProps> = ({ setScreen, t
                                     <div className="flex justify-between items-start mb-2">
                                         <h3 className="font-bold text-base">{milestone.title}</h3>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-bold text-muted bg-white/5 px-2 py-0.5 rounded">
+                                            <span className="text-xs font-bold text-muted bg-white/5 px-2 py-0.5 rounded">
                                                 {new Date(milestone.dueDate).toLocaleDateString()}
                                             </span>
                                             <button
@@ -152,13 +152,13 @@ export const MilestonesScreen: React.FC<MilestonesScreenProps> = ({ setScreen, t
                                             <>
                                                 <div className="flex -space-x-2">
                                                     {Array.from({ length: Math.min(calc.completed, 3) }).map((_, i) => (
-                                                        <div key={i} className="w-6 h-6 rounded-full bg-green-500/20 border border-background-dark flex items-center justify-center text-[8px] text-green-400">
-                                                            <span className="material-symbols-outlined text-[10px]">check_circle</span>
+                                                        <div key={i} className="w-6 h-6 rounded-full bg-green-500/20 border border-background-dark flex items-center justify-center text-xs text-green-400">
+                                                            <span className="material-symbols-outlined text-xs">check_circle</span>
                                                         </div>
                                                     ))}
                                                     {remaining > 0 && Array.from({ length: Math.min(remaining, 3 - Math.min(calc.completed, 3)) }).map((_, i) => (
-                                                        <div key={`r-${i}`} className="w-6 h-6 rounded-full bg-surface-light border border-background-dark flex items-center justify-center text-[8px] text-muted">
-                                                            <span className="material-symbols-outlined text-[10px]">radio_button_unchecked</span>
+                                                        <div key={`r-${i}`} className="w-6 h-6 rounded-full bg-surface-light border border-background-dark flex items-center justify-center text-xs text-muted">
+                                                            <span className="material-symbols-outlined text-xs">radio_button_unchecked</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -204,7 +204,7 @@ export const MilestonesScreen: React.FC<MilestonesScreenProps> = ({ setScreen, t
                         <div className="p-4 space-y-4">
                             {/* Title */}
                             <div>
-                                <label className="text-[10px] font-bold uppercase text-muted tracking-wider mb-1.5 block">Title</label>
+                                <label className="text-xs font-bold uppercase text-muted tracking-wider mb-1.5 block">Title</label>
                                 <input
                                     type="text"
                                     value={newTitle}
@@ -217,7 +217,7 @@ export const MilestonesScreen: React.FC<MilestonesScreenProps> = ({ setScreen, t
 
                             {/* Due Date */}
                             <div>
-                                <label className="text-[10px] font-bold uppercase text-muted tracking-wider mb-1.5 block">Due Date</label>
+                                <label className="text-xs font-bold uppercase text-muted tracking-wider mb-1.5 block">Due Date</label>
                                 <input
                                     type="date"
                                     value={newDueDate}
@@ -228,7 +228,7 @@ export const MilestonesScreen: React.FC<MilestonesScreenProps> = ({ setScreen, t
 
                             {/* Color */}
                             <div>
-                                <label className="text-[10px] font-bold uppercase text-muted tracking-wider mb-1.5 block">Color</label>
+                                <label className="text-xs font-bold uppercase text-muted tracking-wider mb-1.5 block">Color</label>
                                 <div className="flex gap-2">
                                     {MILESTONE_COLORS.map(c => (
                                         <button

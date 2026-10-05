@@ -136,6 +136,49 @@ export const saveSettings = async (settings: Partial<UserSettings>): Promise<voi
 };
 
 // Stats - Load defaults from config
+export interface StorageUsage {
+  bytes: number;
+  quota: number;
+  percent: number;
+}
+
+/**
+ * Measures how much room the extension actually occupies.
+ *
+ * The Profile screen used to display `totalSessions * 0.1` as kilobytes, which
+ * tracked nothing real: a user with no sessions but 500 tasks read "0.0 KB",
+ * and 200 sessions pinned the bar to 100% regardless of what was stored.
+ */
+export const getStorageUsage = async (): Promise<StorageUsage> => {
+  if (isChromeExtension && chrome.storage.local.getBytesInUse) {
+    const bytes: number = await new Promise((resolve) => {
+      chrome.storage.local.getBytesInUse(null, (used: number) => resolve(used || 0));
+    });
+    const quota: number = chrome.storage.local.QUOTA_BYTES || 10 * 1024 * 1024;
+    return { bytes, quota, percent: Math.min((bytes / quota) * 100, 100) };
+  }
+
+  // Dev fallback: add up our own localStorage keys.
+  let bytes = 0;
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (!key.startsWith('tempo_')) continue;
+      bytes += (key.length + (localStorage.getItem(key) || '').length) * 2;
+    }
+  } catch {
+    // Storage can be unavailable in private windows; report zero rather than throw.
+  }
+  const quota = 5 * 1024 * 1024;
+  return { bytes, quota, percent: Math.min((bytes / quota) * 100, 100) };
+};
+
+/** Formats a byte count for display, e.g. "412 KB" or "1.3 MB". */
+export const formatBytes = (bytes: number): string => {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+};
+
 export const getStats = async (): Promise<UserStats> => {
   const config = configManager.getConfig();
   const defaults: UserStats = {
